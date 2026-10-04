@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export const planSettingSchema = z.enum(['agentmail', 'northwest', 'mercury', 'stripe', 'mastra', 'kernel'])
+
 export const planFieldSchema = z.object({
   key: z.string().min(1).max(80),
   label: z.string().min(1).max(200),
@@ -8,6 +10,7 @@ export const planFieldSchema = z.object({
   confirmed: z.boolean().default(false),
   required: z.boolean().default(true),
   secret: z.boolean().default(false),
+  setting: planSettingSchema.optional(),
 })
 
 export const planQuestionSchema = z.object({

@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless'
 
 // Per-workspace credentials (AgentMail, provider API keys). Values are only
 // ever returned masked; full values stay server-side for outbound API calls.
-export const SETTING_KEYS = ['agentmail', 'northwest', 'mercury'] as const
+export const SETTING_KEYS = ['agentmail', 'northwest', 'mercury', 'stripe', 'mastra', 'kernel'] as const
 export type SettingKey = (typeof SETTING_KEYS)[number]
 
 export type MaskedSetting = { key: SettingKey; set: boolean; hint: string }
@@ -63,6 +63,9 @@ export async function getSecret(workspaceId: string, key: SettingKey): Promise<s
     agentmail: process.env.AGENTMAIL_API_KEY,
     northwest: process.env.NORTHWEST_ACCESS_TOKEN,
     mercury: process.env.MERCURY_API_TOKEN,
+    stripe: process.env.STRIPE_SECRET_KEY,
+    mastra: process.env.MASTRA_MEMORY_GATEWAY_KEY,
+    kernel: process.env.KERNEL_API_KEY,
   }
   try {
     const sql = await ready()

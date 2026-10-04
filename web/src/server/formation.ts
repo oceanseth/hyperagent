@@ -36,7 +36,11 @@ function value(plans: Plan[], key: string, fallback = '') {
 }
 
 function usesNorthwest(plans: Plan[]) {
-  return /northwest/i.test(value(plans, 'formationProvider', 'Northwest'))
+  return /northwest/i.test(value(plans, 'formationProvider', 'Northwest')) && !usesAtlas(plans)
+}
+
+function usesAtlas(plans: Plan[]) {
+  return /atlas|stripe/i.test(value(plans, 'formationProvider', ''))
 }
 
 function requireNorthwest() {
@@ -105,7 +109,10 @@ export async function runFormation(hint: string, context: FormationContext) {
 
   if (hint === 'prepare-packet') {
     if (!usesNorthwest(plans) || !northwestConfigured()) {
-      produced.push(document('articles', `Formation packet — ${companyName}`, `# Formation packet\n\n**Company:** ${companyName}\n**Provider:** ${value(plans, 'formationProvider', 'self-file')}\n**Jurisdiction:** ${value(plans, 'state', 'Wyoming')}\n**Organizer:** ${value(plans, 'organizer') || 'confirmed'}\n**Members:** ${value(plans, 'members') || 'confirmed'}\n**Principal address:** ${value(plans, 'principalAddress') || 'on file'}\n**Registered agent:** ${value(plans, 'registeredAgent') || 'required — Wyoming needs an in-state RA'}\n\nNorthwest is not in this path. File on wyobiz or the RA you chose, then confirm the filing id on Submit to state.\n\nWyoming e-file: https://wyobiz.wyo.gov`))
+      const atlas = usesAtlas(plans)
+      produced.push(document('articles', `Formation packet — ${companyName}`, `# Formation packet\n\n**Company:** ${companyName}\n**Provider:** ${value(plans, 'formationProvider', 'self-file')}\n**Jurisdiction:** ${value(plans, 'state', atlas ? 'Delaware' : 'Wyoming')}\n**Organizer:** ${value(plans, 'organizer') || 'confirmed'}\n**Members:** ${value(plans, 'members') || 'confirmed'}\n**Principal address:** ${value(plans, 'principalAddress') || 'on file'}\n**Registered agent:** ${value(plans, 'registeredAgent') || (atlas ? 'Stripe Atlas RA' : 'required — Wyoming needs an in-state RA')}\n\n${atlas
+        ? 'Stripe Atlas has no public form-an-LLC API. After you confirm this packet, Phab can open https://atlas.stripe.com in a KERNEL browser so you finish the Delaware filing there. Paste the real confirmation on Submit to state.\n\nAtlas: https://atlas.stripe.com'
+        : 'Northwest is not in this path. File on wyobiz or the RA you chose, then confirm the filing id on Submit to state.\n\nWyoming e-file: https://wyobiz.wyo.gov'}`))
       return { produced, fieldUpdates }
     }
     const company = await companyFromPlans(plans)

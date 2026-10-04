@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CanvasJob } from '#/lib/canvas'
-import { receiveCanvasJob, refreshCanvas, selectedContextIds } from '#/lib/canvas-workspace'
+import { receiveCanvasJob, refreshCanvas, requestCanvasFocus, selectedContextIds } from '#/lib/canvas-workspace'
 
 export type VoiceStatus = 'idle' | 'connecting' | 'listening' | 'speaking' | 'error'
 
@@ -164,7 +164,7 @@ export function useVoice() {
           body: JSON.stringify({ messages: session.conversation.slice(-40), contextStackIds: selectedContextIds() }),
           signal: AbortSignal.timeout(75_000),
         })
-        const result = await response.json() as { text?: string; jobs?: CanvasJob[]; error?: string }
+        const result = await response.json() as { text?: string; jobs?: CanvasJob[]; focus?: { id?: string }; error?: string }
         if (!isCurrent()) return
         if (!response.ok || !result.text) {
           const message = result.error ?? 'Phab could not answer. Try again.'
@@ -172,10 +172,9 @@ export function useVoice() {
           await speak(message)
           return
         }
-        if (result.jobs?.length) {
-          result.jobs.forEach(receiveCanvasJob)
-          void refreshCanvas()
-        }
+        if (result.jobs?.length) result.jobs.forEach(receiveCanvasJob)
+        if (result.focus?.id) requestCanvasFocus(result.focus.id)
+        if (result.jobs?.length || result.focus?.id) void refreshCanvas()
         session.conversation.push({ role: 'assistant', text: result.text })
         caption('assistant', result.text)
         await speak(result.text)

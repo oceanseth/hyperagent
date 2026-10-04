@@ -87,12 +87,13 @@ export async function runCanvasSidecar(options: {
   return result
 }
 
-/** Plain-text transcript of the last few chat turns for the sidecar. */
-export function transcript(messages: { role: string; parts: unknown[] }[], turns = 10) {
+/** Plain-text transcript of the last few chat or voice turns for the sidecar. */
+export function transcript(messages: Array<{ role: string; parts?: unknown[]; text?: string }>, turns = 10) {
   return messages.slice(-turns).map((message) => {
-    const text = message.parts
+    const fromParts = (message.parts ?? [])
       .map((part) => (part && typeof part === 'object' && (part as { type?: string }).type === 'text' ? (part as { text?: string }).text ?? '' : ''))
       .join(' ').trim()
+    const text = fromParts || message.text?.trim() || ''
     return text ? `${message.role}: ${text.slice(0, 2000)}` : ''
   }).filter(Boolean).join('\n')
 }

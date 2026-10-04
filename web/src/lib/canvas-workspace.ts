@@ -9,11 +9,12 @@ export type WorkspaceState = CanvasSnapshot & {
   positions: Record<string, Point>
   excludedIds: string[]
   openPlanIds: string[]
+  focus: { id: string; at: number } | null
   error: string | null
   loaded: boolean
   syncedAt: number | null
 }
-const initial: WorkspaceState = { stacks: [], jobs: [], plans: [], notes: [], shared: false, positions: {}, excludedIds: [], openPlanIds: [], error: null, loaded: false, syncedAt: null }
+const initial: WorkspaceState = { stacks: [], jobs: [], plans: [], notes: [], shared: false, positions: {}, excludedIds: [], openPlanIds: [], focus: null, error: null, loaded: false, syncedAt: null }
 export const canvasWorkspace = createStore<WorkspaceState>(() => initial)
 let pending: Promise<void> | undefined
 let subscriptions = 0
@@ -117,6 +118,10 @@ export function subscribeCanvas(listener: () => void) {
     void refreshCanvas().then(scheduleRefresh)
   }
   return () => { unsubscribe(); if (--subscriptions === 0) clearTimeout(timer) }
+}
+
+export function requestCanvasFocus(id: string) {
+  canvasWorkspace.setState({ focus: { id, at: Date.now() } })
 }
 
 export function receiveCanvasJob(job: CanvasJob) {

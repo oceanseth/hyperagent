@@ -6,6 +6,7 @@ import {
   type Plan,
   type PlanNode,
 } from '#/lib/plan'
+import { isSettingKey, putSetting } from './settings-db'
 
 let schemaReady: Promise<void> | undefined
 
@@ -89,7 +90,7 @@ export async function upsertTemplatePlan(workspaceId: string, name: string, gues
   const children = existing.filter((plan) => plan.parentId === prior?.id)
   const current = children.some((plan) => plan.template === 'open-bank')
   if (prior && current) {
-    const overlay = applyGuesses(prior, guesses)
+    const overlay = applyGuesses(ensureAtlasField(prior), guesses)
     if (name.trim()) overlay.name = name.trim().slice(0, 160)
     const written = [await writePlan(workspaceId, overlay)]
     for (const child of children) written.push(await writePlan(workspaceId, applyGuesses(child, guesses)))
@@ -99,6 +100,22 @@ export async function upsertTemplatePlan(workspaceId: string, name: string, gues
   if (prior) await deletePlans(workspaceId, [prior.id, ...children.map((plan) => plan.id)])
   const { plans } = companyFormationPlan(name.trim() || 'Form a company', guesses)
   return savePlans(workspaceId, plans)
+}
+
+function ensureAtlasField(plan: Plan): Plan {
+  if (plan.template !== 'company-formation' || plan.parentId) return plan
+  const identity = plan.states[0]
+  if (!identity || identity.fields.some((field) => field.key === 'stripeAtlasKey')) return plan
+  return {
+    ...plan,
+    states: plan.states.map((node, index) => index !== 0 ? node : {
+      ...node,
+      fields: [...node.fields, {
+        key: 'stripeAtlasKey', label: 'Stripe / Atlas key', required: false, confirmed: false,
+        guessed: false, secret: true, setting: 'stripe' as const,
+      }],
+    }),
+  }
 }
 
 function applyGuesses(plan: Plan, guesses: { key: string; value: string }[]): Plan {
@@ -247,6 +264,15 @@ export async function patchNode(workspaceId: string, planId: string, nodeId: str
         )),
       }
     }),
+  }
+  const edited = next.states.find((node) => node.id === nodeId)?.fields.find((field) => field.key === patch.fieldKey)
+  if (edited?.setting && isSettingKey(edited.setting) && patch.fieldValue && patch.fieldValue !== 'stored') {
+    await putSetting(workspaceId, edited.setting, patch.fieldValue)
+    const masked = next.states.map((node) => node.id !== nodeId ? node : {
+      ...node,
+      fields: node.fields.map((field) => field.key === patch.fieldKey ? { ...field, value: 'stored' } : field),
+    })
+    return writePlan(workspaceId, { ...next, states: masked })
   }
   return writePlan(workspaceId, next)
 }
