@@ -13,7 +13,11 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'hyperagent — a little space for everything',
+        title: 'hyperagent',
+      },
+      {
+        name: 'description',
+        content: 'A little space for everything.',
       },
       {
         name: 'theme-color',
