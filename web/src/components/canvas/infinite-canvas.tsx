@@ -1,9 +1,10 @@
-import { useRef, useState, type ReactNode } from 'react'
-import { Crosshair, Grid2X2, Minus, PanelLeft, Plus, Search, StickyNote, X } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Crosshair, Grid2X2, Minus, PanelLeft, Plus, Search, StickyNote, X, LoaderCircle, CircleAlert } from 'lucide-react'
 import { ArtifactCard } from '#/components/assistant-ui/elements/artifact-card'
 import { field, paper } from '#/components/assistant-ui/elements/surfaces'
-import { useInfiniteCanvas } from '#/hooks/use-infinite-canvas'
+import { useCanvasNote, useInfiniteCanvas } from '#/hooks/use-infinite-canvas'
 import { cn } from '#/lib/utils'
+import { ResearchCard } from './research-cards'
 import './canvas.css'
 
 export function InfiniteCanvas({ children }: { children: ReactNode }) {
@@ -24,6 +25,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
           </a>
           <span className="phab-toolbar-divider" />
           <button className="phab-icon-button" {...canvas.spaceButtonProps}><PanelLeft size={17} strokeWidth={1.5} /></button>
+          {canvas.workspace.contextCount > 0 && <span className="phab-context-badge">{canvas.workspace.contextCount} in context</span>}
         </div>
         <div className="phab-canvas-toolbar-right">
           <button className="phab-icon-button" {...canvas.overviewButtonProps}><Grid2X2 size={17} strokeWidth={1.5} /></button>
@@ -34,6 +36,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
       </header>
 
       <div className="phab-canvas-world" style={canvas.worldStyle}>
+        <svg className="phab-canvas-connections" aria-hidden="true">{canvas.workspace.connections.map((connection) => <path key={connection.id} d={connection.path} />)}</svg>
         {canvas.items.map((item) => (
           <div className="phab-canvas-object" key={item.id} {...canvas.getItemProps(item)}>
             {item.kind === 'clock' && (
@@ -57,9 +60,20 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
                 removeProps={canvas.getRemoveNoteProps(item)}
               />
             )}
+            {(item.kind === 'source' || item.kind === 'summary') && <ResearchCard item={item} />}
           </div>
         ))}
       </div>
+
+      {canvas.workspace.error && <div className="phab-sync-status" role="status">{canvas.workspace.error}</div>}
+      <aside className="phab-research-activity" data-canvas-overlay aria-label="Research jobs" aria-live="polite">
+        {canvas.workspace.visibleJobs.map((job) => (
+          <div className="phab-research-job" key={job.id} data-status={job.status}>
+            <div className="phab-research-job-title">{job.status === 'failed' ? <CircleAlert size={13} /> : <LoaderCircle className="canvas-chat-spinner" size={13} />}{job.title}</div>
+            <p>{job.progress}</p>
+          </div>
+        ))}
+      </aside>
 
       {canvas.panel === 'space' && (
         <aside className="phab-canvas-panel phab-space-panel" data-canvas-overlay>
@@ -104,11 +118,6 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
   )
 }
 
-function noteWords(text: string) {
-  const trimmed = text.trim()
-  return trimmed ? trimmed.split(/\s+/).length : 0
-}
-
 function CanvasNote({
   label,
   text,
@@ -120,30 +129,20 @@ function CanvasNote({
   noteProps: ReturnType<ReturnType<typeof useInfiniteCanvas>['getNoteProps']>
   removeProps: ReturnType<ReturnType<typeof useInfiniteCanvas>['getRemoveNoteProps']>
 }) {
-  const [writing, setWriting] = useState(false)
-  const fieldRef = useRef<HTMLTextAreaElement>(null)
-  const words = noteWords(text)
+  const note = useCanvasNote(label, text)
 
   return (
     <div className="relative w-[280px]">
-      <ArtifactCard
-        title={label}
-        meta={words === 0 ? 'Empty note' : `${words} ${words === 1 ? 'word' : 'words'}`}
-        generating={writing}
-        words={words}
-        onClick={() => fieldRef.current?.focus()}
-      />
+      <ArtifactCard {...note.artifactProps} />
       <textarea
-        ref={fieldRef}
         className={cn(
           paper,
           field,
           'mt-2 w-full resize-none rounded-[20px] px-3.5 py-3 text-[13.5px] leading-relaxed text-foreground outline-none',
-          writing ? 'min-h-28 cursor-text touch-auto' : 'sr-only',
+          note.writing ? 'min-h-28 cursor-text touch-auto' : 'sr-only',
         )}
         {...noteProps}
-        onFocus={() => setWriting(true)}
-        onBlur={() => setWriting(false)}
+        {...note.fieldProps}
       />
       <button
         type="button"

@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiCanvasRouteImport } from './routes/api/canvas'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiResearchRouteImport } from './routes/api/research'
 import { Route as ApiVoiceRouteImport } from './routes/api/voice'
 
 const IndexRoute = IndexRouteImport.update({
@@ -18,9 +20,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCanvasRoute = ApiCanvasRouteImport.update({
+  id: '/api/canvas',
+  path: '/api/canvas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiResearchRoute = ApiResearchRouteImport.update({
+  id: '/api/research',
+  path: '/api/research',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiVoiceRoute = ApiVoiceRouteImport.update({
@@ -31,31 +43,45 @@ const ApiVoiceRoute = ApiVoiceRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/research': typeof ApiResearchRoute
   '/api/voice': typeof ApiVoiceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/research': typeof ApiResearchRoute
   '/api/voice': typeof ApiVoiceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/research': typeof ApiResearchRoute
   '/api/voice': typeof ApiVoiceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/chat' | '/api/voice'
+  fullPaths: '/' | '/api/canvas' | '/api/chat' | '/api/research' | '/api/voice'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/chat' | '/api/voice'
-  id: '__root__' | '/' | '/api/chat' | '/api/voice'
+  to: '/' | '/api/canvas' | '/api/chat' | '/api/research' | '/api/voice'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/canvas'
+    | '/api/chat'
+    | '/api/research'
+    | '/api/voice'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiCanvasRoute: typeof ApiCanvasRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiResearchRoute: typeof ApiResearchRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
 }
 
@@ -68,11 +94,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/canvas': {
+      id: '/api/canvas'
+      path: '/api/canvas'
+      fullPath: '/api/canvas'
+      preLoaderRoute: typeof ApiCanvasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/research': {
+      id: '/api/research'
+      path: '/api/research'
+      fullPath: '/api/research'
+      preLoaderRoute: typeof ApiResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/voice': {
@@ -87,7 +127,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiCanvasRoute: ApiCanvasRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiResearchRoute: ApiResearchRoute,
   ApiVoiceRoute: ApiVoiceRoute,
 }
 export const routeTree = rootRouteImport

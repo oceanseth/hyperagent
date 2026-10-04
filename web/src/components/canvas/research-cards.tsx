@@ -1,0 +1,44 @@
+import { TextMessagePartProvider } from '@assistant-ui/react'
+import type { ComponentProps } from 'react'
+import { ArrowUpRight, FileText, Layers, Link2, Check } from 'lucide-react'
+import { Image } from '#/components/assistant-ui/elements/image'
+import { MarkdownText } from '#/components/assistant-ui/elements/markdown-text'
+import { useResearchCard } from '#/hooks/use-canvas-workspace'
+import type { CanvasArtifact } from '#/lib/canvas-workspace'
+import './research-cards.css'
+
+const markdownComponents = {
+  a: (props: ComponentProps<'a'>) => <a className="aui-md-a underline underline-offset-2" {...props} target="_blank" rel="noopener noreferrer" />,
+}
+
+export function ResearchCard({ item }: { item: CanvasArtifact }) {
+  const card = useResearchCard(item)
+  return item.kind === 'summary' ? (
+    <article className="phab-research-summary" data-in-context={card.included}>
+      <header className="phab-research-heading"><span><Layers size={14} /> CONTEXT STACK</span><span>{card.sourceCountLabel}</span></header>
+      <h2>{item.label}</h2>
+      <div className="phab-research-markdown" {...card.summaryProps}>
+        <TextMessagePartProvider text={item.text}><MarkdownText components={markdownComponents} /></TextMessagePartProvider>
+      </div>
+      <footer className="phab-research-footer">
+        <span><Link2 size={12} /> Connected to your sources</span>
+        <button {...card.contextProps}>{card.included ? <Check size={12} /> : <Layers size={12} />}{card.contextLabel}</button>
+      </footer>
+    </article>
+  ) : (
+    <article className="phab-research-source">
+      <header className="phab-research-heading"><span><FileText size={13} />{card.sourceLabel}</span><span>{card.hostname}</span></header>
+      {card.source?.imageUrl ? (
+        <Image.Root className="phab-research-image" variant="ghost" size="full">
+          <Image.Preview src={card.source.imageUrl} alt={item.label} ratio="4:3" fit="cover" loading="lazy" draggable={false} />
+        </Image.Root>
+      ) : card.pdfPreview ? (
+        <div className="phab-research-pdf" {...card.previewProps}><iframe src={card.pdfPreview} title={item.label} loading="lazy" referrerPolicy="no-referrer" /></div>
+      ) : (
+        <div className="phab-research-excerpt"><FileText size={22} /><p>{item.text || 'Open this source to read the original.'}</p></div>
+      )}
+      <div className="phab-research-source-title"><h3>{item.label}</h3><a {...card.openProps}><ArrowUpRight size={17} /></a></div>
+      <div className="phab-research-source-footer"><span>{card.hostname}</span><a {...card.openProps}>{card.openLabel} <ArrowUpRight size={12} /></a></div>
+    </article>
+  )
+}

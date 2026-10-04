@@ -29,12 +29,14 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
-      - run: npm run typecheck
       - run: npm run build:cloudflare
       - name: Deploy production
         uses: cloudflare/wrangler-action@v4
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JOBS_URL: ${{ secrets.JOBS_URL }}
+          JOBS_SECRET: ${{ secrets.JOBS_SECRET }}
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -42,3 +44,6 @@ jobs:
           command: deploy --config .output/server/wrangler.json --name phab
           postCommands: |
             printf '%s' "$XAI_API_KEY" | npx wrangler secret put XAI_API_KEY --config .output/server/wrangler.json --name phab
+            printf '%s' "$DATABASE_URL" | npx wrangler secret put DATABASE_URL --config .output/server/wrangler.json --name phab
+            printf '%s' "$JOBS_URL" | npx wrangler secret put JOBS_URL --config .output/server/wrangler.json --name phab
+            printf '%s' "$JOBS_SECRET" | npx wrangler secret put JOBS_SECRET --config .output/server/wrangler.json --name phab

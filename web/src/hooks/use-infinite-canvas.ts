@@ -1,8 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, KeyboardEvent, PointerEvent } from 'react'
+import { useCanvasWorkspace } from './use-canvas-workspace'
+import { canvasArtifacts, canvasWorkspace, moveCanvasArtifact, saveCanvasLayout, type CanvasArtifact } from '#/lib/canvas-workspace'
 
 type Camera = { x: number; y: number; scale: number }
-type CanvasItem = {
+type LocalCanvasItem = {
   id: string
   kind: 'clock' | 'note'
   label: string
@@ -12,6 +14,7 @@ type CanvasItem = {
   y: number
   text?: string
 }
+type CanvasItem = LocalCanvasItem | CanvasArtifact
 type Drag = {
   pointerId: number
   element: HTMLElement
@@ -25,17 +28,19 @@ type Drag = {
 }
 
 const INITIAL_CAMERA: Camera = { x: 0, y: 0, scale: 1 }
-const INITIAL_ITEMS: CanvasItem[] = [
+const INITIAL_ITEMS: LocalCanvasItem[] = [
   { id: 'clock', kind: 'clock', label: 'Local time', anchorX: 0.355, anchorY: 0.205, x: 0, y: 0 },
 ]
 const clampScale = (scale: number) => Math.min(2, Math.max(0.35, scale))
 const isInteractive = (target: EventTarget | null) =>
-  target instanceof Element && Boolean(target.closest('button, input, textarea, a, [data-canvas-overlay]'))
+  target instanceof Element && Boolean(target.closest('button, input, textarea, a, iframe, [data-canvas-content], [data-canvas-overlay]'))
 
 export function useInfiniteCanvas() {
   const [camera, setCamera] = useState(INITIAL_CAMERA)
   const [viewport, setViewport] = useState({ width: 1440, height: 900 })
-  const [items, setItems] = useState(INITIAL_ITEMS)
+  const [localItems, setItems] = useState(INITIAL_ITEMS)
+  const workspace = useCanvasWorkspace()
+  const items: CanvasItem[] = [...localItems, ...workspace.artifacts]
   const [now, setNow] = useState(() => new Date())
   const [panel, setPanel] = useState<'space' | 'search' | 'overview' | null>(null)
   const [search, setSearch] = useState('')
@@ -55,8 +60,24 @@ export function useInfiniteCanvas() {
     observer.observe(node)
     measure()
     const timer = window.setInterval(() => setNow(new Date()), 1000)
+    const showStack = (stackId: string) => {
+      const cards = canvasArtifacts(canvasWorkspace.getState()).filter((item) => item.stack.id === stackId)
+      if (!cards.length) return
+      const left = Math.min(...cards.map((item) => item.x - (item.kind === 'summary' ? 180 : 130)))
+      const right = Math.max(...cards.map((item) => item.x + (item.kind === 'summary' ? 180 : 130)))
+      const top = Math.min(...cards.map((item) => item.y - 240))
+      const bottom = Math.max(...cards.map((item) => item.y + 240))
+      const scale = Math.max(.35, Math.min(1, (node.clientWidth - 80) / (right - left), (node.clientHeight - 240) / (bottom - top)))
+      setCamera({ scale, x: node.clientWidth / 2 - (left + right) / 2 * scale, y: (node.clientHeight - 90) / 2 - (top + bottom) / 2 * scale })
+    }
+    const unsubscribe = canvasWorkspace.subscribe((state, previous) => {
+      const newest = [...state.stacks].reverse().find((stack) => !previous.stacks.some((entry) => entry.id === stack.id))
+      if (newest) showStack(newest.id)
+    })
+    const lastStack = canvasWorkspace.getState().stacks.at(-1)
+    if (lastStack) showStack(lastStack.id)
     const onWheel = (event: WheelEvent) => {
-      if (event.target instanceof Element && event.target.closest('[data-canvas-overlay]')) return
+      if (event.target instanceof Element && event.target.closest('[data-canvas-overlay], [data-canvas-content], textarea, iframe')) return
       event.preventDefault()
       const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? node.clientHeight : 1
       setCamera((current) => {
@@ -75,6 +96,7 @@ export function useInfiniteCanvas() {
     return () => {
       observer.disconnect()
       window.clearInterval(timer)
+      unsubscribe()
       node.removeEventListener('wheel', onWheel)
       viewportRef.current = null
     }
@@ -92,7 +114,7 @@ export function useInfiniteCanvas() {
   })
   const beginDrag = (event: PointerEvent<HTMLElement>, item?: CanvasItem) => {
     if (event.button !== 0 || (!item && isInteractive(event.target))) return
-    if (item && event.target instanceof Element && event.target.closest('textarea')) return
+    if (item && isInteractive(event.target)) return
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
     drag.current = {
@@ -116,7 +138,9 @@ export function useInfiniteCanvas() {
     const dx = event.clientX - current.startX
     const dy = event.clientY - current.startY
     if (current.itemId) {
-      setItems((previous) => previous.map((item) => item.id === current.itemId
+      const point = { x: current.x + dx / current.scale, y: current.y + dy / current.scale }
+      if (workspace.artifacts.some((item) => item.id === current.itemId)) moveCanvasArtifact(current.itemId, point)
+      else setItems((previous) => previous.map((item) => item.id === current.itemId
         ? { ...item, x: current.x + dx / current.scale, y: current.y + dy / current.scale }
         : item))
     } else {
@@ -128,11 +152,12 @@ export function useInfiniteCanvas() {
     if (!current || event.pointerId !== current.pointerId) return
     if (current.element.hasPointerCapture(event.pointerId)) current.element.releasePointerCapture(event.pointerId)
     const moved = Math.hypot(event.clientX - current.startX, event.clientY - current.startY)
-    if (current.startedOnCard && moved < 4) {
+    if (current.startedOnCard && moved < 4 && event.type !== 'pointercancel') {
       current.element.querySelector('textarea')?.focus()
     }
     drag.current = null
     setIsDragging(false)
+    saveCanvasLayout()
   }
   const centerItem = (item: CanvasItem) => {
     setCamera((current) => ({
@@ -188,7 +213,10 @@ export function useInfiniteCanvas() {
       event.preventDefault()
       event.stopPropagation()
       const step = event.shiftKey ? 20 : 5
-      setItems((previous) => previous.map((entry) => entry.id === item.id
+      if (item.kind === 'source' || item.kind === 'summary') {
+        moveCanvasArtifact(item.id, { x: item.x + delta[0] * step, y: item.y + delta[1] * step })
+        saveCanvasLayout()
+      } else setItems((previous) => previous.map((entry) => entry.id === item.id
         ? { ...entry, x: entry.x + delta[0] * step, y: entry.y + delta[1] * step }
         : entry))
     },
@@ -208,17 +236,25 @@ export function useInfiniteCanvas() {
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => event.stopPropagation(),
     onClick: () => setItems((previous) => previous.filter((entry) => entry.id !== item.id)),
   })
+  const overviewPoints = items.map((item) => ({ x: item.anchorX * viewport.width + item.x, y: item.anchorY * viewport.height + item.y }))
+  const overviewBounds = {
+    left: Math.min(0, ...overviewPoints.map((point) => point.x)),
+    right: Math.max(viewport.width, ...overviewPoints.map((point) => point.x)),
+    top: Math.min(0, ...overviewPoints.map((point) => point.y)),
+    bottom: Math.max(viewport.height, ...overviewPoints.map((point) => point.y)),
+  }
   const getOverviewItemProps = (item: CanvasItem) => ({
     ...getItemButtonProps(item),
     style: {
-      left: `${Math.min(94, Math.max(6, (item.anchorX + item.x / viewport.width) * 100))}%`,
-      top: `${Math.min(90, Math.max(10, (item.anchorY + item.y / viewport.height) * 100))}%`,
+      left: `${6 + (item.anchorX * viewport.width + item.x - overviewBounds.left) / (overviewBounds.right - overviewBounds.left) * 88}%`,
+      top: `${10 + (item.anchorY * viewport.height + item.y - overviewBounds.top) / (overviewBounds.bottom - overviewBounds.top) * 80}%`,
     } as CSSProperties,
   })
   const togglePanel = (next: 'space' | 'search' | 'overview') => setPanel((current) => current === next ? null : next)
   const timeLabel = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return {
+    workspace,
     items,
     filteredItems: items.filter((item) => `${item.label} ${item.text ?? ''}`.toLowerCase().includes(search.toLowerCase())),
     panel,
@@ -259,5 +295,28 @@ export function useInfiniteCanvas() {
     getItemButtonProps,
     getRemoveNoteProps,
     getOverviewItemProps,
+  }
+}
+
+export function useCanvasNote(label: string, text: string) {
+  const [writing, setWriting] = useState(false)
+  const fieldRef = useRef<HTMLTextAreaElement>(null)
+  const trimmed = text.trim()
+  const words = trimmed ? trimmed.split(/\s+/).length : 0
+
+  return {
+    writing,
+    artifactProps: {
+      title: label,
+      meta: words === 0 ? 'Empty note' : `${words} ${words === 1 ? 'word' : 'words'}`,
+      generating: writing,
+      words,
+      onClick: () => fieldRef.current?.focus(),
+    },
+    fieldProps: {
+      ref: fieldRef,
+      onFocus: () => setWriting(true),
+      onBlur: () => setWriting(false),
+    },
   }
 }

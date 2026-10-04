@@ -1,0 +1,15 @@
+import { createFileRoute } from '@tanstack/react-router'
+import { getCanvas } from '#/server/canvas-db'
+import { workspaceSession } from '#/server/workspace'
+
+export const Route = createFileRoute('/api/canvas')({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        const session = workspaceSession(request)
+        try { return Response.json(await getCanvas(session.id), { headers: session.headers }) }
+        catch { return Response.json({ error: 'Could not load saved context. Reconnecting…' }, { status: 503, headers: session.headers }) }
+      },
+    },
+  },
+})

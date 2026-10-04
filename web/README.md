@@ -1,4 +1,39 @@
-Welcome to your new TanStack Start app!
+# Phab
+
+The Cloudflare app runs Assistant UI and the conversational Grok/Mastra agent.
+Research runs separately on a Fly.io worker. Both use the `phab` Neon project.
+
+## Background research and context stacks
+
+The assistant's `queue_research` tool stores a job in Neon and acknowledges it.
+The worker atomically claims queued jobs, discovers Executor MCP tools, searches
+connected sources, and publishes a source stack with a cited Markdown summary.
+Cosmos has a direct search adapter. Public document/PDF URLs and image URLs are
+displayed as source cards; the summary uses Assistant UI's Markdown renderer.
+The source service must allow embedding for an inline PDF preview; the original
+PDF always has an open link. PDF bytes are not copied into Neon.
+
+The canvas observes jobs and results through `/api/canvas`. Closing the page or
+turning off the development computer does not stop the worker. Neon holds the
+queue, context stacks, and job state; a worker restart recovers queued work and
+expired leases. Each browser gets an opaque HttpOnly workspace cookie. There is
+no cross-device account sync yet. Card positions are browser preferences; source
+content and summaries are stored remotely. Toggle **In context** on a summary to
+choose which stacks subsequent prompts use (up to 20).
+
+Server secrets for the app: `XAI_API_KEY`, `DATABASE_URL`, `JOBS_URL`, and
+`JOBS_SECRET`. The worker needs `XAI_API_KEY`, `DATABASE_URL`, `JOBS_SECRET`,
+`EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`, and optionally `COSMOS_TOKEN`.
+Keep values in ignored `.env.local` during development and the hosting secret
+stores in production. Never send integration keys to the browser.
+
+Deploy the research worker from `web/` with `fly deploy --remote-only --ha=false`.
+Its `fly.toml` keeps one machine running to process the queue. GitHub Actions
+uses an app-scoped `FLY_API_TOKEN` for subsequent worker deployments. The frontend
+retains its Cloudflare deployment at https://phab.oxwilde.workers.dev/.
+
+This repository deliberately runs no tests or typechecking gates in hackathon
+mode. Production builds are part of deployment.
 
 ## Cloudflare deployments
 
@@ -10,7 +45,7 @@ Repository secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and
 `XAI_API_KEY`. The xAI key is installed as a Worker secret during deployment;
 keep all secret values out of committed files.
 
-From `web/`, run `npm ci`, `npm run typecheck`, and `npm run build:cloudflare`.
+From `web/`, run `npm ci` and `npm run build:cloudflare`.
 Nitro generates `.output/server/wrangler.json` with the server and static assets.
 Preview it with `npx wrangler dev --config .output/server/wrangler.json`.
 For a manual deployment, run `npm run deploy -- --name phab-dev` (development)

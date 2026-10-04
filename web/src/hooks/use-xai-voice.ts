@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { CanvasJob } from '#/lib/canvas'
+import { receiveCanvasJob, refreshCanvas, selectedContextIds } from '#/lib/canvas-workspace'
 import { voicePcmWorklet } from '#/lib/voice-pcm-worklet'
 
 export type VoiceStatus = 'idle' | 'connecting' | 'listening' | 'speaking' | 'error'
@@ -7,7 +9,71 @@ export type VoiceCaption = { role: 'user' | 'assistant'; text: string }
 
 const SAMPLE_RATE = 24_000
 const INSTRUCTIONS = `You are Phab, a personal agent talking with the user on a live voice call.
-Keep replies short and conversational, like a phone call. Ask a follow-up when it helps.`
+Keep replies short and conversational, like a phone call. Ask a follow-up when it helps.
+When the user asks you to research, find sources, documents or images, or create research cards,
+call queue_research with a short title and a self-contained task including the user's requirements.
+The worker automatically receives the user's selected canvas context. Queue an actionable request
+without asking for confirmation. Once the tool confirms it is queued, briefly say the research is
+queued and cards will appear on the canvas. Keep talking with the user while the worker runs.
+Never claim research has started, finished, or produced cards without a tool result confirming it.
+If the tool reports an error, explain it honestly; do not pretend the request succeeded or retry
+automatically when its outcome is unknown.`
+
+const RESEARCH_TOOL = {
+  type: 'function',
+  name: 'queue_research',
+  description: 'Queue independent research, source/document/image searches, or new research cards on the canvas. Returns a job ID immediately while research continues in the background.',
+  parameters: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', minLength: 1, maxLength: 120, description: 'Short title for the research job.' },
+      task: { type: 'string', minLength: 1, maxLength: 10000, description: 'Complete research request, including relevant details from this conversation.' },
+    },
+    required: ['title', 'task'],
+    additionalProperties: false,
+  },
+}
+
+type VoiceEvent = {
+  type?: string
+  delta?: string
+  transcript?: string
+  call_id?: string
+  name?: string
+  arguments?: string
+  error?: { message?: string }
+}
+
+async function queueVoiceResearch(event: VoiceEvent) {
+  if (event.name !== 'queue_research') return { status: 'failed', error: 'This voice tool is not available.' }
+  let args: { title?: unknown; task?: unknown }
+  try {
+    args = JSON.parse(event.arguments ?? '')
+    if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Invalid arguments')
+  } catch {
+    return { status: 'failed', error: 'The research request was invalid and was not queued.' }
+  }
+  try {
+    // Finishing this request does not depend on the call remaining connected.
+    const response = await fetch('/api/research', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: args.title, task: args.task, contextStackIds: selectedContextIds() }),
+      signal: AbortSignal.timeout(25_000),
+    })
+    const result = await response.json() as { job?: CanvasJob; error?: string }
+    if (!response.ok || !result.job) {
+      const status = response.status >= 500 || response.ok ? 'unknown' : 'failed'
+      if (status === 'unknown') void refreshCanvas()
+      return { status, error: result.error ?? 'Could not confirm the research request. Check the canvas before retrying.' }
+    }
+    receiveCanvasJob(result.job)
+    return { status: 'queued', jobId: result.job.id, title: result.job.title, message: 'Saved to the background research queue. Cards will appear on the canvas. Keep talking with the user.' }
+  } catch {
+    void refreshCanvas()
+    return { status: 'unknown', error: 'Could not confirm whether research was queued. Check the canvas before retrying; do not submit a duplicate request.' }
+  }
+}
 
 type CallSession = {
   abort: AbortController
@@ -177,7 +243,11 @@ export function useXaiVoice() {
 
       clearTimeout(session.timer)
       session.timer = setTimeout(() => fail('Could not connect the call. Please try again.'), 25_000)
-      const response = await fetch('/api/voice', { method: 'POST', signal: session.abort.signal })
+      // Establish the workspace cookie before a voice tool can enqueue work.
+      const [response] = await Promise.all([
+        fetch('/api/voice', { method: 'POST', signal: session.abort.signal }),
+        refreshCanvas(),
+      ])
       const credentials = await response.json() as { token?: string; error?: string }
       if (!isCurrent()) return
       if (!response.ok || !credentials.token) throw new Error(credentials.error ?? 'Could not create a voice session.')
@@ -186,6 +256,34 @@ export function useXaiVoice() {
         ? credentials.token : `xai-client-secret.${credentials.token}`
       const socket = new WebSocket('wss://api.x.ai/v1/realtime?model=grok-voice-latest', [protocol])
       session.socket = socket
+      const handledCalls = new Set<string>()
+      let pendingTools = 0
+      let responseActive = false
+      let toolResponseNeeded = false
+
+      const continueAfterTools = () => {
+        if (!isCurrent() || socket.readyState !== WebSocket.OPEN || responseActive || pendingTools || !toolResponseNeeded) return
+        toolResponseNeeded = false
+        responseActive = true
+        socket.send(JSON.stringify({ type: 'response.create' }))
+      }
+
+      const handleToolCall = async (event: VoiceEvent) => {
+        if (!event.call_id || handledCalls.has(event.call_id)) return
+        handledCalls.add(event.call_id)
+        pendingTools++
+        responseActive = true
+        const output = await queueVoiceResearch(event)
+        pendingTools--
+        if (!isCurrent() || socket.readyState !== WebSocket.OPEN) return
+        socket.send(JSON.stringify({
+          type: 'conversation.item.create',
+          item: { type: 'function_call_output', call_id: event.call_id, output: JSON.stringify(output) },
+        }))
+        toolResponseNeeded = true
+        // Parallel function calls must all resolve before the model continues.
+        continueAfterTools()
+      }
 
       const play = (base64: string) => {
         const samples = decodePcm(base64)
@@ -231,6 +329,7 @@ export function useXaiVoice() {
           session: {
             voice: 'eve',
             instructions: INSTRUCTIONS,
+            tools: [RESEARCH_TOOL],
             turn_detection: { type: 'server_vad', silence_duration_ms: 500, prefix_padding_ms: 300 },
             audio: {
               input: { format: { type: 'audio/pcm', rate: SAMPLE_RATE } },
@@ -243,7 +342,7 @@ export function useXaiVoice() {
       socket.onclose = () => fail('The call dropped. Press call to reconnect.')
       socket.onmessage = ({ data }) => {
         if (!isCurrent() || typeof data !== 'string') return
-        let event: { type?: string; delta?: string; transcript?: string; error?: { message?: string } }
+        let event: VoiceEvent
         try {
           event = JSON.parse(data)
         } catch {
@@ -264,6 +363,12 @@ export function useXaiVoice() {
             // Grok answers the phone.
             socket.send(JSON.stringify({ type: 'response.create' }))
             return
+          case 'response.created':
+            responseActive = true
+            return
+          case 'response.function_call_arguments.done':
+            void handleToolCall(event)
+            return
           case 'input_audio_buffer.speech_started':
             // Barge-in: the caller talking over Grok cuts its audio off.
             silence(session)
@@ -278,11 +383,13 @@ export function useXaiVoice() {
             if (event.delta) caption('assistant', event.delta)
             return
           case 'response.done':
+            responseActive = false
             // Seal the assistant line so the next reply starts a new caption.
             setCaptions((lines) => {
               const last = lines.at(-1)
               return last?.role === 'assistant' ? [...lines.slice(0, -1), { ...last, text: last.text + '\n' }] : lines
             })
+            continueAfterTools()
             return
           case 'conversation.item.input_audio_transcription.completed': {
             const transcript = event.transcript?.trim()
