@@ -34,9 +34,11 @@ Fly also receives structured JSON logs keyed by job and worker ID, while
 Cloudflare invocation logging is enabled for the app. Nothing in monitoring
 depends on a local log tail remaining open.
 
-Server secrets for the app: `XAI_API_KEY`, `DATABASE_URL`, `JOBS_URL`, and
-`JOBS_SECRET`. The worker needs `XAI_API_KEY`, `DATABASE_URL`, `JOBS_SECRET`,
-`EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`, and optionally `COSMOS_TOKEN`.
+Server secrets for the app: `XAI_API_KEY`, `DATABASE_URL`, `JOBS_URL`,
+`JOBS_SECRET`, and for live company formation `NORTHWEST_ACCESS_TOKEN`
+(optional `NORTHWEST_MCP_URL`, `MERCURY_API_TOKEN`). The worker needs
+`XAI_API_KEY`, `DATABASE_URL`, `JOBS_SECRET`, `EXECUTOR_MCP_URL`,
+`EXECUTOR_API_KEY`, and optionally `COSMOS_TOKEN`.
 Keep values in ignored `.env.local` during development and the hosting secret
 stores in production. Never send integration keys to the browser.
 

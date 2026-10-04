@@ -1,20 +1,22 @@
 import { useState, useSyncExternalStore } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { MouseEvent, PointerEvent, WheelEvent } from 'react'
-import { canvasArtifacts, canvasWorkspace, contextIds, selectedContextIds, subscribeCanvas, toggleContextStack, type CanvasArtifact } from '#/lib/canvas-workspace'
+import { canvasArtifacts, canvasWorkspace, contextIds, planArtifacts, planConnections, selectedContextIds, subscribeCanvas, toggleContextStack, type CanvasArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
 
 export function useCanvasWorkspace() {
   const state = useSyncExternalStore(subscribeCanvas, canvasWorkspace.getState, canvasWorkspace.getInitialState)
   const artifacts = canvasArtifacts(state)
-  const connections = artifacts.filter((item) => item.kind === 'source').map((item) => {
+  const plans = planArtifacts(state)
+  const researchConnections = artifacts.filter((item) => item.kind === 'source').map((item) => {
     const summary = artifacts.find((entry) => entry.id === item.stack.id)!
     const x1 = item.x + 130
     const x2 = summary.x - 180
     const bend = Math.max(50, (x2 - x1) * 0.45)
-    return { id: item.id, path: `M${x1},${item.y} C${x1 + bend},${item.y} ${x2 - bend},${summary.y} ${x2},${summary.y}` }
+    return { id: item.id, kind: 'research' as const, path: `M${x1},${item.y} C${x1 + bend},${item.y} ${x2 - bend},${summary.y} ${x2},${summary.y}` }
   })
   return {
-    ...state, artifacts, connections,
+    ...state, artifacts, plans,
+    connections: [...researchConnections, ...planConnections(plans)],
     contextCount: contextIds(state).length,
     activeJobs: state.jobs.filter((job) => job.status === 'queued' || job.status === 'running'),
     visibleJobs: state.jobs.filter((job) => job.status === 'queued' || job.status === 'running').concat(state.jobs.filter((job) => job.status === 'failed')).slice(0, 4),

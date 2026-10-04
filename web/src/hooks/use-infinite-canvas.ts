@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, KeyboardEvent, PointerEvent } from 'react'
 import { useCanvasWorkspace } from './use-canvas-workspace'
-import { canvasArtifacts, canvasWorkspace, moveCanvasArtifact, saveCanvasLayout, type CanvasArtifact } from '#/lib/canvas-workspace'
+import { canvasArtifacts, canvasWorkspace, moveCanvasArtifact, planArtifacts, saveCanvasLayout, type CanvasArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
 
 type Camera = { x: number; y: number; scale: number }
 type LocalCanvasItem = {
@@ -14,7 +14,7 @@ type LocalCanvasItem = {
   y: number
   text?: string
 }
-type CanvasItem = LocalCanvasItem | CanvasArtifact
+type CanvasItem = LocalCanvasItem | CanvasArtifact | PlanArtifact
 type Drag = {
   pointerId: number
   element: HTMLElement
@@ -40,7 +40,7 @@ export function useInfiniteCanvas() {
   const [viewport, setViewport] = useState({ width: 1440, height: 900 })
   const [localItems, setItems] = useState(INITIAL_ITEMS)
   const workspace = useCanvasWorkspace()
-  const items: CanvasItem[] = [...localItems, ...workspace.artifacts]
+  const items: CanvasItem[] = [...localItems, ...workspace.artifacts, ...workspace.plans]
   const [now, setNow] = useState(() => new Date())
   const [panel, setPanel] = useState<'space' | 'search' | 'overview' | null>(null)
   const [search, setSearch] = useState('')
@@ -70,9 +70,21 @@ export function useInfiniteCanvas() {
       const scale = Math.max(.35, Math.min(1, (node.clientWidth - 80) / (right - left), (node.clientHeight - 240) / (bottom - top)))
       setCamera({ scale, x: node.clientWidth / 2 - (left + right) / 2 * scale, y: (node.clientHeight - 90) / 2 - (top + bottom) / 2 * scale })
     }
+    const showPlan = (planId: string) => {
+      const cards = planArtifacts(canvasWorkspace.getState()).filter((item) => item.plan.id === planId)
+      if (!cards.length) return
+      const left = Math.min(...cards.map((item) => item.x - 120))
+      const right = Math.max(...cards.map((item) => item.x + 120))
+      const top = Math.min(...cards.map((item) => item.y - 80))
+      const bottom = Math.max(...cards.map((item) => item.y + 80))
+      const scale = Math.max(.35, Math.min(1, (node.clientWidth - 80) / Math.max(right - left, 400), (node.clientHeight - 240) / Math.max(bottom - top, 240)))
+      setCamera({ scale, x: node.clientWidth / 2 - (left + right) / 2 * scale, y: (node.clientHeight - 90) / 2 - (top + bottom) / 2 * scale })
+    }
     const unsubscribe = canvasWorkspace.subscribe((state, previous) => {
       const newest = [...state.stacks].reverse().find((stack) => !previous.stacks.some((entry) => entry.id === stack.id))
       if (newest) showStack(newest.id)
+      const newestPlan = [...state.plans].reverse().find((plan) => !previous.plans.some((entry) => entry.id === plan.id))
+      if (newestPlan) showPlan(newestPlan.id)
     })
     const lastStack = canvasWorkspace.getState().stacks.at(-1)
     if (lastStack) showStack(lastStack.id)
@@ -139,7 +151,7 @@ export function useInfiniteCanvas() {
     const dy = event.clientY - current.startY
     if (current.itemId) {
       const point = { x: current.x + dx / current.scale, y: current.y + dy / current.scale }
-      if (workspace.artifacts.some((item) => item.id === current.itemId)) moveCanvasArtifact(current.itemId, point)
+      if (workspace.artifacts.some((item) => item.id === current.itemId) || workspace.plans.some((item) => item.id === current.itemId)) moveCanvasArtifact(current.itemId, point)
       else setItems((previous) => previous.map((item) => item.id === current.itemId
         ? { ...item, x: current.x + dx / current.scale, y: current.y + dy / current.scale }
         : item))
@@ -213,10 +225,10 @@ export function useInfiniteCanvas() {
       event.preventDefault()
       event.stopPropagation()
       const step = event.shiftKey ? 20 : 5
-      if (item.kind === 'source' || item.kind === 'summary') {
+      if (item.kind === 'source' || item.kind === 'summary' || item.kind === 'plan-node' || item.kind === 'plan-title') {
         moveCanvasArtifact(item.id, { x: item.x + delta[0] * step, y: item.y + delta[1] * step })
         saveCanvasLayout()
-      } else setItems((previous) => previous.map((entry) => entry.id === item.id
+      } else setItems((previous) => previous.map((entry) => entry.id === item.id)
         ? { ...entry, x: entry.x + delta[0] * step, y: entry.y + delta[1] * step }
         : entry))
     },
@@ -295,6 +307,7 @@ export function useInfiniteCanvas() {
     getItemButtonProps,
     getRemoveNoteProps,
     getOverviewItemProps,
+    selectedPlan: items.find((item) => item.id === selectedId && (item.kind === 'plan-node' || item.kind === 'plan-title')),
   }
 }
 

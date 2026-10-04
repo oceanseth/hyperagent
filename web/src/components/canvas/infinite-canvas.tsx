@@ -6,6 +6,7 @@ import { useCanvasNote, useInfiniteCanvas } from '#/hooks/use-infinite-canvas'
 import { cn } from '#/lib/utils'
 import { ResearchCard } from './research-cards'
 import { MonitorWidget } from './monitor-widget'
+import { PlanCard, PlanInspector } from './plan-graph'
 import './canvas.css'
 
 export function InfiniteCanvas({ children }: { children: ReactNode }) {
@@ -38,7 +39,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
       </header>
 
       <div className="phab-canvas-world" style={canvas.worldStyle}>
-        <svg className="phab-canvas-connections" aria-hidden="true">{canvas.workspace.connections.map((connection) => <path key={connection.id} d={connection.path} />)}</svg>
+        <svg className="phab-canvas-connections" aria-hidden="true">{canvas.workspace.connections.map((connection) => <path key={connection.id} d={connection.path} data-kind={connection.kind} />)}</svg>
         {canvas.items.map((item) => (
           <div className="phab-canvas-object" key={item.id} {...canvas.getItemProps(item)}>
             {item.kind === 'clock' && (
@@ -63,11 +64,13 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
               />
             )}
             {(item.kind === 'source' || item.kind === 'summary') && <ResearchCard item={item} />}
+            {(item.kind === 'plan-title' || item.kind === 'plan-node') && <PlanCard item={item} />}
           </div>
         ))}
       </div>
 
       {canvas.workspace.error && <div className="phab-sync-status" role="status">{canvas.workspace.error}</div>}
+      {canvas.selectedPlan && 'plan' in canvas.selectedPlan && <PlanInspector item={canvas.selectedPlan} />}
       <MonitorWidget />
 
       {canvas.panel === 'space' && (

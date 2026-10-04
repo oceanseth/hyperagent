@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless'
 import type { CanvasJob, CanvasStack, CanvasSnapshot, JobEvent } from '#/lib/canvas'
+import { listPlans } from './plans'
 
 let schemaReady: Promise<void> | undefined
 function database() {
@@ -64,7 +65,7 @@ const publicJob = (row: Record<string, unknown>): CanvasJob => ({
 
 export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
   const sql = await ready()
-  const [stacks, jobs] = await Promise.all([
+  const [stacks, jobs, plans] = await Promise.all([
     sql`SELECT data FROM (SELECT data, created_at FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT 100) latest ORDER BY created_at ASC`,
     sql`SELECT jobs.*, history.events FROM (
       SELECT workspace_id, id, title, status, progress, stack_id, created_at, updated_at,
@@ -76,8 +77,9 @@ export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
         WHERE workspace_id = jobs.workspace_id AND job_id = jobs.id ORDER BY id DESC LIMIT 80
       ) event
     ) history ON true ORDER BY jobs.created_at DESC`,
+    listPlans(workspaceId).catch(() => []),
   ])
-  return { stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob) }
+  return { stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob), plans }
 }
 
 export async function insertJob(workspaceId: string, title: string, task: string, context: CanvasStack[], replaces: string[] = []) {

@@ -37,6 +37,8 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JOBS_URL: ${{ secrets.JOBS_URL }}
           JOBS_SECRET: ${{ secrets.JOBS_SECRET }}
+          NORTHWEST_ACCESS_TOKEN: ${{ secrets.NORTHWEST_ACCESS_TOKEN }}
+          MERCURY_API_TOKEN: ${{ secrets.MERCURY_API_TOKEN }}
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -47,3 +49,5 @@ jobs:
             printf '%s' "$DATABASE_URL" | npx wrangler secret put DATABASE_URL --config .output/server/wrangler.json --name phab-dev
             printf '%s' "$JOBS_URL" | npx wrangler secret put JOBS_URL --config .output/server/wrangler.json --name phab-dev
             printf '%s' "$JOBS_SECRET" | npx wrangler secret put JOBS_SECRET --config .output/server/wrangler.json --name phab-dev
+            if [ -n "$NORTHWEST_ACCESS_TOKEN" ]; then printf '%s' "$NORTHWEST_ACCESS_TOKEN" | npx wrangler secret put NORTHWEST_ACCESS_TOKEN --config .output/server/wrangler.json --name phab-dev; fi
+            if [ -n "$MERCURY_API_TOKEN" ]; then printf '%s' "$MERCURY_API_TOKEN" | npx wrangler secret put MERCURY_API_TOKEN --config .output/server/wrangler.json --name phab-dev; fi

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { Plan } from './plan'
 
 const publicUrl = z.string().url().max(4096).refine((value) => {
   const url = new URL(value)
@@ -53,4 +54,4 @@ export type CanvasJob = {
   events: JobEvent[]
 }
 
-export type CanvasSnapshot = { stacks: CanvasStack[]; jobs: CanvasJob[] }
+export type CanvasSnapshot = { stacks: CanvasStack[]; jobs: CanvasJob[]; plans: Plan[] }

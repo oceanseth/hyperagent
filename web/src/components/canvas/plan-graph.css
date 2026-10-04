@@ -1,0 +1,57 @@
+.phab-plan-title, .phab-plan-node {
+  width: 210px;
+  border: 1px solid #ffffff16;
+  background: #262820;
+  border-radius: 14px;
+  box-shadow: 0 10px 28px #0003;
+  color: #e4e6d8;
+}
+.phab-plan-title { width: 280px; border-top: 2px solid #c6b56a; background: #2a281f; }
+.phab-plan-title header, .phab-plan-node header {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 12px 14px 0; color: #9a9374; font-size: 8px; letter-spacing: 1px; text-transform: uppercase;
+}
+.phab-plan-title header span, .phab-plan-node header span { display: inline-flex; align-items: center; gap: 5px; }
+.phab-plan-title h2, .phab-plan-node h3 { margin: 10px 14px 8px; font-size: 16px; font-weight: 550; letter-spacing: -.3px; line-height: 1.3; }
+.phab-plan-node h3 { font-size: 14px; }
+.phab-plan-title p, .phab-plan-node p { margin: 0 14px 12px; color: #a8a48c; font-size: 11px; line-height: 1.5; }
+.phab-plan-title footer { display: flex; justify-content: space-between; gap: 8px; padding: 0 14px 13px; color: #8d886e; font-size: 10px; }
+.phab-plan-share { color: #d5c48a; }
+.phab-plan-node { width: 196px; }
+.phab-plan-node[data-status='blocked'] { border-color: #d4a36a44; }
+.phab-plan-node[data-status='ready'] { border-color: #b7c98a55; }
+.phab-plan-node[data-status='done'] { border-color: #8fbe8a55; }
+.phab-plan-node header [data-status='blocked'] { color: #e2bf96; }
+.phab-plan-node header [data-status='ready'] { color: #c5d6a4; }
+.phab-plan-node header [data-status='done'] { color: #b9d4b0; }
+.phab-plan-node button {
+  display: flex; align-items: center; gap: 4px; margin: 0 12px 12px; padding: 6px 8px;
+  border: 1px solid #c6b56a33; border-radius: 7px; background: transparent; color: #d8c891; font: inherit; font-size: 10px; cursor: pointer;
+}
+.phab-canvas-connections path[data-kind='plan'] { stroke: #c6b56a; stroke-opacity: .55; }
+.phab-item-dot[data-kind='plan-node'], .phab-mini-map-dot[data-kind='plan-node'] { background: #c6b56a; }
+.phab-item-dot[data-kind='plan-title'], .phab-mini-map-dot[data-kind='plan-title'] { background: #e4d18a; border-radius: 1px; }
+.phab-plan-panel { right: 26px; width: min(380px, calc(100vw - 48px)); max-height: calc(100dvh - 110px); overflow: auto; }
+.phab-plan-editor { display: grid; gap: 12px; margin-top: 16px; }
+.phab-plan-editor label, .phab-plan-card label { display: grid; gap: 6px; color: #b7b39c; font-size: 11px; }
+.phab-plan-editor textarea, .phab-plan-editor input, .phab-plan-card input, .phab-plan-card select {
+  width: 100%; border: 1px solid #ffffff14; border-radius: 8px; background: #1c1c18; color: #eceadf; font: inherit; font-size: 12px; padding: 8px 10px;
+}
+.phab-plan-editor textarea { resize: vertical; min-height: 90px; }
+.phab-plan-field { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #ffffff0c; }
+.phab-plan-field strong { display: block; font-size: 12px; color: #e8e4d2; }
+.phab-plan-field span { color: #9b967e; font-size: 10px; }
+.phab-plan-field button, .phab-plan-secondary, .phab-plan-run, .phab-plan-card button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid #c6b56a40; border-radius: 8px; background: #c6b56a14; color: #eadba3; font: inherit; font-size: 11px; padding: 7px 10px; cursor: pointer;
+}
+.phab-plan-run { width: 100%; background: #c6b56a22; }
+.phab-plan-run:disabled, .phab-plan-field button:disabled { opacity: .45; cursor: default; }
+.phab-plan-error { color: #e2bf96; font-size: 11px; }
+.phab-plan-share-url { color: #d5c48a; font-size: 11px; word-break: break-all; }
+.phab-plan-card { display: grid; gap: 8px; padding: 12px; border: 1px solid #ffffff10; border-radius: 10px; background: #1f1e18; }
+.phab-plan-card p { margin: 0; color: #9b967e; font-size: 11px; line-height: 1.5; }
+.phab-plan-doc { padding: 10px 0; border-top: 1px solid #ffffff0c; }
+.phab-plan-doc strong { display: block; margin-bottom: 6px; font-size: 12px; }
+.phab-plan-doc pre { margin: 0; white-space: pre-wrap; color: #c6c2ad; font-size: 11px; line-height: 1.5; }
+.phab-plan-editor h3 { margin: 8px 0 0; font-size: 11px; letter-spacing: .4px; color: #9a9374; font-weight: 600; }

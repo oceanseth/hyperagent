@@ -69,7 +69,7 @@ export function createExecutorClient(signal?: AbortSignal) {
 
 export function redactResearchSecrets(text: string): string {
   let result = text
-  for (const name of ['EXECUTOR_API_KEY', 'XAI_API_KEY', 'COSMOS_TOKEN', 'DATABASE_URL', 'JOBS_SECRET']) {
+  for (const name of ['EXECUTOR_API_KEY', 'XAI_API_KEY', 'COSMOS_TOKEN', 'DATABASE_URL', 'JOBS_SECRET', 'NORTHWEST_ACCESS_TOKEN', 'MERCURY_API_TOKEN']) {
     const value = process.env[name]?.trim()
     if (!value) continue
     for (const secret of [value, value.replace(/^Bearer\s+/i, '')]) {

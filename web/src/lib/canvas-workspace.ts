@@ -1,15 +1,17 @@
 import { createStore } from 'zustand/vanilla'
 import { canvasStackSchema, type CanvasJob, type CanvasSnapshot, type CanvasStack } from './canvas'
+import { planSchema, rootPlans, type Plan, type PlanNode } from './plan'
 
 type Point = { x: number; y: number }
 export type WorkspaceState = CanvasSnapshot & {
   positions: Record<string, Point>
   excludedIds: string[]
+  openPlanIds: string[]
   error: string | null
   loaded: boolean
   syncedAt: number | null
 }
-const initial: WorkspaceState = { stacks: [], jobs: [], positions: {}, excludedIds: [], error: null, loaded: false, syncedAt: null }
+const initial: WorkspaceState = { stacks: [], jobs: [], plans: [], positions: {}, excludedIds: [], openPlanIds: [], error: null, loaded: false, syncedAt: null }
 export const canvasWorkspace = createStore<WorkspaceState>(() => initial)
 let pending: Promise<void> | undefined
 let subscriptions = 0
@@ -21,13 +23,20 @@ function savePreferences() {
   try { localStorage.setItem('phab-canvas-layout', JSON.stringify({ positions, excludedIds })) } catch { /* storage may be disabled */ }
 }
 
+function publishedSlug() {
+  const match = typeof location === 'undefined' ? null : location.pathname.match(/^\/p\/([a-z0-9]+)$/i)
+  return match?.[1]
+}
+
 export function refreshCanvas() {
   pending ??= (async () => {
     try {
-      const response = await fetch('/api/canvas', { cache: 'no-store', signal: AbortSignal.timeout(20000) })
+      const slug = publishedSlug()
+      const response = await fetch(slug ? `/api/canvas?plan=${encodeURIComponent(slug)}` : '/api/canvas', { cache: 'no-store', signal: AbortSignal.timeout(20000) })
       if (!response.ok) throw new Error('Could not load saved context. Reconnecting…')
       const snapshot = await response.json() as CanvasSnapshot
       const stacks = snapshot.stacks.map((stack) => canvasStackSchema.parse(stack))
+      const plans = (snapshot.plans ?? []).map((plan) => planSchema.parse(plan))
       // A GET already in flight may predate a job announced by the chat stream.
       // Keep that announcement briefly until the hosted snapshot catches up.
       for (const [id, entry] of streamedJobs) {
@@ -37,7 +46,7 @@ export function refreshCanvas() {
         .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
         .slice(0, 30)
       canvasWorkspace.setState({
-        stacks, jobs,
+        stacks, jobs, plans,
         error: null, loaded: true, syncedAt: Date.now(),
       })
     } catch {
@@ -83,6 +92,14 @@ export function moveCanvasArtifact(id: string, point: Point) {
 }
 export const saveCanvasLayout = savePreferences
 
+export function toggleOpenPlan(id: string) {
+  canvasWorkspace.setState((current) => ({
+    openPlanIds: current.openPlanIds.includes(id)
+      ? current.openPlanIds.filter((entry) => entry !== id)
+      : [...current.openPlanIds, id],
+  }))
+}
+
 export function toggleContextStack(id: string) {
   canvasWorkspace.setState((current) => {
     const selected = contextIds(current)
@@ -119,5 +136,69 @@ export function canvasArtifacts(state: WorkspaceState): CanvasArtifact[] {
       anchorX: 0, anchorY: 0,
       ...(state.positions[stack.id] ?? { x: startX + columns * 285 + 155, y: 280 + (rows - 1) * 180 }),
     }]
+  })
+}
+
+export type PlanArtifact = {
+  id: string
+  kind: 'plan-title' | 'plan-node'
+  label: string
+  text: string
+  anchorX: number
+  anchorY: number
+  x: number
+  y: number
+  plan: Plan
+  node?: PlanNode
+}
+
+function layoutPlan(plan: Plan, origin: Point, positions: Record<string, Point>): PlanArtifact[] {
+  const title: PlanArtifact = {
+    id: plan.id, kind: 'plan-title', label: plan.name, text: plan.description, plan,
+    anchorX: 0, anchorY: 0,
+    ...(positions[plan.id] ?? { x: origin.x, y: origin.y }),
+  }
+  const nodes = plan.states.map((node, index) => ({
+    id: node.id, kind: 'plan-node' as const, label: node.name, text: node.context, plan, node,
+    anchorX: 0, anchorY: 0,
+    ...(positions[node.id] ?? { x: origin.x + index * 230, y: origin.y + 150 }),
+  }))
+  return [title, ...nodes]
+}
+
+export function planArtifacts(state: WorkspaceState): PlanArtifact[] {
+  const openPlanIds = state.openPlanIds
+  const roots = rootPlans(state.plans)
+  const byId = new Map(state.plans.map((plan) => [plan.id, plan]))
+  const placed: PlanArtifact[] = []
+  roots.forEach((plan, planIndex) => {
+    placed.push(...layoutPlan(plan, { x: 220 + planIndex * 220, y: -80 }, state.positions))
+    const openChildren = plan.states.filter((node) => node.childPlanId && openPlanIds.includes(node.childPlanId))
+    openChildren.forEach((node, childIndex) => {
+      const child = byId.get(node.childPlanId!)
+      if (!child) return
+      const parent = placed.find((item) => item.id === node.id)
+      placed.push(...layoutPlan(child, {
+        x: (parent?.x ?? 220) - 80,
+        y: (parent?.y ?? 70) + 210 + childIndex * 40,
+      }, state.positions))
+    })
+  })
+  return placed
+}
+
+export function planConnections(items: PlanArtifact[]) {
+  const byId = new Map(items.filter((item) => item.kind === 'plan-node').map((item) => [item.id, item]))
+  return items.flatMap((item) => {
+    if (item.kind !== 'plan-title') return []
+    return item.plan.edges.flatMap((edge) => {
+      const from = byId.get(edge.from)
+      const to = byId.get(edge.to)
+      if (!from || !to) return []
+      const x1 = from.x + 90
+      const x2 = to.x - 90
+      const bend = Math.max(28, (x2 - x1) * 0.4)
+      return [{ id: `${edge.from}-${edge.to}`, kind: 'plan' as const, path: `M${x1},${from.y} C${x1 + bend},${from.y} ${x2 - bend},${to.y} ${x2},${to.y}` }]
+    })
   })
 }
