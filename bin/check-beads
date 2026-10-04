@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Verify the environment and every installed Beads hook without committing/pushing."""
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
+import uuid
+
+root = Path(__file__).resolve().parent.parent
+os.chdir(root)
+assert Path(os.environ.get("BEADS_DIR", "")).resolve() == root / ".beads", "Run bin/with-env bin/check-beads"
+assert Path(shutil.which("bd") or "").resolve() == root / "bin/bd", "Pinned bd is not on PATH"
+assert not (root / "CLAUDE.md").exists(), "AGENTS.md is the shared instructions file"
+if (root / ".env").exists():
+    names = re.findall(r"(?m)^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=", (root / ".env").read_text())
+    assert all(name in os.environ for name in names), ".env variables were not loaded"
+
+def run(args, data=""):
+    p = subprocess.run(args, input=data, text=True, capture_output=True, timeout=45)
+    assert p.returncode == 0, f"{args}: {p.stderr}"
+    return p.stdout
+
+run(["bd", "where"])
+run(["bd", "setup", "codex", "--check"])
+print("PASS environment, pinned binary, store, Codex installation, shared AGENTS.md")
+
+session = str(uuid.uuid4())
+codex = json.loads((root / ".codex/hooks.json").read_text())["hooks"]
+def invoke_codex(event):
+    candidates = [h for group in codex[event] for h in group["hooks"]
+                  if h.get("command", "").startswith("bd codex-hook ")]
+    assert len(candidates) == 1, f"Missing or duplicate Beads handler: {event}"
+    payload = json.dumps({"session_id": session, "cwd": str(root),
+                          "hook_event_name": event, "source": "startup", "trigger": "manual"})
+    out = run(["sh", "-c", candidates[0]["command"]], payload)
+    return json.loads(out) if out.strip() else {}
+
+def context(output):
+    return output.get("hookSpecificOutput", {}).get("additionalContext", "")
+
+assert "Beads Workflow Context" in context(invoke_codex("SessionStart"))
+assert not invoke_codex("PreCompact").get("systemMessage")
+invoke_codex("PostCompact")
+assert "Beads Workflow Context" in context(invoke_codex("UserPromptSubmit"))
+assert not context(invoke_codex("UserPromptSubmit")), "Refresh marker was not consumed"
+print("PASS Codex SessionStart, PreCompact, PostCompact, one-shot UserPromptSubmit refresh")
+
+claude = json.loads((root / ".claude/settings.json").read_text())["hooks"]
+handlers = [h for group in claude["SessionStart"] for h in group["hooks"]
+            if h.get("command") == "bd prime --hook-json"]
+assert len(handlers) == 1, "Missing or duplicate Claude Beads SessionStart handler"
+for source in ["startup", "resume", "compact", "clear"]:
+    payload = json.dumps({"session_id": session, "cwd": str(root),
+                          "hook_event_name": "SessionStart", "source": source})
+    output = json.loads(run(["sh", "-c", handlers[0]["command"]], payload))
+    assert "Beads Workflow Context" in context(output)
+print("PASS Claude SessionStart for startup, resume, compact, clear")
+
+assert run(["git", "config", "--get", "core.hooksPath"]).strip() == ".beads/hooks"
+head = run(["git", "rev-parse", "HEAD"]).strip()
+with tempfile.TemporaryDirectory(prefix="beads-hook-check-") as tmp:
+    msg = Path(tmp) / "COMMIT_EDITMSG"
+    msg.write_text("Beads hook check (no commit made)\n")
+    hooks = {"pre-commit": [], "post-merge": ["0"], "pre-push": [],
+             "post-checkout": [head, head, "0"], "prepare-commit-msg": [str(msg), "message"]}
+    for event, args in hooks.items():
+        assert os.access(root / ".beads/hooks" / event, os.X_OK), event
+        run(["git", "hook", "run", event, "--", *args])
+        print("PASS Git " + event)
+print("All Beads environment and hook checks passed.")

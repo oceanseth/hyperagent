@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+project_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$project_dir"
+export BEADS_DIR="$project_dir/.beads"
+export PATH="$project_dir/bin:$PATH"
+bin/ensure-bd
+if [ ! -e .git ]; then git init; fi
+bin/bd init --init-if-missing --non-interactive --skip-agents --skip-hooks
+bin/bd hooks install --beads
+bin/bd setup codex
+python3 bin/setup-claude-beads
