@@ -48,7 +48,19 @@ export function ResearchCard({ item }: { item: CanvasArtifact }) {
               <a href={card.pdfUrl} target="_blank" rel="noopener noreferrer">New tab <ArrowUpRight size={12} /></a>
               <DialogClose aria-label="Close PDF"><X size={16} /></DialogClose>
             </header>
-            <iframe src={card.pdfUrl} title={item.label} referrerPolicy="no-referrer" />
+            {card.viewerState === 'ready' ? (
+              <iframe src={card.pdfUrl} title={item.label} referrerPolicy="no-referrer" />
+            ) : (
+              <div className="phab-pdf-viewer-note">
+                {card.viewerState === 'checking' ? <p>Fetching your PDF… 📄</p> : (
+                  <>
+                    <span aria-hidden>🙈</span>
+                    <p>Oopsie! {card.hostname} is a little shy and won't let us peek at this PDF in here.</p>
+                    <a href={card.pdfUrl} target="_blank" rel="noopener noreferrer">Visit it in a new tab instead ✨</a>
+                  </>
+                )}
+              </div>
+            )}
           </DialogContent>
         </Dialog></div>
       )}

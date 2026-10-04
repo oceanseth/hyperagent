@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import type { MouseEvent, PointerEvent, WheelEvent } from 'react'
 import { canvasArtifacts, canvasWorkspace, contextIds, selectedContextIds, subscribeCanvas, toggleContextStack, type CanvasArtifact } from '#/lib/canvas-workspace'
 
@@ -23,6 +24,7 @@ export function useCanvasWorkspace() {
 export function useResearchCard(item: CanvasArtifact) {
   const included = useSyncExternalStore(canvasWorkspace.subscribe, () => selectedContextIds().includes(item.stack.id), () => false)
   const [viewerOpen, setViewerOpen] = useState(false)
+  const [embeddable, setEmbeddable] = useState<boolean | undefined>()
   const source = item.source
   const pdfUrl = source?.pdfUrl ?? (source && /\.pdf$/i.test(new URL(source.url).pathname) ? source.url : undefined)
   const url = pdfUrl ?? source?.url
@@ -30,9 +32,13 @@ export function useResearchCard(item: CanvasArtifact) {
   const stopPointer = (event: PointerEvent<HTMLElement>) => event.stopPropagation()
   const pdfPreview = pdfUrl ? new URL(pdfUrl) : undefined
   if (pdfPreview) pdfPreview.hash = 'toolbar=0&navpanes=0&view=FitH'
-  const openViewer = () => setViewerOpen(true)
+  const openViewer = () => {
+    setViewerOpen(true)
+    if (pdfUrl && embeddable === undefined) checkEmbeddable(pdfUrl, setEmbeddable)
+  }
   return {
     included, source, hostname, pdfUrl,
+    viewerState: embeddable === undefined ? 'checking' : embeddable ? 'ready' : 'blocked',
     pdfPreview: pdfPreview?.href,
     openLabel: pdfUrl ? 'Open PDF' : 'View source',
     contextLabel: included ? 'In context' : 'Use as context',
@@ -52,4 +58,11 @@ export function useResearchCard(item: CanvasArtifact) {
       onPointerDown: stopPointer, onClick: () => toggleContextStack(item.stack.id),
     },
   }
+}
+
+function checkEmbeddable(url: string, done: Dispatch<SetStateAction<boolean | undefined>>) {
+  fetch(`/api/embeddable?url=${encodeURIComponent(url)}`)
+    .then((response) => response.json() as Promise<{ embeddable: boolean }>)
+    .then((result) => done(result.embeddable))
+    .catch(() => done(false))
 }

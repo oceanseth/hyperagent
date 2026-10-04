@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiCanvasRouteImport } from './routes/api/canvas'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiEmbeddableRouteImport } from './routes/api/embeddable'
 import { Route as ApiResearchRouteImport } from './routes/api/research'
 import { Route as ApiVoiceRouteImport } from './routes/api/voice'
 
@@ -30,6 +31,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEmbeddableRoute = ApiEmbeddableRouteImport.update({
+  id: '/api/embeddable',
+  path: '/api/embeddable',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiResearchRoute = ApiResearchRouteImport.update({
   id: '/api/research',
   path: '/api/research',
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/research': typeof ApiResearchRoute
   '/api/voice': typeof ApiVoiceRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/research': typeof ApiResearchRoute
   '/api/voice': typeof ApiVoiceRoute
 }
@@ -60,19 +68,33 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/research': typeof ApiResearchRoute
   '/api/voice': typeof ApiVoiceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/canvas' | '/api/chat' | '/api/research' | '/api/voice'
+  fullPaths:
+    | '/'
+    | '/api/canvas'
+    | '/api/chat'
+    | '/api/embeddable'
+    | '/api/research'
+    | '/api/voice'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/canvas' | '/api/chat' | '/api/research' | '/api/voice'
+  to:
+    | '/'
+    | '/api/canvas'
+    | '/api/chat'
+    | '/api/embeddable'
+    | '/api/research'
+    | '/api/voice'
   id:
     | '__root__'
     | '/'
     | '/api/canvas'
     | '/api/chat'
+    | '/api/embeddable'
     | '/api/research'
     | '/api/voice'
   fileRoutesById: FileRoutesById
@@ -81,6 +103,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiCanvasRoute: typeof ApiCanvasRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiEmbeddableRoute: typeof ApiEmbeddableRoute
   ApiResearchRoute: typeof ApiResearchRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
 }
@@ -108,6 +131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/embeddable': {
+      id: '/api/embeddable'
+      path: '/api/embeddable'
+      fullPath: '/api/embeddable'
+      preLoaderRoute: typeof ApiEmbeddableRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/research': {
       id: '/api/research'
       path: '/api/research'
@@ -129,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiCanvasRoute: ApiCanvasRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiEmbeddableRoute: ApiEmbeddableRoute,
   ApiResearchRoute: ApiResearchRoute,
   ApiVoiceRoute: ApiVoiceRoute,
 }
