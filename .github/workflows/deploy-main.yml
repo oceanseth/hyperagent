@@ -54,8 +54,21 @@ jobs:
           SERVICE_ARN=$(aws apprunner list-services --region us-east-1 \
             --query "ServiceSummaryList[?ServiceName=='hyperagent-app'].ServiceArn | [0]" \
             --output text)
-          if [ -n "$SERVICE_ARN" ] && [ "$SERVICE_ARN" != "None" ]; then
-            aws apprunner start-deployment --region us-east-1 --service-arn "$SERVICE_ARN" || true
-          else
+          if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then
             echo "App Runner service hyperagent-app not found; skipping StartDeployment."
+            exit 0
           fi
+          # StartDeployment is rejected while a previous roll is in flight
+          # (service not RUNNING), which would strand this image until the
+          # next push. Wait for RUNNING, then trigger.
+          for i in $(seq 1 60); do
+            STATUS=$(aws apprunner describe-service --region us-east-1 \
+              --service-arn "$SERVICE_ARN" --query Service.Status --output text)
+            if [ "$STATUS" = "RUNNING" ]; then
+              aws apprunner start-deployment --region us-east-1 --service-arn "$SERVICE_ARN" && exit 0
+            fi
+            echo "Service status: $STATUS; retrying StartDeployment in 15s (attempt $i/60)"
+            sleep 15
+          done
+          echo "Timed out waiting for RUNNING; image is pushed and will roll on the next deployment." >&2
+          exit 1

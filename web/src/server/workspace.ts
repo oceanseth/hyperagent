@@ -13,6 +13,16 @@ export function workspaceSession(request: Request) {
   return { id, headers }
 }
 
+// CloudFront rewrites Host to the App Runner origin (AllViewerExceptHostHeader),
+// so the server-side URL origin never matches the browser's Origin header on
+// the public domain. Accept the public origin(s) explicitly.
+const PUBLIC_ORIGINS = new Set(
+  (process.env.PUBLIC_ORIGINS ?? 'https://hyperagent.lol').split(',').map((o) => o.trim()).filter(Boolean),
+)
+
 export function isSameOrigin(request: Request) {
-  return request.headers.get('origin') === new URL(request.url).origin && request.headers.get('sec-fetch-site') !== 'cross-site'
+  if (request.headers.get('sec-fetch-site') === 'cross-site') return false
+  const origin = request.headers.get('origin')
+  if (!origin) return false
+  return origin === new URL(request.url).origin || PUBLIC_ORIGINS.has(origin)
 }
