@@ -94,8 +94,10 @@ export function useInfiniteCanvas() {
       if (newest) showStack(newest.id)
       const newestPlan = [...state.plans].reverse().find((plan) => !previous.plans.some((entry) => entry.id === plan.id))
       if (newestPlan) showPlan(newestPlan.id)
+      // Live browsers are the most active thing on a board: bring the newest
+      // into view, including on first load, since they start above the fold.
       const newestBrowser = [...state.browsers].reverse().find((browser) => !previous.browsers.some((entry) => entry.id === browser.id))
-      if (newestBrowser && previous.loaded) showBrowser(newestBrowser.id)
+      if (newestBrowser) showBrowser(newestBrowser.id)
       if (state.focus && state.focus.at !== previous.focus?.at) showNode(state.focus.id)
     })
     const lastStack = canvasWorkspace.getState().stacks.at(-1)
