@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Agent } from '@mastra/core/agent'
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
-import { getCanvas } from '#/server/canvas-db'
+import { getCanvas, saveChatMessages } from '#/server/canvas-db'
 import { runCanvasSidecar } from '#/server/canvas-sidecar'
 import { isSameOrigin, workspaceSession } from '#/server/workspace'
 import { assistantModel } from '#/mastra/gateway'
@@ -78,6 +78,12 @@ export const Route = createFileRoute('/api/voice')({
           })
           const text = response.text.trim().slice(0, 4000)
           if (!text) return respond({ error: 'Phab had nothing to say. Try again.' }, 502)
+          // Persist this spoken turn to history; failures must not break the call.
+          const lastUser = messages.filter((message) => message.role === 'user').at(-1)
+          void saveChatMessages(session.id, [
+            ...(lastUser ? [{ id: crypto.randomUUID(), role: 'user', modality: 'voice', text: lastUser.text }] : []),
+            { id: crypto.randomUUID(), role: 'assistant', modality: 'voice', text },
+          ]).catch(() => {})
           return respond({ text, jobs })
         } catch {
           return respond({ error: 'The voice turn failed. Please try again.' }, 502)

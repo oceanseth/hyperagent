@@ -5,11 +5,17 @@ import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
 import { mastra } from '#/mastra'
 import type { CanvasSnapshot } from '#/lib/canvas'
-import { getCanvas } from '#/server/canvas-db'
+import { getCanvas, saveChatMessages } from '#/server/canvas-db'
 import { runCanvasSidecar, transcript } from '#/server/canvas-sidecar'
 import { createExecutorClient, discoverExecutorTools } from '#/server/mcp'
 import { planTools } from '#/server/plan-tools'
 import { isSameOrigin, workspaceSession } from '#/server/workspace'
+
+const messageText = (parts: unknown[]) =>
+  parts
+    .map((part) => (part && typeof part === 'object' && (part as { type?: unknown }).type === 'text'
+      ? String((part as { text?: unknown }).text ?? '') : ''))
+    .filter(Boolean).join('\n\n')
 
 const bodySchema = z.object({
   messages: z.array(z.object({ role: z.enum(['user', 'assistant']), id: z.string(), parts: z.array(z.unknown()) }).passthrough()).min(1).max(120),
@@ -34,6 +40,12 @@ export const Route = createFileRoute('/api/chat')({
           const uiMessageStream = createUIMessageStream({
             originalMessages: messages as never,
             onError: () => 'Could not finish this reply. Please try again.',
+            // History persistence must never break the conversation itself.
+            onEnd: ({ messages: finished }) => {
+              void saveChatMessages(session.id, (finished as { id: string; role: string; parts: unknown[] }[])
+                .map((message) => ({ id: message.id, role: message.role, text: messageText(message.parts) })))
+                .catch(() => {})
+            },
             execute: async ({ writer }) => {
               const canvasSidecar = createTool({
                 id: 'canvas_sidecar',

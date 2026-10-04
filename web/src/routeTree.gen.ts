@@ -15,6 +15,7 @@ import { Route as ApiAgentmailRouteImport } from './routes/api/agentmail'
 import { Route as ApiCanvasRouteImport } from './routes/api/canvas'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiEmbeddableRouteImport } from './routes/api/embeddable'
+import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiPlansRouteImport } from './routes/api/plans'
 import { Route as ApiResearchRouteImport } from './routes/api/research'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
@@ -51,6 +52,11 @@ const ApiEmbeddableRoute = ApiEmbeddableRouteImport.update({
   path: '/api/embeddable',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHistoryRoute = ApiHistoryRouteImport.update({
+  id: '/api/history',
+  path: '/api/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPlansRoute = ApiPlansRouteImport.update({
   id: '/api/plans',
   path: '/api/plans',
@@ -84,6 +90,7 @@ export interface FileRoutesByFullPath {
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
+  '/api/history': typeof ApiHistoryRoute
   '/api/plans': typeof ApiPlansRoute
   '/api/research': typeof ApiResearchRoute
   '/api/settings': typeof ApiSettingsRoute
@@ -97,6 +104,7 @@ export interface FileRoutesByTo {
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
+  '/api/history': typeof ApiHistoryRoute
   '/api/plans': typeof ApiPlansRoute
   '/api/research': typeof ApiResearchRoute
   '/api/settings': typeof ApiSettingsRoute
@@ -111,6 +119,7 @@ export interface FileRoutesById {
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
+  '/api/history': typeof ApiHistoryRoute
   '/api/plans': typeof ApiPlansRoute
   '/api/research': typeof ApiResearchRoute
   '/api/settings': typeof ApiSettingsRoute
@@ -126,6 +135,7 @@ export interface FileRouteTypes {
     | '/api/canvas'
     | '/api/chat'
     | '/api/embeddable'
+    | '/api/history'
     | '/api/plans'
     | '/api/research'
     | '/api/settings'
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | '/api/canvas'
     | '/api/chat'
     | '/api/embeddable'
+    | '/api/history'
     | '/api/plans'
     | '/api/research'
     | '/api/settings'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/api/canvas'
     | '/api/chat'
     | '/api/embeddable'
+    | '/api/history'
     | '/api/plans'
     | '/api/research'
     | '/api/settings'
@@ -166,6 +178,7 @@ export interface RootRouteChildren {
   ApiCanvasRoute: typeof ApiCanvasRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiEmbeddableRoute: typeof ApiEmbeddableRoute
+  ApiHistoryRoute: typeof ApiHistoryRoute
   ApiPlansRoute: typeof ApiPlansRoute
   ApiResearchRoute: typeof ApiResearchRoute
   ApiSettingsRoute: typeof ApiSettingsRoute
@@ -217,6 +230,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEmbeddableRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/history': {
+      id: '/api/history'
+      path: '/api/history'
+      fullPath: '/api/history'
+      preLoaderRoute: typeof ApiHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/plans': {
       id: '/api/plans'
       path: '/api/plans'
@@ -262,6 +282,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCanvasRoute: ApiCanvasRoute,
   ApiChatRoute: ApiChatRoute,
   ApiEmbeddableRoute: ApiEmbeddableRoute,
+  ApiHistoryRoute: ApiHistoryRoute,
   ApiPlansRoute: ApiPlansRoute,
   ApiResearchRoute: ApiResearchRoute,
   ApiSettingsRoute: ApiSettingsRoute,

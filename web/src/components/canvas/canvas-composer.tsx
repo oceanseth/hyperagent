@@ -7,6 +7,7 @@ import {
 import {
   ArrowUpIcon,
   AudioLinesIcon,
+  HistoryIcon,
   LoaderCircleIcon,
   MessageCircleIcon,
   PhoneIcon,
@@ -14,6 +15,8 @@ import {
   SquareIcon,
   XIcon,
 } from 'lucide-react'
+import { useState } from 'react'
+import { ChatHistoryPanel } from '#/components/canvas/chat-history'
 import { MarkdownText } from '#/components/assistant-ui/elements/markdown-text'
 import { ToolFallback } from '#/components/assistant-ui/elements/tool-fallback.aui'
 import {
@@ -24,9 +27,11 @@ import './composer.css'
 
 export function CanvasComposer() {
   const composer = useCanvasComposer()
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
   return (
     <ThreadPrimitive.Root className="canvas-chat">
+      {isHistoryOpen && <ChatHistoryPanel onClose={() => setIsHistoryOpen(false)} />}
       {composer.isPanelOpen && (
         <section className="canvas-conversation" {...composer.panelProps}>
           <div className="canvas-conversation-header">
@@ -103,6 +108,17 @@ export function CanvasComposer() {
           {...composer.inputProps}
         />
         <div className="canvas-composer-actions">
+          <button
+            type="button"
+            className="canvas-composer-voice"
+            data-active={isHistoryOpen}
+            onClick={() => setIsHistoryOpen((open) => !open)}
+            aria-label="Chat history"
+            aria-pressed={isHistoryOpen}
+            title="Chat history"
+          >
+            <HistoryIcon aria-hidden="true" size={17} />
+          </button>
           <button
             className="canvas-composer-voice"
             data-active={composer.voice.isActive}

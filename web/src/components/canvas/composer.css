@@ -310,3 +310,22 @@
     transition: none !important;
   }
 }
+
+.canvas-history-time {
+  margin-left: auto;
+  color: #8a8a92;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.canvas-history-text {
+  white-space: pre-wrap;
+}
+
+.canvas-history-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #a9a9b2;
+  font-size: 13px;
+}

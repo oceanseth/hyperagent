@@ -37,6 +37,14 @@ async function ready() {
     )`
     await sql`CREATE INDEX IF NOT EXISTS phab_job_events_workspace_job_id_idx
       ON phab_job_events (workspace_id, job_id, id DESC)`
+    await sql`CREATE TABLE IF NOT EXISTS phab_chat_messages (
+      workspace_id uuid NOT NULL, id text NOT NULL, role text NOT NULL,
+      modality text NOT NULL DEFAULT 'chat', content text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, id)
+    )`
+    await sql`CREATE INDEX IF NOT EXISTS phab_chat_messages_workspace_created_idx
+      ON phab_chat_messages (workspace_id, created_at)`
   })().catch((error) => { schemaReady = undefined; throw error })
   await schemaReady
   return sql
@@ -80,6 +88,41 @@ export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
     listPlans(workspaceId).catch(() => []),
   ])
   return { stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob), plans }
+}
+
+export type ChatHistoryMessage = { id: string; role: 'user' | 'assistant'; modality: 'chat' | 'voice'; text: string; at: string }
+
+/** Upserts conversation turns so re-sent transcripts never duplicate history. */
+export async function saveChatMessages(
+  workspaceId: string,
+  messages: { id: string; role: string; modality?: string; text: string }[],
+) {
+  const rows = messages
+    .filter((message) => (message.role === 'user' || message.role === 'assistant') && message.text.trim())
+    .map((message) => ({
+      id: message.id.slice(0, 120), role: message.role,
+      modality: message.modality === 'voice' ? 'voice' : 'chat',
+      content: message.text.slice(0, 20_000),
+    }))
+  if (!rows.length) return
+  const sql = await ready()
+  await sql`INSERT INTO phab_chat_messages (workspace_id, id, role, modality, content)
+    SELECT ${workspaceId}, m.id, m.role, m.modality, m.content
+    FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS m(id text, role text, modality text, content text)
+    ON CONFLICT (workspace_id, id) DO UPDATE SET content = EXCLUDED.content, updated_at = now()`
+}
+
+export async function listChatHistory(workspaceId: string, limit = 300): Promise<ChatHistoryMessage[]> {
+  const sql = await ready()
+  const rows = await sql`SELECT id, role, modality, content, created_at FROM (
+    SELECT id, role, modality, content, created_at FROM phab_chat_messages
+    WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT ${limit}
+  ) latest ORDER BY created_at ASC`
+  return rows.map((row) => ({
+    id: String(row.id), role: row.role as ChatHistoryMessage['role'],
+    modality: row.modality === 'voice' ? 'voice' : 'chat',
+    text: String(row.content), at: isoTimestamp(row.created_at),
+  }))
 }
 
 export async function insertJob(workspaceId: string, title: string, task: string, context: CanvasStack[], replaces: string[] = []) {
