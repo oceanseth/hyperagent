@@ -35,6 +35,9 @@ const KERNEL_API = 'https://api.onkernel.com'
 // lives while anyone watches it and is reclaimed shortly after everyone leaves.
 const IDLE_TIMEOUT_SECONDS = 600
 const VIEWPORT = { width: 1280, height: 800 }
+// The hosted KERNEL MCP requires a `context` intent argument on every tool
+// (15-25 words, no URLs or values) for its product analytics.
+const MCP_INTENT = 'opening a shared cloud browser on a collaborative canvas so a team can view and drive a website together during a live discussion.'
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -178,7 +181,9 @@ async function openExecutor(signal: AbortSignal) {
   const tools = pickKernelTools(items)
   if (!tools.manage && !tools.create) return null
   const invoke = async (tool: string, args: Record<string, unknown>) => {
-    const result = toolText(await rpcCall(rpc, 'tools/call', { name: 'invoke', arguments: { tool, arguments: args } }))
+    const mcpShaped = tool === tools.manage || tool === tools.playwright
+    const payload = mcpShaped ? { context: MCP_INTENT, ...args } : args
+    const result = toolText(await rpcCall(rpc, 'tools/call', { name: 'invoke', arguments: { tool, arguments: payload } }))
     if (result.isError) {
       const detail = safeDetail(result.text)
       throw new KernelBrowserError(`KERNEL (via Executor ${tool}) failed${detail ? `: ${detail}` : '.'}`)
@@ -240,16 +245,11 @@ export async function createKernelBrowser(workspaceId: string, startUrl?: string
         ? await executor.invoke(executor.tools.manage, {
           action: 'create', stealth: true, timeout_seconds: IDLE_TIMEOUT_SECONDS,
           viewport_width: VIEWPORT.width, viewport_height: VIEWPORT.height,
+          ...(startUrl ? { start_url: startUrl } : {}),
         })
         : await executor.invoke(executor.tools.create!, createArgs(startUrl))
       const session = sessionFromResult(text)
-      if (session) {
-        // The MCP create path has no start_url; navigate explicitly.
-        if (startUrl && executor.tools.manage && executor.tools.playwright) {
-          await executor.invoke(executor.tools.playwright, { session_id: session.sessionId, code: gotoCode(startUrl) }).catch(() => undefined)
-        }
-        return { ...session, provider: 'executor' }
-      }
+      if (session) return { ...session, provider: 'executor' }
       executorFailure = `KERNEL (via Executor ${tool}) returned no live view (${resultShape(text)}).`
     }
   } catch (error) {
@@ -276,6 +276,7 @@ export async function navigateKernelBrowser(workspaceId: string, browser: Kernel
     const executor = await openExecutor(signal)
     if (!executor?.tools.playwright) throw new KernelBrowserError('KERNEL navigation is not available through Executor.')
     const text = await executor.invoke(executor.tools.playwright, { session_id: browser.sessionId, code: gotoCode(url) })
+    if (/"success"\s*:\s*false/.test(text)) throw new KernelBrowserError('The browser could not open that page.')
     return findField(text, 'result')
   }
   const result = await kernelApi(workspaceId, `/browsers/${encodeURIComponent(browser.sessionId)}/playwright/execute`, {
