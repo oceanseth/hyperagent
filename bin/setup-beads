@@ -7,7 +7,8 @@ cd "$project_dir"
 . bin/activate-hermit >/dev/null
 bd init --init-if-missing --non-interactive --skip-agents --skip-hooks
 bd hooks install --beads
-bd setup codex
+# Codex hooks and AGENTS.md are versioned. Stock `bd setup codex` replaces
+# their repo-local commands with bare `bd`, breaking desktop/subdirectory runs.
 python3 bin/setup-claude-beads
 bd dolt pull
 bd ready

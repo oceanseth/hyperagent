@@ -36,6 +36,9 @@ first use. Nothing to install globally; ignore any `bd` from Homebrew.
   `PATH` and sets `BEADS_DIR`.
 - Without activating, prefix commands with `bin/with-env`, which also loads
   `.env`. Launch agents with `bin/with-env codex` or `bin/with-env claude`.
+- Codex hooks resolve the Git root and run its `bin/bd` directly.
+  Keep `.codex/hooks.json` versioned; never run stock `bd setup codex`, which
+  overwrites these commands with bare `bd` and brings back exit 127.
 - Add a tool with `. bin/activate-hermit && hermit install <pkg>`; commit the
   new `bin/` symlinks.
 - Never print or commit `.env` values or credentials in local MCP configuration.
