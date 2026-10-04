@@ -54,4 +54,20 @@ export type CanvasJob = {
   events: JobEvent[]
 }
 
-export type CanvasSnapshot = { stacks: CanvasStack[]; jobs: CanvasJob[]; plans: Plan[] }
+export const canvasNoteSchema = z.object({
+  id: z.string().uuid(),
+  label: z.string().max(200),
+  body: z.string().max(20000),
+  x: z.number(),
+  y: z.number(),
+  promotedPlanId: z.string().uuid().optional(),
+  promotedNodeId: z.string().uuid().optional(),
+})
+export type CanvasNote = z.infer<typeof canvasNoteSchema>
+
+export type CanvasSnapshot = {
+  stacks: CanvasStack[]; jobs: CanvasJob[]; plans: Plan[]
+  notes?: CanvasNote[]
+  positions?: Record<string, { x: number; y: number }>
+  shared?: boolean
+}

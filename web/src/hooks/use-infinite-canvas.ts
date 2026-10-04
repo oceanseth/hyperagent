@@ -1,12 +1,12 @@
 import { useCallback, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, KeyboardEvent, PointerEvent } from 'react'
 import { useCanvasWorkspace } from './use-canvas-workspace'
-import { canvasArtifacts, canvasWorkspace, moveCanvasArtifact, planArtifacts, saveCanvasLayout, type CanvasArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
+import { canvasArtifacts, canvasWorkspace, commitNote, createNote, deleteNote, moveCanvasArtifact, moveNote, planArtifacts, saveCanvasLayout, setCanvasDragging, updateNoteText, type CanvasArtifact, type NoteArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
 
 type Camera = { x: number; y: number; scale: number }
 type LocalCanvasItem = {
   id: string
-  kind: 'clock' | 'note'
+  kind: 'clock'
   label: string
   anchorX: number
   anchorY: number
@@ -14,7 +14,7 @@ type LocalCanvasItem = {
   y: number
   text?: string
 }
-type CanvasItem = LocalCanvasItem | CanvasArtifact | PlanArtifact
+type CanvasItem = LocalCanvasItem | NoteArtifact | CanvasArtifact | PlanArtifact
 type Drag = {
   pointerId: number
   element: HTMLElement
@@ -40,7 +40,7 @@ export function useInfiniteCanvas() {
   const [viewport, setViewport] = useState({ width: 1440, height: 900 })
   const [localItems, setItems] = useState(INITIAL_ITEMS)
   const workspace = useCanvasWorkspace()
-  const items: CanvasItem[] = [...localItems, ...workspace.artifacts, ...workspace.plans]
+  const items: CanvasItem[] = [...localItems, ...workspace.noteItems, ...workspace.artifacts, ...workspace.plans]
   const [now, setNow] = useState(() => new Date())
   const [panel, setPanel] = useState<'space' | 'search' | 'overview' | null>(null)
   const [search, setSearch] = useState('')
@@ -48,7 +48,6 @@ export function useInfiniteCanvas() {
   const [isDragging, setIsDragging] = useState(false)
   const drag = useRef<Drag | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
-  const nextNote = useRef(1)
 
   // The ref owns the lifetime of DOM subscriptions, including the non-passive
   // wheel listener needed to keep trackpad pinch inside this canvas.
@@ -142,6 +141,7 @@ export function useInfiniteCanvas() {
     }
     setSelectedId(item?.id ?? null)
     setIsDragging(true)
+    if (item) setCanvasDragging(true)
     if (!item) setPanel(null)
   }
   const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
@@ -151,7 +151,8 @@ export function useInfiniteCanvas() {
     const dy = event.clientY - current.startY
     if (current.itemId) {
       const point = { x: current.x + dx / current.scale, y: current.y + dy / current.scale }
-      if (workspace.artifacts.some((item) => item.id === current.itemId) || workspace.plans.some((item) => item.id === current.itemId)) moveCanvasArtifact(current.itemId, point)
+      if (workspace.noteItems.some((item) => item.id === current.itemId)) moveNote(current.itemId, point)
+      else if (workspace.artifacts.some((item) => item.id === current.itemId) || workspace.plans.some((item) => item.id === current.itemId)) moveCanvasArtifact(current.itemId, point)
       else setItems((previous) => previous.map((item) => item.id === current.itemId
         ? { ...item, x: current.x + dx / current.scale, y: current.y + dy / current.scale }
         : item))
@@ -167,8 +168,10 @@ export function useInfiniteCanvas() {
     if (current.startedOnCard && moved < 4 && event.type !== 'pointercancel') {
       current.element.querySelector('textarea')?.focus()
     }
+    if (current.itemId && workspace.noteItems.some((item) => item.id === current.itemId)) commitNote(current.itemId)
     drag.current = null
     setIsDragging(false)
+    setCanvasDragging(false)
     saveCanvasLayout()
   }
   const centerItem = (item: CanvasItem) => {
@@ -181,18 +184,10 @@ export function useInfiniteCanvas() {
     setPanel(null)
   }
   const addNote = () => {
-    const number = nextNote.current++
-    const id = `note-${number}`
-    setItems((previous) => [...previous, {
-      id,
-      kind: 'note',
-      label: `Note ${number}`,
-      text: '',
-      anchorX: 0,
-      anchorY: 0,
+    const id = createNote({
       x: (viewport.width * 0.5 - camera.x) / camera.scale,
       y: (viewport.height * 0.38 - camera.y) / camera.scale,
-    }])
+    })
     setSelectedId(id)
     setPanel(null)
   }
@@ -225,7 +220,10 @@ export function useInfiniteCanvas() {
       event.preventDefault()
       event.stopPropagation()
       const step = event.shiftKey ? 20 : 5
-      if (item.kind === 'source' || item.kind === 'summary' || item.kind === 'plan-node' || item.kind === 'plan-title') {
+      if (item.kind === 'note') {
+        moveNote(item.id, { x: item.x + delta[0] * step, y: item.y + delta[1] * step })
+        commitNote(item.id)
+      } else if (item.kind === 'source' || item.kind === 'summary' || item.kind === 'plan-node' || item.kind === 'plan-title') {
         moveCanvasArtifact(item.id, { x: item.x + delta[0] * step, y: item.y + delta[1] * step })
         saveCanvasLayout()
       } else {
@@ -242,15 +240,14 @@ export function useInfiniteCanvas() {
     'aria-label': item.label,
     placeholder: 'An idea worth keeping…',
     onChange: (event: ChangeEvent<HTMLTextAreaElement>) => {
-      const text = event.target.value
-      setItems((previous) => previous.map((entry) => entry.id === item.id ? { ...entry, text } : entry))
+      updateNoteText(item.id, event.target.value)
     },
   })
   const getItemButtonProps = (item: CanvasItem) => ({ onClick: () => centerItem(item), 'aria-label': `Find ${item.label}` })
   const getRemoveNoteProps = (item: CanvasItem) => ({
     'aria-label': `Delete ${item.label}`,
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => event.stopPropagation(),
-    onClick: () => setItems((previous) => previous.filter((entry) => entry.id !== item.id)),
+    onClick: () => deleteNote(item.id),
   })
   const overviewPoints = items.map((item) => ({ x: item.anchorX * viewport.width + item.x, y: item.anchorY * viewport.height + item.y }))
   const overviewBounds = {

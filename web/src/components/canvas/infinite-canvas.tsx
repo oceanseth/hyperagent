@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { Activity, Crosshair, Grid2X2, Minus, PanelLeft, Plus, Search, StickyNote, X } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Activity, Check, Crosshair, Grid2X2, Minus, PanelLeft, Plus, Search, Share2, StickyNote, X } from 'lucide-react'
 import { ArtifactCard } from '#/components/assistant-ui/elements/artifact-card'
 import { field, paper } from '#/components/assistant-ui/elements/surfaces'
 import { useCanvasNote, useInfiniteCanvas } from '#/hooks/use-infinite-canvas'
@@ -31,6 +31,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
           {canvas.workspace.contextCount > 0 && <span className="phab-context-badge">{canvas.workspace.contextCount} in context</span>}
         </div>
         <div className="phab-canvas-toolbar-right">
+          <ShareButton shared={canvas.workspace.shared} />
           <a className="phab-monitor-link" href="/monitor" target="_blank" rel="noopener noreferrer"><Activity size={15} /><span>Activity</span></a>
           <button className="phab-icon-button" {...canvas.overviewButtonProps}><Grid2X2 size={17} strokeWidth={1.5} /></button>
           <button className="phab-icon-button" {...canvas.resetButtonProps}><Crosshair size={19} strokeWidth={1.5} /></button>
@@ -115,6 +116,47 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
       </div>
       <div className="phab-canvas-overlays" data-canvas-overlay>{children}</div>
     </div>
+  )
+}
+
+// Mints (or reuses) this workspace's share link and copies it. Everyone who
+// opens the link lands on the same live board.
+function ShareButton({ shared }: { shared: boolean }) {
+  const [status, setStatus] = useState<'idle' | 'working' | 'copied' | 'error'>('idle')
+
+  const share = async () => {
+    if (status === 'working') return
+    setStatus('working')
+    try {
+      const response = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create' }),
+        signal: AbortSignal.timeout(15_000),
+      })
+      const body = await response.json() as { url?: string; error?: string }
+      if (!response.ok || !body.url) throw new Error(body.error)
+      const url = `${location.origin}${body.url}`
+      await navigator.clipboard?.writeText(url).catch(() => undefined)
+      window.prompt('Anyone with this link joins your live board:', url)
+      setStatus('copied')
+    } catch {
+      setStatus('error')
+    }
+    window.setTimeout(() => setStatus('idle'), 2500)
+  }
+
+  return (
+    <button
+      type="button"
+      className="phab-monitor-link"
+      onClick={() => void share()}
+      aria-label="Share this board"
+      title={shared ? 'This board is shared - copy the invite link' : 'Share this board'}
+    >
+      {status === 'copied' ? <Check size={15} /> : <Share2 size={15} />}
+      <span>{status === 'copied' ? 'Link copied' : status === 'error' ? 'Try again' : shared ? 'Shared' : 'Share'}</span>
+    </button>
   )
 }
 

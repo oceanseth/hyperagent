@@ -16,11 +16,15 @@ import { Route as ApiCanvasRouteImport } from './routes/api/canvas'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiEmbeddableRouteImport } from './routes/api/embeddable'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
+import { Route as ApiLayoutRouteImport } from './routes/api/layout'
+import { Route as ApiNotesRouteImport } from './routes/api/notes'
 import { Route as ApiPlansRouteImport } from './routes/api/plans'
 import { Route as ApiResearchRouteImport } from './routes/api/research'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
+import { Route as ApiShareRouteImport } from './routes/api/share'
 import { Route as ApiVoiceRouteImport } from './routes/api/voice'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
+import { Route as SCodeRouteImport } from './routes/s.$code'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -57,6 +61,16 @@ const ApiHistoryRoute = ApiHistoryRouteImport.update({
   path: '/api/history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLayoutRoute = ApiLayoutRouteImport.update({
+  id: '/api/layout',
+  path: '/api/layout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNotesRoute = ApiNotesRouteImport.update({
+  id: '/api/notes',
+  path: '/api/notes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPlansRoute = ApiPlansRouteImport.update({
   id: '/api/plans',
   path: '/api/plans',
@@ -72,6 +86,11 @@ const ApiSettingsRoute = ApiSettingsRouteImport.update({
   path: '/api/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiShareRoute = ApiShareRouteImport.update({
+  id: '/api/share',
+  path: '/api/share',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVoiceRoute = ApiVoiceRouteImport.update({
   id: '/api/voice',
   path: '/api/voice',
@@ -80,6 +99,11 @@ const ApiVoiceRoute = ApiVoiceRouteImport.update({
 const PSlugRoute = PSlugRouteImport.update({
   id: '/p/$slug',
   path: '/p/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SCodeRoute = SCodeRouteImport.update({
+  id: '/s/$code',
+  path: '/s/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -91,11 +115,15 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/history': typeof ApiHistoryRoute
+  '/api/layout': typeof ApiLayoutRoute
+  '/api/notes': typeof ApiNotesRoute
   '/api/plans': typeof ApiPlansRoute
   '/api/research': typeof ApiResearchRoute
   '/api/settings': typeof ApiSettingsRoute
+  '/api/share': typeof ApiShareRoute
   '/api/voice': typeof ApiVoiceRoute
   '/p/$slug': typeof PSlugRoute
+  '/s/$code': typeof SCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -105,11 +133,15 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/history': typeof ApiHistoryRoute
+  '/api/layout': typeof ApiLayoutRoute
+  '/api/notes': typeof ApiNotesRoute
   '/api/plans': typeof ApiPlansRoute
   '/api/research': typeof ApiResearchRoute
   '/api/settings': typeof ApiSettingsRoute
+  '/api/share': typeof ApiShareRoute
   '/api/voice': typeof ApiVoiceRoute
   '/p/$slug': typeof PSlugRoute
+  '/s/$code': typeof SCodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -120,11 +152,15 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/history': typeof ApiHistoryRoute
+  '/api/layout': typeof ApiLayoutRoute
+  '/api/notes': typeof ApiNotesRoute
   '/api/plans': typeof ApiPlansRoute
   '/api/research': typeof ApiResearchRoute
   '/api/settings': typeof ApiSettingsRoute
+  '/api/share': typeof ApiShareRoute
   '/api/voice': typeof ApiVoiceRoute
   '/p/$slug': typeof PSlugRoute
+  '/s/$code': typeof SCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -136,11 +172,15 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/embeddable'
     | '/api/history'
+    | '/api/layout'
+    | '/api/notes'
     | '/api/plans'
     | '/api/research'
     | '/api/settings'
+    | '/api/share'
     | '/api/voice'
     | '/p/$slug'
+    | '/s/$code'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -150,11 +190,15 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/embeddable'
     | '/api/history'
+    | '/api/layout'
+    | '/api/notes'
     | '/api/plans'
     | '/api/research'
     | '/api/settings'
+    | '/api/share'
     | '/api/voice'
     | '/p/$slug'
+    | '/s/$code'
   id:
     | '__root__'
     | '/'
@@ -164,11 +208,15 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/embeddable'
     | '/api/history'
+    | '/api/layout'
+    | '/api/notes'
     | '/api/plans'
     | '/api/research'
     | '/api/settings'
+    | '/api/share'
     | '/api/voice'
     | '/p/$slug'
+    | '/s/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -179,11 +227,15 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiEmbeddableRoute: typeof ApiEmbeddableRoute
   ApiHistoryRoute: typeof ApiHistoryRoute
+  ApiLayoutRoute: typeof ApiLayoutRoute
+  ApiNotesRoute: typeof ApiNotesRoute
   ApiPlansRoute: typeof ApiPlansRoute
   ApiResearchRoute: typeof ApiResearchRoute
   ApiSettingsRoute: typeof ApiSettingsRoute
+  ApiShareRoute: typeof ApiShareRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
   PSlugRoute: typeof PSlugRoute
+  SCodeRoute: typeof SCodeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -237,6 +289,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/layout': {
+      id: '/api/layout'
+      path: '/api/layout'
+      fullPath: '/api/layout'
+      preLoaderRoute: typeof ApiLayoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/notes': {
+      id: '/api/notes'
+      path: '/api/notes'
+      fullPath: '/api/notes'
+      preLoaderRoute: typeof ApiNotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/plans': {
       id: '/api/plans'
       path: '/api/plans'
@@ -258,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/share': {
+      id: '/api/share'
+      path: '/api/share'
+      fullPath: '/api/share'
+      preLoaderRoute: typeof ApiShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/voice': {
       id: '/api/voice'
       path: '/api/voice'
@@ -272,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/s/$code': {
+      id: '/s/$code'
+      path: '/s/$code'
+      fullPath: '/s/$code'
+      preLoaderRoute: typeof SCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -283,11 +363,15 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiEmbeddableRoute: ApiEmbeddableRoute,
   ApiHistoryRoute: ApiHistoryRoute,
+  ApiLayoutRoute: ApiLayoutRoute,
+  ApiNotesRoute: ApiNotesRoute,
   ApiPlansRoute: ApiPlansRoute,
   ApiResearchRoute: ApiResearchRoute,
   ApiSettingsRoute: ApiSettingsRoute,
+  ApiShareRoute: ApiShareRoute,
   ApiVoiceRoute: ApiVoiceRoute,
   PSlugRoute: PSlugRoute,
+  SCodeRoute: SCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

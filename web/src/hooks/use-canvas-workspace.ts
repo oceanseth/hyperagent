@@ -1,12 +1,13 @@
 import { useState, useSyncExternalStore } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { MouseEvent, PointerEvent, WheelEvent } from 'react'
-import { canvasArtifacts, canvasWorkspace, contextIds, planArtifacts, planConnections, selectedContextIds, subscribeCanvas, toggleContextStack, type CanvasArtifact } from '#/lib/canvas-workspace'
+import { canvasArtifacts, canvasWorkspace, contextIds, noteArtifacts, planArtifacts, planConnections, selectedContextIds, subscribeCanvas, toggleContextStack, type CanvasArtifact } from '#/lib/canvas-workspace'
 
 export function useCanvasWorkspace() {
   const state = useSyncExternalStore(subscribeCanvas, canvasWorkspace.getState, canvasWorkspace.getInitialState)
   const artifacts = canvasArtifacts(state)
   const plans = planArtifacts(state)
+  const noteItems = noteArtifacts(state)
   const researchConnections = artifacts.filter((item) => item.kind === 'source').map((item) => {
     const summary = artifacts.find((entry) => entry.id === item.stack.id)!
     const x1 = item.x + 130
@@ -15,7 +16,7 @@ export function useCanvasWorkspace() {
     return { id: item.id, kind: 'research' as const, path: `M${x1},${item.y} C${x1 + bend},${item.y} ${x2 - bend},${summary.y} ${x2},${summary.y}` }
   })
   return {
-    ...state, artifacts, plans,
+    ...state, artifacts, plans, noteItems,
     connections: [...researchConnections, ...planConnections(plans)],
     contextCount: contextIds(state).length,
     activeJobs: state.jobs.filter((job) => job.status === 'queued' || job.status === 'running'),

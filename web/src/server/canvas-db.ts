@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless'
-import type { CanvasJob, CanvasStack, CanvasSnapshot, JobEvent } from '#/lib/canvas'
+import type { CanvasJob, CanvasNote, CanvasStack, CanvasSnapshot, JobEvent } from '#/lib/canvas'
 import { listPlans } from './plans'
 
 let schemaReady: Promise<void> | undefined
@@ -45,6 +45,24 @@ async function ready() {
     )`
     await sql`CREATE INDEX IF NOT EXISTS phab_chat_messages_workspace_created_idx
       ON phab_chat_messages (workspace_id, created_at)`
+    await sql`CREATE TABLE IF NOT EXISTS phab_canvas_notes (
+      workspace_id uuid NOT NULL, id uuid NOT NULL,
+      label text NOT NULL DEFAULT '', body text NOT NULL DEFAULT '',
+      x double precision NOT NULL DEFAULT 0, y double precision NOT NULL DEFAULT 0,
+      promoted_plan_id uuid, promoted_node_id uuid,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, id)
+    )`
+    await sql`CREATE TABLE IF NOT EXISTS phab_canvas_layout (
+      workspace_id uuid PRIMARY KEY, positions jsonb NOT NULL DEFAULT '{}',
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )`
+    await sql`CREATE TABLE IF NOT EXISTS phab_share_codes (
+      code text PRIMARY KEY, workspace_id uuid NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`
+    await sql`CREATE INDEX IF NOT EXISTS phab_share_codes_workspace_idx
+      ON phab_share_codes (workspace_id)`
   })().catch((error) => { schemaReady = undefined; throw error })
   await schemaReady
   return sql
@@ -73,7 +91,7 @@ const publicJob = (row: Record<string, unknown>): CanvasJob => ({
 
 export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
   const sql = await ready()
-  const [stacks, jobs, plans] = await Promise.all([
+  const [stacks, jobs, plans, notes, layout, shared] = await Promise.all([
     sql`SELECT data FROM (SELECT data, created_at FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT 100) latest ORDER BY created_at ASC`,
     sql`SELECT jobs.*, history.events FROM (
       SELECT workspace_id, id, title, status, progress, stack_id, created_at, updated_at,
@@ -86,8 +104,65 @@ export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
       ) event
     ) history ON true ORDER BY jobs.created_at DESC`,
     listPlans(workspaceId).catch(() => []),
+    listNotes(workspaceId).catch(() => []),
+    sql`SELECT positions FROM phab_canvas_layout WHERE workspace_id = ${workspaceId}`,
+    sql`SELECT 1 AS shared FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`,
   ])
-  return { stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob), plans }
+  return {
+    stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob), plans, notes,
+    positions: (layout[0]?.positions ?? {}) as Record<string, { x: number; y: number }>,
+    shared: shared.length > 0,
+  }
+}
+
+const publicNote = (row: Record<string, unknown>): CanvasNote => ({
+  id: String(row.id), label: String(row.label), body: String(row.body),
+  x: Number(row.x), y: Number(row.y),
+  ...(row.promoted_plan_id ? { promotedPlanId: String(row.promoted_plan_id) } : {}),
+  ...(row.promoted_node_id ? { promotedNodeId: String(row.promoted_node_id) } : {}),
+})
+
+export async function listNotes(workspaceId: string): Promise<CanvasNote[]> {
+  const sql = await ready()
+  const rows = await sql`SELECT * FROM phab_canvas_notes WHERE workspace_id = ${workspaceId} ORDER BY created_at ASC LIMIT 200`
+  return rows.map(publicNote)
+}
+
+/** Upsert keeps promoted_* columns untouched so plan promotion survives edits. */
+export async function upsertNote(workspaceId: string, note: { id: string; label: string; body: string; x: number; y: number }) {
+  const sql = await ready()
+  await sql`INSERT INTO phab_canvas_notes (workspace_id, id, label, body, x, y)
+    VALUES (${workspaceId}, ${note.id}, ${note.label.slice(0, 200)}, ${note.body.slice(0, 20_000)}, ${note.x}, ${note.y})
+    ON CONFLICT (workspace_id, id) DO UPDATE SET
+      label = EXCLUDED.label, body = EXCLUDED.body, x = EXCLUDED.x, y = EXCLUDED.y, updated_at = now()`
+}
+
+export async function removeNote(workspaceId: string, id: string) {
+  const sql = await ready()
+  await sql`DELETE FROM phab_canvas_notes WHERE workspace_id = ${workspaceId} AND id = ${id}`
+}
+
+export async function saveLayout(workspaceId: string, positions: Record<string, { x: number; y: number }>) {
+  const sql = await ready()
+  await sql`INSERT INTO phab_canvas_layout (workspace_id, positions)
+    VALUES (${workspaceId}, ${JSON.stringify(positions)}::jsonb)
+    ON CONFLICT (workspace_id) DO UPDATE SET positions = EXCLUDED.positions, updated_at = now()`
+}
+
+export async function createShareCode(workspaceId: string) {
+  const sql = await ready()
+  const existing = await sql`SELECT code FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
+  if (existing[0]) return String(existing[0].code)
+  const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
+  await sql`INSERT INTO phab_share_codes (code, workspace_id) VALUES (${code}, ${workspaceId})
+    ON CONFLICT (code) DO NOTHING`
+  return code
+}
+
+export async function resolveShareCode(code: string) {
+  const sql = await ready()
+  const rows = await sql`SELECT workspace_id FROM phab_share_codes WHERE code = ${code}`
+  return rows[0] ? String(rows[0].workspace_id) : undefined
 }
 
 export type ChatHistoryMessage = { id: string; role: 'user' | 'assistant'; modality: 'chat' | 'voice'; text: string; at: string }
