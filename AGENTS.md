@@ -39,21 +39,10 @@ We are building for a hackathon. Speed beats everything.
   claimed by another session; do not reset, delete, or overwrite it.
 - Record decisions and handoff notes in the issue. Close completed work with
   `bd close <id> --reason "..."`; leave unfinished work with clear next steps.
-- Beads live on a shared Dolt sql-server on `hermes-01`
-  (Tailscale `100.96.36.118:3307`, database `hackalon`, user `beads`). Every
-  agent reads and writes it live; no `bd dolt pull`/`push` is needed to share
-  issues. The connection settings are committed in `.beads/metadata.json` and
-  `.beads/config.yaml`.
-- To connect, join the tailnet with access to `hermes-01`, then put the password
-  in `~/.config/beads/credentials` (or export `BEADS_DOLT_PASSWORD`). Never
-  commit it:
-  ```ini
-  [100.96.36.118:3307]
-  password = <ask the repo owner>
-  ```
-  Check with `bd dolt show` (expects "Server connection OK").
-- Server ops: `ssh root@hermes-01 systemctl status beads-dolt`; data is in
-  `/var/lib/beads-dolt`.
+- Beads sync through GitHub (`refs/dolt/data` on `origin`). New clone:
+  `bin/setup-beads`, then `bd dolt pull`. Run `bd dolt pull` before picking
+  work and `bd dolt push` right after claiming or changing issues, so other
+  agents see your claims quickly.
 - After compaction, follow the Beads context injected by the lifecycle hooks.
 - At session end, report issue IDs and remaining work, then commit, push, and
   deploy (see below).

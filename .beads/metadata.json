@@ -1,9 +1,7 @@
 {
   "database": "dolt",
   "backend": "dolt",
-  "dolt_mode": "server",
+  "dolt_mode": "embedded",
   "dolt_database": "hackalon",
-  "project_id": "e22ce964-bc17-4970-95c2-d039553ab9a9",
-  "dolt_server_host": "100.96.36.118",
-  "dolt_server_user": "beads"
+  "project_id": "e22ce964-bc17-4970-95c2-d039553ab9a9"
 }

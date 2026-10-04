@@ -72,8 +72,3 @@
 # - github.token    → use GITHUB_TOKEN env var instead
 
 sync.remote: "git+https://github.com/oxfern/phab.git"
-# Shared team Dolt server on hermes-01 (Tailscale). Password lives in
-# ~/.config/beads/credentials under [100.96.36.118:3307] or BEADS_DOLT_PASSWORD.
-dolt.host: "100.96.36.118"
-dolt.port: 3307
-dolt.user: "beads"
