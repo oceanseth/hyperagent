@@ -50,19 +50,6 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
         <svg className="phab-canvas-connections" aria-hidden="true">{canvas.workspace.connections.map((connection) => <path key={connection.id} d={connection.path} data-kind={connection.kind} />)}</svg>
         {canvas.items.map((item) => (
           <div className="phab-canvas-object" key={item.id} {...canvas.getItemProps(item)}>
-            {item.kind === 'clock' && (
-              <div className="phab-clock" title={canvas.timeLabel}>
-                <svg className="phab-clock-face" viewBox="0 0 120 120" fill="none" aria-hidden="true">
-                  <circle cx="60" cy="60" r="59" fill="#F5F5F2" />
-                  {canvas.clockTicks.map((tick) => <path key={tick.id} d={tick.path} transform={tick.transform} opacity={tick.opacity} stroke="#333431" strokeWidth="1" />)}
-                </svg>
-                <span className="phab-clock-hand phab-clock-hour" style={canvas.hourStyle} />
-                <span className="phab-clock-hand phab-clock-minute" style={canvas.minuteStyle} />
-                <span className="phab-clock-hand phab-clock-second" style={canvas.secondStyle} />
-                <span className="phab-clock-pin" />
-                <span className="phab-sr-only">{canvas.timeLabel}</span>
-              </div>
-            )}
             {item.kind === 'note' && (
               <CanvasNote
                 label={item.label}
