@@ -29,6 +29,18 @@ let draggingNow = false
 let lastLocalChangeAt = 0
 const markLocalChange = () => { lastLocalChangeAt = Date.now() }
 const holdLocal = () => draggingNow || Date.now() - lastLocalChangeAt < 3000
+// A GET already in flight when something is removed still carries the old
+// item. Removed IDs are dropped from snapshots for a while, and a snapshot
+// requested before a clear is discarded outright.
+const tombstones = new Map<string, number>()
+let clearedAt = 0
+const bury = (id: string) => { tombstones.set(id, Date.now()); markLocalChange() }
+const buried = (id: string) => {
+  const at = tombstones.get(id)
+  if (at === undefined) return false
+  if (Date.now() - at > 30000) { tombstones.delete(id); return false }
+  return true
+}
 export function setCanvasDragging(value: boolean) {
   draggingNow = value
   if (!value) markLocalChange()
@@ -58,11 +70,13 @@ export function refreshCanvas() {
   pending ??= (async () => {
     try {
       const slug = publishedSlug()
+      const startedAt = Date.now()
       const response = await fetch(slug ? `/api/canvas?plan=${encodeURIComponent(slug)}` : '/api/canvas', { cache: 'no-store', signal: AbortSignal.timeout(20000) })
       if (!response.ok) throw new Error('Could not load saved context. Reconnecting…')
       const snapshot = await response.json() as CanvasSnapshot
-      const stacks = snapshot.stacks.map((stack) => canvasStackSchema.parse(stack))
-      const plans = (snapshot.plans ?? []).map((plan) => planSchema.parse(plan))
+      if (startedAt < clearedAt) return
+      const stacks = snapshot.stacks.map((stack) => canvasStackSchema.parse(stack)).filter((stack) => !buried(stack.id))
+      const plans = (snapshot.plans ?? []).map((plan) => planSchema.parse(plan)).filter((plan) => !buried(plan.id))
       // A GET already in flight may predate a job announced by the chat stream.
       // Keep that announcement briefly until the hosted snapshot catches up.
       for (const [id, entry] of streamedJobs) {
@@ -73,11 +87,11 @@ export function refreshCanvas() {
         .slice(0, 30)
       const notes = (snapshot.notes ?? []).flatMap((note) => {
         const parsed = canvasNoteSchema.safeParse(note)
-        return parsed.success ? [parsed.data] : []
+        return parsed.success && !buried(parsed.data.id) ? [parsed.data] : []
       })
       const browsers = (snapshot.browsers ?? []).flatMap((browser) => {
         const parsed = canvasBrowserSchema.safeParse(browser)
-        return parsed.success ? [parsed.data] : []
+        return parsed.success && !buried(parsed.data.id) ? [parsed.data] : []
       })
       canvasWorkspace.setState((current) => ({
         stacks, jobs, plans,
@@ -179,7 +193,7 @@ export function updateNoteText(id: string, body: string) {
 }
 
 export function deleteNote(id: string) {
-  markLocalChange()
+  bury(id)
   clearTimeout(noteTimers.get(id))
   noteTimers.delete(id)
   canvasWorkspace.setState((current) => ({ notes: current.notes.filter((note) => note.id !== id) }))
@@ -188,7 +202,7 @@ export function deleteNote(id: string) {
 
 /** Removes the card for everyone; the server ends the KERNEL session. */
 export function closeBrowser(id: string) {
-  markLocalChange()
+  bury(id)
   canvasWorkspace.setState((current) => ({ browsers: current.browsers.filter((browser) => browser.id !== id) }))
   postJson('/api/browsers', { action: 'close', id })
 }
@@ -345,4 +359,54 @@ export function planConnections(items: PlanArtifact[]) {
       return [{ id: `${edge.from}-${edge.to}`, kind: 'plan' as const, path: `M${x1},${from.y} C${x1 + bend},${from.y} ${x2 - bend},${to.y} ${x2},${to.y}` }]
     })
   })
+}
+
+/** Empties the board for everyone on it. Resolves to an error message, if any. */
+export async function clearCanvas(): Promise<string | undefined> {
+  clearedAt = Date.now()
+  markLocalChange()
+  for (const timer of noteTimers.values()) clearTimeout(timer)
+  noteTimers.clear()
+  canvasWorkspace.setState({ stacks: [], plans: [], notes: [], browsers: [], positions: {}, excludedIds: [], openPlanIds: [], focus: null })
+  try { localStorage.removeItem('phab-canvas-layout') } catch { /* storage may be disabled */ }
+  try {
+    const response = await fetch('/api/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(20000) })
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string }
+      return body.error ?? 'Could not clear the canvas.'
+    }
+    lastLocalChangeAt = 0
+    void refreshCanvas()
+    return undefined
+  } catch { return 'Could not clear the canvas.' }
+}
+
+/** Removes a research stack and its sources for everyone; a job still writing it is cancelled. */
+export function removeStack(id: string) {
+  bury(id)
+  canvasWorkspace.setState((current) => ({
+    stacks: current.stacks.filter((stack) => stack.id !== id),
+    excludedIds: current.excludedIds.filter((entry) => entry !== id),
+  }))
+  postJson('/api/remove', { kind: 'stack', id })
+}
+
+/** Removes a plan and its nested child plans for everyone. */
+export function removePlan(id: string) {
+  const state = canvasWorkspace.getState()
+  const byId = new Map(state.plans.map((plan) => [plan.id, plan]))
+  const ids = new Set<string>()
+  const queue = [id]
+  while (queue.length) {
+    const next = queue.shift()!
+    if (ids.has(next)) continue
+    ids.add(next)
+    for (const node of byId.get(next)?.states ?? []) if (node.childPlanId) queue.push(node.childPlanId)
+  }
+  for (const entry of ids) bury(entry)
+  canvasWorkspace.setState((current) => ({
+    plans: current.plans.filter((plan) => !ids.has(plan.id)),
+    openPlanIds: current.openPlanIds.filter((entry) => !ids.has(entry)),
+  }))
+  postJson('/api/remove', { kind: 'plan', id })
 }

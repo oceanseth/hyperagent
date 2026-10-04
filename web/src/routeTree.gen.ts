@@ -16,11 +16,13 @@ import { Route as ApiAgentmailRouteImport } from './routes/api/agentmail'
 import { Route as ApiBrowsersRouteImport } from './routes/api/browsers'
 import { Route as ApiCanvasRouteImport } from './routes/api/canvas'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiClearRouteImport } from './routes/api/clear'
 import { Route as ApiEmbeddableRouteImport } from './routes/api/embeddable'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiLayoutRouteImport } from './routes/api/layout'
 import { Route as ApiNotesRouteImport } from './routes/api/notes'
 import { Route as ApiPlansRouteImport } from './routes/api/plans'
+import { Route as ApiRemoveRouteImport } from './routes/api/remove'
 import { Route as ApiResearchRouteImport } from './routes/api/research'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiShareRouteImport } from './routes/api/share'
@@ -69,6 +71,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiClearRoute = ApiClearRouteImport.update({
+  id: '/api/clear',
+  path: '/api/clear',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiEmbeddableRoute = ApiEmbeddableRouteImport.update({
   id: '/api/embeddable',
   path: '/api/embeddable',
@@ -92,6 +99,11 @@ const ApiNotesRoute = ApiNotesRouteImport.update({
 const ApiPlansRoute = ApiPlansRouteImport.update({
   id: '/api/plans',
   path: '/api/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRemoveRoute = ApiRemoveRouteImport.update({
+  id: '/api/remove',
+  path: '/api/remove',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiResearchRoute = ApiResearchRouteImport.update({
@@ -163,11 +175,13 @@ export interface FileRoutesByFullPath {
   '/api/browsers': typeof ApiBrowsersRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/clear': typeof ApiClearRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/history': typeof ApiHistoryRoute
   '/api/layout': typeof ApiLayoutRoute
   '/api/notes': typeof ApiNotesRoute
   '/api/plans': typeof ApiPlansRoute
+  '/api/remove': typeof ApiRemoveRoute
   '/api/research': typeof ApiResearchRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/share': typeof ApiShareRoute
@@ -189,11 +203,13 @@ export interface FileRoutesByTo {
   '/api/browsers': typeof ApiBrowsersRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/clear': typeof ApiClearRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/history': typeof ApiHistoryRoute
   '/api/layout': typeof ApiLayoutRoute
   '/api/notes': typeof ApiNotesRoute
   '/api/plans': typeof ApiPlansRoute
+  '/api/remove': typeof ApiRemoveRoute
   '/api/research': typeof ApiResearchRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/share': typeof ApiShareRoute
@@ -216,11 +232,13 @@ export interface FileRoutesById {
   '/api/browsers': typeof ApiBrowsersRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/clear': typeof ApiClearRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/history': typeof ApiHistoryRoute
   '/api/layout': typeof ApiLayoutRoute
   '/api/notes': typeof ApiNotesRoute
   '/api/plans': typeof ApiPlansRoute
+  '/api/remove': typeof ApiRemoveRoute
   '/api/research': typeof ApiResearchRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/share': typeof ApiShareRoute
@@ -244,11 +262,13 @@ export interface FileRouteTypes {
     | '/api/browsers'
     | '/api/canvas'
     | '/api/chat'
+    | '/api/clear'
     | '/api/embeddable'
     | '/api/history'
     | '/api/layout'
     | '/api/notes'
     | '/api/plans'
+    | '/api/remove'
     | '/api/research'
     | '/api/settings'
     | '/api/share'
@@ -270,11 +290,13 @@ export interface FileRouteTypes {
     | '/api/browsers'
     | '/api/canvas'
     | '/api/chat'
+    | '/api/clear'
     | '/api/embeddable'
     | '/api/history'
     | '/api/layout'
     | '/api/notes'
     | '/api/plans'
+    | '/api/remove'
     | '/api/research'
     | '/api/settings'
     | '/api/share'
@@ -296,11 +318,13 @@ export interface FileRouteTypes {
     | '/api/browsers'
     | '/api/canvas'
     | '/api/chat'
+    | '/api/clear'
     | '/api/embeddable'
     | '/api/history'
     | '/api/layout'
     | '/api/notes'
     | '/api/plans'
+    | '/api/remove'
     | '/api/research'
     | '/api/settings'
     | '/api/share'
@@ -323,11 +347,13 @@ export interface RootRouteChildren {
   ApiBrowsersRoute: typeof ApiBrowsersRoute
   ApiCanvasRoute: typeof ApiCanvasRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiClearRoute: typeof ApiClearRoute
   ApiEmbeddableRoute: typeof ApiEmbeddableRoute
   ApiHistoryRoute: typeof ApiHistoryRoute
   ApiLayoutRoute: typeof ApiLayoutRoute
   ApiNotesRoute: typeof ApiNotesRoute
   ApiPlansRoute: typeof ApiPlansRoute
+  ApiRemoveRoute: typeof ApiRemoveRoute
   ApiResearchRoute: typeof ApiResearchRoute
   ApiSettingsRoute: typeof ApiSettingsRoute
   ApiShareRoute: typeof ApiShareRoute
@@ -393,6 +419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/clear': {
+      id: '/api/clear'
+      path: '/api/clear'
+      fullPath: '/api/clear'
+      preLoaderRoute: typeof ApiClearRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/embeddable': {
       id: '/api/embeddable'
       path: '/api/embeddable'
@@ -426,6 +459,13 @@ declare module '@tanstack/react-router' {
       path: '/api/plans'
       fullPath: '/api/plans'
       preLoaderRoute: typeof ApiPlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/remove': {
+      id: '/api/remove'
+      path: '/api/remove'
+      fullPath: '/api/remove'
+      preLoaderRoute: typeof ApiRemoveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/research': {
@@ -523,11 +563,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBrowsersRoute: ApiBrowsersRoute,
   ApiCanvasRoute: ApiCanvasRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiClearRoute: ApiClearRoute,
   ApiEmbeddableRoute: ApiEmbeddableRoute,
   ApiHistoryRoute: ApiHistoryRoute,
   ApiLayoutRoute: ApiLayoutRoute,
   ApiNotesRoute: ApiNotesRoute,
   ApiPlansRoute: ApiPlansRoute,
+  ApiRemoveRoute: ApiRemoveRoute,
   ApiResearchRoute: ApiResearchRoute,
   ApiSettingsRoute: ApiSettingsRoute,
   ApiShareRoute: ApiShareRoute,
@@ -544,12 +586,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

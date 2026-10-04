@@ -92,3 +92,9 @@
   .phab-canvas-zoom { bottom: 94px; right: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .phab-canvas *, .phab-canvas *::before, .phab-canvas *::after { transition: none !important; } }
+
+/* Small remove control shared by card headers; appears on hover and focus. */
+.phab-card-remove { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: 4px; padding: 0; color: inherit; border: 0; border-radius: 6px; background: transparent; cursor: pointer; opacity: 0; transition: opacity .15s, color .15s, background .15s; }
+.phab-canvas-object:hover .phab-card-remove, .phab-canvas-object:focus-within .phab-card-remove, .phab-card-remove:focus-visible { opacity: 1; }
+.phab-card-remove:hover { color: #f0f0ec; background: #ffffff14; }
+.phab-clear-canvas[data-busy='true'] { opacity: .5; pointer-events: none; }

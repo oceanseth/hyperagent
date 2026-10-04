@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { MouseEvent, PointerEvent, WheelEvent } from 'react'
-import { browserArtifacts, canvasArtifacts, canvasWorkspace, contextIds, noteArtifacts, planArtifacts, planConnections, selectedContextIds, subscribeCanvas, toggleContextStack, type CanvasArtifact } from '#/lib/canvas-workspace'
+import { browserArtifacts, canvasArtifacts, canvasWorkspace, contextIds, noteArtifacts, planArtifacts, planConnections, removeStack, selectedContextIds, subscribeCanvas, toggleContextStack, type CanvasArtifact } from '#/lib/canvas-workspace'
 
 export function useCanvasWorkspace() {
   const state = useSyncExternalStore(subscribeCanvas, canvasWorkspace.getState, canvasWorkspace.getInitialState)
@@ -63,6 +63,10 @@ export function useResearchCard(item: CanvasArtifact) {
       : { href: url, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `Open ${item.label}`, onPointerDown: stopPointer },
     viewerProps: { open: viewerOpen, onOpenChange: setViewerOpen },
     viewerScopeProps: { onPointerDown: stopPointer, onWheel: (event: WheelEvent<HTMLElement>) => event.stopPropagation() },
+    removeProps: {
+      'aria-label': `Remove ${item.stack.title} and its sources from the canvas`, title: 'Remove from canvas',
+      onPointerDown: stopPointer, onClick: () => removeStack(item.stack.id),
+    },
     contextProps: {
       type: 'button' as const, 'aria-pressed': included, 'aria-label': `${included ? 'Remove' : 'Include'} ${item.stack.title} ${included ? 'from' : 'in'} context`,
       onPointerDown: stopPointer, onClick: () => toggleContextStack(item.stack.id),

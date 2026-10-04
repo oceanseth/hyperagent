@@ -72,7 +72,7 @@ export function useJobMonitor() {
   const now = useSyncExternalStore(subscribeClock, () => clockTime, () => clockTime)
   const [filter, setFilter] = useState<JobFilter>('all')
   const [refreshing, setRefreshing] = useState(false)
-  const [widgetExpanded, setWidgetExpanded] = useState(true)
+  const [widgetExpanded, setWidgetExpanded] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [focusedId] = useState(() => typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('job'))
   const focusedOnce = useRef(false)

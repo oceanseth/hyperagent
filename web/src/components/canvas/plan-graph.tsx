@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, PointerEvent } from 'react'
-import { Check, ChevronRight, CircleAlert, GitBranch, LoaderCircle, Lock, Share2 } from 'lucide-react'
-import { canvasWorkspace, refreshCanvas, toggleOpenPlan, type PlanArtifact } from '#/lib/canvas-workspace'
+import { Check, ChevronRight, CircleAlert, GitBranch, LoaderCircle, Lock, Share2, X } from 'lucide-react'
+import { canvasWorkspace, refreshCanvas, removePlan, toggleOpenPlan, type PlanArtifact } from '#/lib/canvas-workspace'
 import type { Plan, PlanDocument, PlanNode } from '#/lib/plan'
 import './plan-graph.css'
 
@@ -26,7 +26,7 @@ export function PlanCard({ item }: { item: PlanArtifact }) {
     const blocked = item.plan.states.filter((node) => node.status === 'blocked').length
     return (
       <article className="phab-plan-title" data-canvas-content>
-        <header><span><GitBranch size={13} /> PLAN</span><span>{item.plan.states.length} states</span></header>
+        <header><span><GitBranch size={13} /> PLAN</span><span>{item.plan.states.length} states<button type="button" className="phab-card-remove" onPointerDown={stop} onClick={() => removePlan(item.plan.id)} aria-label={`Remove plan ${item.label} from the canvas`} title="Remove from canvas"><X size={12} /></button></span></header>
         <h2>{item.label}</h2>
         {item.text && <p>{item.text}</p>}
         <footer>

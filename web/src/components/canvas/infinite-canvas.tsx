@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Activity, Check, Crosshair, Grid2X2, Minus, PanelLeft, Plus, Search, Share2, StickyNote, X } from 'lucide-react'
+import { Activity, Check, Crosshair, Eraser, Grid2X2, Minus, PanelLeft, Plus, Search, Share2, StickyNote, X } from 'lucide-react'
 import { ArtifactCard } from '#/components/assistant-ui/elements/artifact-card'
 import { field, paper } from '#/components/assistant-ui/elements/surfaces'
 import { useCanvasNote, useInfiniteCanvas } from '#/hooks/use-infinite-canvas'
@@ -9,7 +9,9 @@ import { ResearchCard } from './research-cards'
 import { MonitorWidget } from './monitor-widget'
 import { HTreeMark } from '#/components/brand/htree-mark'
 import { SettingsDialog } from './settings-dialog'
-import { refreshCanvas } from '#/lib/canvas-workspace'
+import { clearCanvas, refreshCanvas } from '#/lib/canvas-workspace'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '#/components/ui/dialog'
+import { Button } from '#/components/ui/button'
 import { PlanCard, PlanInspector } from './plan-graph'
 import './canvas.css'
 
@@ -46,6 +48,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
           <button className="phab-icon-button" {...canvas.resetButtonProps}><Crosshair size={19} strokeWidth={1.5} /></button>
           <span className="phab-toolbar-divider" />
           <button className="phab-icon-button" {...canvas.searchButtonProps}><Search size={18} strokeWidth={1.5} /></button>
+          <ClearCanvasDialog itemCount={canvas.items.length} shared={canvas.workspace.shared} />
           <SettingsDialog />
         </div>
       </header>
@@ -113,6 +116,43 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
       </div>
       <div className="phab-canvas-overlays" data-canvas-overlay>{children}</div>
     </div>
+  )
+}
+
+// Clearing is for everyone on a shared board, so it asks first instead of a
+// native confirm. Chat history and the share link are kept.
+function ClearCanvasDialog({ itemCount, shared }: { itemCount: number; shared: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const clear = async () => {
+    setBusy(true)
+    setError(null)
+    const failure = await clearCanvas()
+    setBusy(false)
+    if (failure) setError(failure)
+    else setOpen(false)
+  }
+  return (
+    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) setError(null) }}>
+      <DialogTrigger className="phab-icon-button" title="Clear canvas" aria-label="Clear canvas" disabled={itemCount === 0}>
+        <Eraser size={17} strokeWidth={1.5} />
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Clear the canvas?</DialogTitle>
+          <DialogDescription>
+            {itemCount === 1 ? 'The one item' : `All ${itemCount} items`} on this board will be removed, including research, plans, notes and live browsers.
+            {shared ? ' Everyone on this shared board sees it cleared. ' : ' '}Your chat history stays.
+          </DialogDescription>
+        </DialogHeader>
+        {error && <p className="phab-monitor-widget-warning" role="alert">{error}</p>}
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Keep everything</Button>
+          <Button variant="destructive" className="phab-clear-canvas" data-busy={busy} onClick={clear}>{busy ? 'Clearing…' : 'Clear canvas'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

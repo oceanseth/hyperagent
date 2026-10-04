@@ -417,3 +417,25 @@ export async function getPublished(publishedSlug: string) {
   const rows = await sql`SELECT slug, label, description, tree, created_at FROM phab_published_plans WHERE slug = ${publishedSlug}`
   return rows[0]
 }
+
+/** Removes every plan in a workspace. Published copies under /p/<slug> are kept. */
+export async function clearPlans(workspaceId: string) {
+  const sql = await ready()
+  await sql`DELETE FROM phab_plans WHERE workspace_id = ${workspaceId}`
+}
+
+/** Removes a plan and every child plan nested under it. */
+export async function removePlan(workspaceId: string, id: string) {
+  const plans = await listPlans(workspaceId)
+  const byId = new Map(plans.map((plan) => [plan.id, plan]))
+  const ids: string[] = []
+  const queue = [id]
+  while (queue.length) {
+    const next = queue.shift()!
+    if (ids.includes(next)) continue
+    ids.push(next)
+    for (const node of byId.get(next)?.states ?? []) if (node.childPlanId) queue.push(node.childPlanId)
+  }
+  await deletePlans(workspaceId, ids)
+  return ids
+}

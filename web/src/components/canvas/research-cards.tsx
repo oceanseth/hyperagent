@@ -16,7 +16,7 @@ export function ResearchCard({ item }: { item: CanvasArtifact }) {
   const card = useResearchCard(item)
   return item.kind === 'summary' ? (
     <article className="phab-research-summary" data-in-context={card.included}>
-      <header className="phab-research-heading"><span><Layers size={14} /> CONTEXT STACK</span><span>{card.sourceCountLabel}</span></header>
+      <header className="phab-research-heading"><span><Layers size={14} /> CONTEXT STACK</span><span>{card.sourceCountLabel}<button type="button" className="phab-card-remove" {...card.removeProps}><X size={12} /></button></span></header>
       <div className="phab-research-state" data-status={card.status}>{card.working ? <LoaderCircle size={11} className="phab-research-state-spinner" /> : card.failed ? <CircleAlert size={11} /> : <Check size={11} />}{card.statusLabel}</div>
       <h2>{item.label}</h2>
       {card.statusText && <p className="phab-research-status-text">{card.statusText}</p>}

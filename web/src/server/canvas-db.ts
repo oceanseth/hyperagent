@@ -549,3 +549,19 @@ export async function completeJob(workspaceId: string, id: string, stack: Canvas
   ])
   return published.length > 0
 }
+
+/**
+ * Empties a workspace's board: research stacks, notes and saved positions go,
+ * and any queued or running job is cancelled so it cannot republish a stack.
+ * Chat history and share codes stay, so a shared board keeps its link and name.
+ */
+export async function clearCanvas(workspaceId: string) {
+  const sql = await ready()
+  await sql`UPDATE phab_canvas_jobs SET status = 'cancelled', progress = 'Canvas cleared', updated_at = now()
+    WHERE workspace_id = ${workspaceId} AND status IN ('queued', 'running')`
+  await Promise.all([
+    sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}`,
+    sql`DELETE FROM phab_canvas_notes WHERE workspace_id = ${workspaceId}`,
+    sql`DELETE FROM phab_canvas_layout WHERE workspace_id = ${workspaceId}`,
+  ])
+}
