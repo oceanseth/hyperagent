@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
 import { pendingJobs } from '../src/server/canvas-db'
 import { runResearchJob } from '../src/server/research'
+import { runBrowserAgentJob } from '../src/server/browser-agent'
 
 const secret = process.env.JOBS_SECRET
 if (!secret || !process.env.DATABASE_URL || !process.env.NEON_AI_GATEWAY_BASE_URL || !process.env.NEON_AI_GATEWAY_TOKEN) {
@@ -19,8 +20,9 @@ async function drain() {
     for (const job of await pendingJobs()) {
       if (running.size >= 2) break
       if (running.has(job.id)) continue
-      lifecycle('queue.dispatch', { jobId: job.id })
-      const work = runResearchJob(job.workspace_id, job.id)
+      lifecycle('queue.dispatch', { jobId: job.id, kind: job.kind })
+      const run = job.kind === 'browser' ? runBrowserAgentJob : runResearchJob
+      const work = run(job.workspace_id, job.id)
         .catch(() => lifecycle('job.interrupted', { jobId: job.id }))
         .finally(() => { running.delete(job.id); lifecycle('job.released', { jobId: job.id }); void drain() })
       running.set(job.id, work)

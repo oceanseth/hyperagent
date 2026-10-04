@@ -8,6 +8,7 @@ import type { MastraModelConfig } from '@mastra/core/llm'
 //   NEON_AI_GATEWAY_TOKEN     nt_live_… credential with scope ai_gateway:invoke
 //   NEON_MODEL_ASSISTANT      optional override (default claude-sonnet-5)
 //   NEON_MODEL_RESEARCH       optional override (default gpt-5-5)
+//   NEON_MODEL_BROWSER        optional override for the browser agent (default: assistant model)
 //
 // Env is read lazily (per call) so it resolves from the runtime binding rather
 // than at module-eval time.
@@ -35,4 +36,9 @@ export function assistantModel(): MastraModelConfig {
 /** Deep multi-step research worker — quality/reasoning-first. */
 export function researchModel(): MastraModelConfig {
   return neonModel(process.env.NEON_MODEL_RESEARCH?.trim() || 'gpt-5-5')
+}
+
+/** Browser agent on the Fly worker — drives a live KERNEL session with tools. */
+export function browserModel(): MastraModelConfig {
+  return neonModel(process.env.NEON_MODEL_BROWSER?.trim() || process.env.NEON_MODEL_ASSISTANT?.trim() || 'claude-sonnet-5')
 }

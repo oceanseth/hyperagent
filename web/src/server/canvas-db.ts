@@ -28,7 +28,9 @@ async function ready() {
       ADD COLUMN IF NOT EXISTS worker_region text,
       ADD COLUMN IF NOT EXISTS started_at timestamptz,
       ADD COLUMN IF NOT EXISTS heartbeat_at timestamptz,
-      ADD COLUMN IF NOT EXISTS replaces jsonb NOT NULL DEFAULT '[]'`
+      ADD COLUMN IF NOT EXISTS replaces jsonb NOT NULL DEFAULT '[]',
+      ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'research',
+      ADD COLUMN IF NOT EXISTS browser_id uuid`
     await sql`CREATE TABLE IF NOT EXISTS phab_job_events (
       workspace_id uuid NOT NULL, job_id uuid NOT NULL,
       id bigserial PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now(),
@@ -94,6 +96,8 @@ const publicEvent = (row: Record<string, unknown>): JobEvent => ({
 
 const publicJob = (row: Record<string, unknown>): CanvasJob => ({
   id: String(row.id), title: String(row.title), status: row.status as CanvasJob['status'],
+  ...(row.kind === 'browser' ? { kind: 'browser' as const } : {}),
+  ...(row.browser_id ? { browserId: String(row.browser_id) } : {}),
   progress: String(row.progress), createdAt: isoTimestamp(row.created_at), updatedAt: isoTimestamp(row.updated_at),
   ...(row.stack_id ? { stackId: String(row.stack_id) } : {}),
   ...(row.worker_id ? { workerId: String(row.worker_id) } : {}),
@@ -109,7 +113,7 @@ export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
     sql`SELECT data FROM (SELECT data, created_at FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT 100) latest ORDER BY created_at ASC`,
     sql`SELECT jobs.*, history.events FROM (
       SELECT workspace_id, id, title, status, progress, stack_id, created_at, updated_at,
-        worker_id, worker_region, started_at, heartbeat_at
+        worker_id, worker_region, started_at, heartbeat_at, kind, browser_id
       FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT 30
     ) jobs LEFT JOIN LATERAL (
       SELECT COALESCE(jsonb_agg(event ORDER BY event.id), '[]'::jsonb) AS events FROM (
@@ -360,14 +364,17 @@ export async function listChatHistory(workspaceId: string, limit = 300): Promise
   }))
 }
 
-export async function insertJob(workspaceId: string, title: string, task: string, context: CanvasStack[], replaces: string[] = []) {
+export type JobKind = 'research' | 'browser'
+
+export async function insertJob(workspaceId: string, title: string, task: string, context: CanvasStack[], replaces: string[] = [], options?: { kind?: JobKind; browserId?: string }) {
   const sql = await ready()
   const id = crypto.randomUUID()
-  const rows = await sql`INSERT INTO phab_canvas_jobs (workspace_id, id, title, task, context, replaces)
-    VALUES (${workspaceId}, ${id}, ${title}, ${task}, ${JSON.stringify(context)}::jsonb, ${JSON.stringify(replaces)}::jsonb) RETURNING *`
+  const kind = options?.kind ?? 'research'
+  const rows = await sql`INSERT INTO phab_canvas_jobs (workspace_id, id, title, task, context, replaces, kind, browser_id)
+    VALUES (${workspaceId}, ${id}, ${title}, ${task}, ${JSON.stringify(context)}::jsonb, ${JSON.stringify(replaces)}::jsonb, ${kind}, ${options?.browserId ?? null}) RETURNING *`
   const job = publicJob(rows[0])
   // A telemetry failure must not undo or block durable job lifecycle changes.
-  const queued = await recordJobEvent(workspaceId, id, { type: 'queued', message: 'Research request saved to the queue.' }).catch(() => undefined)
+  const queued = await recordJobEvent(workspaceId, id, { type: 'queued', message: kind === 'browser' ? 'Browser task saved to the queue.' : 'Research request saved to the queue.' }).catch(() => undefined)
   if (queued) job.events.push(queued)
   // A replaced job that is still in flight is superseded now; its stack (if
   // any) stays visible until the replacement publishes into the same slot.
@@ -416,15 +423,16 @@ export async function canvasInventory(workspaceId: string) {
 export async function claimJob(workspaceId: string, id: string) {
   const sql = await ready()
   // Atomic lease: duplicate workflow deliveries cannot create duplicate stacks.
-  const rows = await sql`UPDATE phab_canvas_jobs SET status = 'running', progress = 'Finding sources', updated_at = now(),
+  const rows = await sql`UPDATE phab_canvas_jobs SET status = 'running',
+    progress = CASE WHEN kind = 'browser' THEN 'Attaching to the browser' ELSE 'Finding sources' END, updated_at = now(),
     worker_id = ${process.env.FLY_MACHINE_ID ?? null}, worker_region = ${process.env.FLY_REGION ?? null},
     started_at = now(), heartbeat_at = now()
     WHERE workspace_id = ${workspaceId} AND id = ${id} AND (status = 'queued' OR (status = 'running' AND updated_at < now() - interval '12 minutes'))
     RETURNING *`
-  const job = rows[0] as (Record<string, unknown> & { task: string; context: CanvasStack[] }) | undefined
+  const job = rows[0] as (Record<string, unknown> & { task: string; context: CanvasStack[]; kind: JobKind; browser_id: string | null }) | undefined
   if (job) {
     await recordJobEvent(workspaceId, id, {
-      type: 'claimed', message: 'Research worker claimed this job.',
+      type: 'claimed', message: job.kind === 'browser' ? 'Browser agent claimed this task.' : 'Research worker claimed this job.',
       details: { workerId: job.worker_id, workerRegion: job.worker_region },
     }).catch(() => undefined)
   }
@@ -433,9 +441,9 @@ export async function claimJob(workspaceId: string, id: string) {
 
 export async function pendingJobs() {
   const sql = await ready()
-  return await sql`SELECT workspace_id, id FROM phab_canvas_jobs
+  return await sql`SELECT workspace_id, id, kind FROM phab_canvas_jobs
     WHERE status = 'queued' OR (status = 'running' AND updated_at < now() - interval '12 minutes')
-    ORDER BY created_at ASC LIMIT 4` as { workspace_id: string; id: string }[]
+    ORDER BY created_at ASC LIMIT 4` as { workspace_id: string; id: string; kind: JobKind }[]
 }
 
 export async function updateJob(workspaceId: string, id: string, status: CanvasJob['status'], progress: string) {

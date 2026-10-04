@@ -1,5 +1,6 @@
 import type { CanvasBrowser } from '#/lib/canvas'
-import { getBrowser, listBrowsers, patchBrowser, removeBrowser, saveBrowser } from './canvas-db'
+import { getBrowser, insertJob, listBrowsers, patchBrowser, recordJobEvent, removeBrowser, saveBrowser } from './canvas-db'
+import { dispatchJob } from './dispatch'
 import { createKernelBrowser, deleteKernelBrowser, kernelBrowserAvailable, KernelBrowserError, navigateKernelBrowser } from './kernel-browser'
 
 // Live KERNEL browsers on the shared canvas. The row is written before launch
@@ -88,4 +89,37 @@ export async function closeAllCanvasBrowsers(workspaceId: string) {
   const browsers = await listBrowsers(workspaceId)
   await Promise.allSettled(browsers.map((browser) => closeCanvasBrowser(workspaceId, browser.id)))
   return browsers
+}
+
+/**
+ * Hands a task to the browser agent on the Fly worker, attached to this card's
+ * KERNEL session. Returns immediately; progress shows on the card and in the
+ * activity monitor, and the result lands on the canvas.
+ */
+export async function dispatchBrowserAgent(workspaceId: string, id: string, rawTask: string) {
+  const task = rawTask.trim().slice(0, 4000)
+  if (!task) throw new CanvasBrowserError('Say what the browser agent should do.')
+  const browser = await getBrowser(workspaceId, id)
+  if (!browser) throw new CanvasBrowserError('That browser is no longer on the canvas.')
+  if (browser.status !== 'ready' || !browser.sessionId) throw new CanvasBrowserError('That browser is not ready yet.')
+  const busy = browser.agent && ['queued', 'running'].includes(browser.agent.status)
+    && Date.now() - Date.parse(browser.agent.updatedAt) < 3 * 60_000
+  if (busy) throw new CanvasBrowserError(`The browser agent is still working on “${browser.agent!.task.slice(0, 80)}”. Wait for it to finish.`)
+  const title = task.replace(/\s+/g, ' ').slice(0, 80)
+  const { job } = await insertJob(workspaceId, title, task, [], [], { kind: 'browser', browserId: id })
+  await patchBrowser(workspaceId, id, {
+    agent: { jobId: job.id, task: task.slice(0, 500), status: 'queued', step: 'Waking the Fly browser agent…', updatedAt: new Date().toISOString() },
+  })
+  try {
+    await dispatchJob(workspaceId, job.id)
+  } catch {
+    // The Fly worker also scans the queue, but if it is unreachable run the
+    // same agent here so the task is not stranded.
+    if (process.env.BROWSER_AGENT_INLINE_FALLBACK !== '0') {
+      await recordJobEvent(workspaceId, job.id, { type: 'dispatch.fallback', message: 'Fly worker unreachable; the app server is running the browser agent.' }).catch(() => undefined)
+      const { runBrowserAgentJob } = await import('./browser-agent')
+      void runBrowserAgentJob(workspaceId, job.id).catch(() => undefined)
+    }
+  }
+  return job
 }
