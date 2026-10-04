@@ -185,3 +185,23 @@ body {
 .htree-mark[data-dither='true'] .htree-mark-dither { opacity: 0.85; }
 @starting-style { .htree-mark[data-dither='true'] .htree-mark-dither { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .htree-mark-dither { display: none; } }
+
+/* Thinking indicator: the H-tree branching out level by level, then fading to restart (components/brand/htree-thinking.tsx). */
+.htree-thinking { display: inline-block; flex: none; vertical-align: -0.15em; overflow: visible; animation: htree-cycle var(--htree-cycle, 2.8s) linear infinite; }
+.htree-thinking rect { transform-box: fill-box; transform-origin: center; animation: htree-grow-0 var(--htree-cycle, 2.8s) linear infinite; }
+.htree-thinking rect[data-axis='x'] { --sx0: 0; --sy0: 1; }
+.htree-thinking rect[data-axis='y'] { --sx0: 1; --sy0: 0; }
+@keyframes htree-cycle { 0%, 80% { opacity: 1; } 92%, 100% { opacity: 0; } }
+@keyframes htree-grow-0 { 0%, 0% { transform: scale(var(--sx0), var(--sy0)); animation-timing-function: cubic-bezier(.2,.7,.2,1); } 9%, 100% { transform: scale(1, 1); } }
+.htree-thinking rect[data-level='0'] { animation-name: htree-grow-0; }
+@keyframes htree-grow-1 { 0%, 11% { transform: scale(var(--sx0), var(--sy0)); animation-timing-function: cubic-bezier(.2,.7,.2,1); } 20%, 100% { transform: scale(1, 1); } }
+.htree-thinking rect[data-level='1'] { animation-name: htree-grow-1; }
+@keyframes htree-grow-2 { 0%, 22% { transform: scale(var(--sx0), var(--sy0)); animation-timing-function: cubic-bezier(.2,.7,.2,1); } 31%, 100% { transform: scale(1, 1); } }
+.htree-thinking rect[data-level='2'] { animation-name: htree-grow-2; }
+@keyframes htree-grow-3 { 0%, 33% { transform: scale(var(--sx0), var(--sy0)); animation-timing-function: cubic-bezier(.2,.7,.2,1); } 42%, 100% { transform: scale(1, 1); } }
+.htree-thinking rect[data-level='3'] { animation-name: htree-grow-3; }
+@keyframes htree-grow-4 { 0%, 44% { transform: scale(var(--sx0), var(--sy0)); animation-timing-function: cubic-bezier(.2,.7,.2,1); } 53%, 100% { transform: scale(1, 1); } }
+.htree-thinking rect[data-level='4'] { animation-name: htree-grow-4; }
+@keyframes htree-grow-5 { 0%, 55% { transform: scale(var(--sx0), var(--sy0)); animation-timing-function: cubic-bezier(.2,.7,.2,1); } 64%, 100% { transform: scale(1, 1); } }
+.htree-thinking rect[data-level='5'] { animation-name: htree-grow-5; }
+@media (prefers-reduced-motion: reduce) { .htree-thinking, .htree-thinking rect { animation: none; } .htree-thinking { opacity: .8; } }

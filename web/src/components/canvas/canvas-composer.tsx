@@ -8,7 +8,6 @@ import {
   ArrowUpIcon,
   AudioLinesIcon,
   HistoryIcon,
-  LoaderCircleIcon,
   MessageCircleIcon,
   PhoneIcon,
   PhoneOffIcon,
@@ -16,6 +15,7 @@ import {
   XIcon,
 } from 'lucide-react'
 import { useState } from 'react'
+import { HTreeThinking } from '#/components/brand/htree-thinking'
 import { ChatHistoryPanel } from '#/components/canvas/chat-history'
 import { MarkdownText } from '#/components/assistant-ui/elements/markdown-text'
 import { ToolFallback } from '#/components/assistant-ui/elements/tool-fallback.aui'
@@ -39,11 +39,7 @@ export function CanvasComposer() {
             <MessageCircleIcon aria-hidden="true" size={15} />
             <span>Conversation</span>
             {composer.isRunning && (
-              <LoaderCircleIcon
-                className="canvas-chat-spinner"
-                aria-hidden="true"
-                size={13}
-              />
+              <HTreeThinking className="canvas-chat-spinner" size={15} />
             )}
             <button
               type="button"
@@ -70,11 +66,7 @@ export function CanvasComposer() {
           <MessageCircleIcon aria-hidden="true" size={14} />
           Conversation
           {composer.isRunning && (
-            <LoaderCircleIcon
-              className="canvas-chat-spinner"
-              aria-hidden="true"
-              size={13}
-            />
+            <HTreeThinking className="canvas-chat-spinner" size={15} />
           )}
         </button>
       )}

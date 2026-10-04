@@ -278,11 +278,7 @@
 }
 
 .canvas-chat-spinner {
-  animation: canvas-chat-spin 1s linear infinite;
-}
-
-@keyframes canvas-chat-spin {
-  to { transform: rotate(360deg); }
+  margin-left: 2px;
 }
 
 @keyframes canvas-conversation-in {
