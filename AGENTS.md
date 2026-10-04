@@ -32,6 +32,9 @@ We are building for a hackathon. Speed beats everything.
   claimed by another session; do not reset, delete, or overwrite it.
 - Record decisions and handoff notes in the issue. Close completed work with
   `bd close <id> --reason "..."`; leave unfinished work with clear next steps.
+- Beads sync through GitHub (`refs/dolt/data` on `origin`). New clone:
+  `bin/setup-beads`, then `bd dolt pull`. Run `bd dolt pull` before picking
+  work and `bd dolt push` after changing issues, every time you push code.
 - After compaction, follow the Beads context injected by the lifecycle hooks.
 - At session end, report issue IDs and remaining work, then commit, push, and
   deploy (see below).
