@@ -1,22 +1,4 @@
-# Phab
-
-<p align="center">
-  <img src="web/hyperagent-cover.jpg" alt="Phab live canvas shown over an illustrated portrait backdrop" width="100%" />
-</p>
-
-**Phab is a conversational AI workspace where research becomes a shared, living canvas.** Ask the assistant to research a topic, gather cited sources, and turn the results into context stacks you can reuse in later conversations. Open shared live browser sessions, collaborate on one board, and talk to the assistant by voice.
-
-Try it live at **[hyperagent.lol](https://hyperagent.lol/)**.
-
-## What it does
-
-- **Research that keeps running:** queue background research and watch sources and summaries appear while tools work.
-- **A canvas for useful context:** collect citations, summaries, plans, and notes as movable cards; choose which source stacks inform the next prompt.
-- **Shared live browsers:** open and operate cloud browser sessions directly on a board with collaborators.
-- **Chat and voice:** work with the assistant through text or browser speech, with research and connected services available as tools.
-- **A research activity monitor:** inspect job status, tool timings, errors, and redacted debug reports.
-
-## Built with
+# Hyper Agent
 
 <p>
   <a href="https://react.dev/"><img alt="React" src="https://img.shields.io/badge/React-19-149eca?logo=react&logoColor=white"></a>
@@ -29,6 +11,23 @@ Try it live at **[hyperagent.lol](https://hyperagent.lol/)**.
   <a href="https://neon.tech/"><img alt="Neon" src="https://img.shields.io/badge/Neon-Postgres-00e599?logo=neon&logoColor=111827"></a>
 </p>
 
+<p align="center">
+  <img src="web/hyperagent-screenshot.png" alt="Hyper Agent shared research canvas with assistant chat and live activity monitor" width="100%" />
+</p>
+
+**Hyper Agent is a conversational AI workspace where research becomes a shared, living canvas.** Ask the assistant to research a topic, gather cited sources, and turn the results into context stacks you can reuse in later conversations. Open shared live browser sessions, collaborate on one board, and talk to the assistant by voice.
+
+Try it live at **[hyperagent.lol](https://hyperagent.lol/)**.
+
+## What it does
+
+- **Research that keeps running:** queue background research and watch sources and summaries appear while tools work.
+- **A canvas for useful context:** collect citations, summaries, plans, and notes as movable cards; choose which source stacks inform the next prompt.
+- **Shared live browsers:** open and operate cloud browser sessions directly on a board with collaborators.
+- **Chat and voice:** work with the assistant through text or browser speech, with research and connected services available as tools.
+- **A research activity monitor:** inspect job status, tool timings, errors, and redacted debug reports.
+
+## Built with
 The app uses **React 19**, **TypeScript**, **TanStack Start/Router**, **Vite**, and **Tailwind CSS 4**. **Assistant UI** provides the chat interface, **Mastra** and the **AI SDK** power the assistant and tools, and **Neon Postgres** stores jobs and shared canvas data. Research runs in a separate **Fly.io** worker; the web app is a Node server on **AWS App Runner**, served through CloudFront. Connected search and service integrations are accessed through Executor MCP.
 
 ## Run locally
