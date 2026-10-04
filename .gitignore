@@ -1,0 +1,17 @@
+/.env
+/.env.*
+!/.env.example
+/.direnv/
+/bin/bd
+/.codex/config.toml
+/.mcp.json
+/.claude/settings.local.json
+.DS_Store
+Icon?
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
