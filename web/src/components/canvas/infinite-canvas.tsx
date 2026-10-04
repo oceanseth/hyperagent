@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Activity, Check, Crosshair, Grid2X2, Minus, PanelLeft, Plus, Search, Share2, StickyNote, X } from 'lucide-react'
 import { ArtifactCard } from '#/components/assistant-ui/elements/artifact-card'
 import { field, paper } from '#/components/assistant-ui/elements/surfaces'
@@ -39,10 +39,8 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
         </div>
         <div className="phab-canvas-toolbar-right">
           <AccountLink />
-          {canvas.workspace.shared && canvas.workspace.boardTitle && (
-            <button type="button" className="phab-monitor-link phab-board-title" title="Rename this board" onClick={() => void renameBoard(canvas.workspace.boardTitle)}>{canvas.workspace.boardTitle}</button>
-          )}
-          <ShareButton shared={canvas.workspace.shared} title={canvas.workspace.boardTitle} />
+          {canvas.workspace.shared && canvas.workspace.boardTitle && <BoardTitle title={canvas.workspace.boardTitle} />}
+          <ShareButton shared={canvas.workspace.shared} />
           <a className="phab-monitor-link" href="/monitor" target="_blank" rel="noopener noreferrer"><Activity size={15} /><span>Activity</span></a>
           <button className="phab-icon-button" {...canvas.overviewButtonProps}><Grid2X2 size={17} strokeWidth={1.5} /></button>
           <button className="phab-icon-button" {...canvas.resetButtonProps}><Crosshair size={19} strokeWidth={1.5} /></button>
@@ -135,62 +133,106 @@ function AccountLink() {
   return <a className="phab-monitor-link phab-board-title" href="/boards">{label}</a>
 }
 
-async function renameBoard(current?: string) {
-  const title = window.prompt('Rename this board', current || 'Untitled board')
-  if (title === null) return
-  const response = await fetch('/api/share', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'rename', title }),
-  })
-  if (response.ok) await refreshCanvas()
+// Click the board name to rename it in place; Enter saves, Escape cancels.
+function BoardTitle({ title }: { title: string }) {
+  const [editing, setEditing] = useState(false)
+  const cancelled = useRef(false)
+
+  const save = async (value: string) => {
+    setEditing(false)
+    const next = value.trim()
+    if (cancelled.current || !next || next === title) return
+    const response = await fetch('/api/share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'rename', title: next }),
+    })
+    if (response.ok) await refreshCanvas()
+  }
+
+  if (!editing) {
+    return (
+      <button type="button" className="phab-monitor-link phab-board-title" title="Rename this board" onClick={() => { cancelled.current = false; setEditing(true) }}>{title}</button>
+    )
+  }
+  return (
+    <input
+      className="phab-board-title-input"
+      aria-label="Board name"
+      defaultValue={title}
+      maxLength={120}
+      autoFocus
+      onFocus={(event) => event.currentTarget.select()}
+      onBlur={(event) => void save(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+        if (event.key === 'Escape') {
+          event.stopPropagation()
+          cancelled.current = true
+          event.currentTarget.blur()
+        }
+      }}
+    />
+  )
 }
 
-// Mints (or reuses) this workspace's share link and copies it. Everyone who
-// opens the link lands on the same live board.
-function ShareButton({ shared, title }: { shared: boolean; title?: string }) {
+// Mints (or reuses) this workspace's share link and copies it. The server
+// names an untitled board with a unique docker-style name (e.g. focused_turing).
+// Everyone who opens the link lands on the same live board.
+function ShareButton({ shared }: { shared: boolean }) {
   const [status, setStatus] = useState<'idle' | 'working' | 'copied' | 'error'>('idle')
+  const [toast, setToast] = useState<{ url: string; title: string; copied: boolean } | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+
+  useEffect(() => () => window.clearTimeout(timer.current), [])
 
   const share = async () => {
     if (status === 'working') return
-    let name = title
-    if (!shared) {
-      const entered = window.prompt('Name this board', title || 'Untitled board')
-      if (entered === null) return
-      name = entered
-    }
+    window.clearTimeout(timer.current)
     setStatus('working')
     try {
       const response = await fetch('/api/share', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', title: name }),
+        body: JSON.stringify({ action: 'create' }),
         signal: AbortSignal.timeout(15_000),
       })
-      const body = await response.json() as { url?: string; error?: string }
+      const body = await response.json() as { url?: string; title?: string; error?: string }
       if (!response.ok || !body.url) throw new Error(body.error)
       const url = `${location.origin}${body.url}`
-      await navigator.clipboard?.writeText(url).catch(() => undefined)
-      window.prompt('Anyone with this link joins your live board:', url)
+      const copied = await (navigator.clipboard?.writeText(url).then(() => true, () => false) ?? false)
+      setToast({ url, title: body.title ?? '', copied })
+      setStatus(copied ? 'copied' : 'idle')
       await refreshCanvas()
-      setStatus('copied')
+      timer.current = window.setTimeout(() => { setStatus('idle'); setToast(null) }, copied ? 4000 : 12_000)
     } catch {
       setStatus('error')
+      timer.current = window.setTimeout(() => setStatus('idle'), 2500)
     }
-    window.setTimeout(() => setStatus('idle'), 2500)
   }
 
   return (
-    <button
-      type="button"
-      className="phab-monitor-link"
-      onClick={() => void share()}
-      aria-label="Share this board"
-      title={shared ? 'This board is shared - copy the invite link' : 'Share this board'}
-    >
-      {status === 'copied' ? <Check size={15} /> : <Share2 size={15} />}
-      <span>{status === 'copied' ? 'Link copied' : status === 'error' ? 'Try again' : shared ? 'Shared' : 'Share'}</span>
-    </button>
+    <div className="phab-share">
+      <button
+        type="button"
+        className="phab-monitor-link"
+        onClick={() => void share()}
+        aria-label="Share this board"
+        title={shared ? 'This board is shared - copy the invite link' : 'Share this board'}
+      >
+        {status === 'copied' ? <Check size={15} /> : <Share2 size={15} />}
+        <span>{status === 'copied' ? 'Link copied' : status === 'error' ? 'Try again' : shared ? 'Shared' : 'Share'}</span>
+      </button>
+      {toast && (
+        <div className="phab-share-toast" role="status">
+          <div className="phab-share-toast-head">
+            <span>{toast.copied ? 'Link copied' : 'Copy this link'}{toast.title && <> · <strong>{toast.title}</strong></>}</span>
+            <button type="button" aria-label="Dismiss" onClick={() => { window.clearTimeout(timer.current); setToast(null) }}><X size={13} /></button>
+          </div>
+          <input readOnly value={toast.url} aria-label="Share link" onFocus={(event) => event.currentTarget.select()} />
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless'
 import type { CanvasBrowser, CanvasJob, CanvasNote, CanvasStack, CanvasSnapshot, JobEvent } from '#/lib/canvas'
 import { listPlans } from './plans'
+import { uniqueBoardName } from './board-names'
 
 let schemaReady: Promise<void> | undefined
 function database() {
@@ -215,27 +216,41 @@ async function saveMember(sql: Awaited<ReturnType<typeof ready>>, sub: string, c
     END`
 }
 
+const untitled = 'Untitled board'
+
+function newBoardName(sql: Awaited<ReturnType<typeof ready>>) {
+  return uniqueBoardName(async (name) => (await sql`SELECT 1 FROM phab_share_codes WHERE title = ${name} LIMIT 1`).length > 0)
+}
+
+// Sharing names the board automatically: a board still called 'Untitled
+// board' gets a unique docker-style name instead of asking the user.
 export async function createShareCode(workspaceId: string, options?: { title?: string; ownerSub?: string }) {
   const sql = await ready()
-  const title = options?.title === undefined ? undefined : cleanTitle(options.title)
-  const existing = await sql`SELECT code FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
+  const requested = options?.title?.trim() ? cleanTitle(options.title) : undefined
+  const existing = await sql`SELECT code, title FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
   if (existing[0]) {
     const code = String(existing[0].code)
-    if (title) await sql`UPDATE phab_share_codes SET title = ${title} WHERE workspace_id = ${workspaceId}`
+    let title = cleanTitle(existing[0].title)
+    const next = requested ?? (title === untitled ? await newBoardName(sql) : undefined)
+    if (next && next !== title) {
+      await sql`UPDATE phab_share_codes SET title = ${next} WHERE workspace_id = ${workspaceId}`
+      title = next
+    }
     if (options?.ownerSub) {
       await sql`UPDATE phab_share_codes SET owner_sub = ${options.ownerSub} WHERE workspace_id = ${workspaceId} AND owner_sub IS NULL`
       await saveMember(sql, options.ownerSub, code, 'owner')
     }
-    return code
+    return { code, title }
   }
   const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
+  const title = requested ?? await newBoardName(sql)
   await sql`INSERT INTO phab_share_codes (code, workspace_id, title, owner_sub)
-    VALUES (${code}, ${workspaceId}, ${title ?? 'Untitled board'}, ${options?.ownerSub ?? null})
+    VALUES (${code}, ${workspaceId}, ${title}, ${options?.ownerSub ?? null})
     ON CONFLICT (code) DO NOTHING`
-  const row = await sql`SELECT code FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
+  const row = await sql`SELECT code, title FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
   const saved = String(row[0]?.code ?? code)
   if (options?.ownerSub) await saveMember(sql, options.ownerSub, saved, 'owner')
-  return saved
+  return { code: saved, title: row[0] ? cleanTitle(row[0].title) : title }
 }
 
 export async function resolveShareCode(code: string) {
@@ -268,8 +283,9 @@ export async function claimWorkspace(sub: string, workspaceId: string) {
   const existing = await sql`SELECT code, owner_sub FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
   if (!existing[0]) {
     const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
+    const title = await newBoardName(sql)
     await sql`INSERT INTO phab_share_codes (code, workspace_id, title, owner_sub)
-      VALUES (${code}, ${workspaceId}, 'Untitled board', ${sub})
+      VALUES (${code}, ${workspaceId}, ${title}, ${sub})
       ON CONFLICT (code) DO NOTHING`
     const row = await sql`SELECT code FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
     if (row[0]) await saveMember(sql, sub, String(row[0].code), 'owner')
@@ -318,7 +334,7 @@ export async function createOwnedBoard(ownerSub: string, title: string) {
   const sql = await ready()
   const workspaceId = crypto.randomUUID()
   const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
-  const name = cleanTitle(title)
+  const name = title.trim() ? cleanTitle(title) : await newBoardName(sql)
   await sql`INSERT INTO phab_share_codes (code, workspace_id, title, owner_sub)
     VALUES (${code}, ${workspaceId}, ${name}, ${ownerSub})`
   await saveMember(sql, ownerSub, code, 'owner')

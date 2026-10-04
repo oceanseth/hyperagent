@@ -30,8 +30,8 @@ export const Route = createFileRoute('/api/share')({
           const parsed = bodySchema.safeParse(await request.json())
           if (!parsed.success) return Response.json({ error: 'Invalid share request.' }, { status: 400, headers: session.headers })
           if (parsed.data.action === 'create') {
-            const code = await createShareCode(session.id, { title: parsed.data.title, ownerSub: account?.sub })
-            return Response.json({ code, url: `/s/${code}`, title: parsed.data.title }, { headers: session.headers })
+            const { code, title } = await createShareCode(session.id, { title: parsed.data.title, ownerSub: account?.sub })
+            return Response.json({ code, url: `/s/${code}`, title }, { headers: session.headers })
           }
           if (parsed.data.action === 'rename') {
             const renamed = await renameBoard({
