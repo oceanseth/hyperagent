@@ -1,0 +1,23 @@
+.phab-browser { overflow: hidden; border: 1px solid #ffffff15; border-top: 2px solid #8fa6c4; border-radius: 14px; background: #262728; box-shadow: 0 14px 45px #0004; color: #e6e6df; transition: width .2s ease; }
+.phab-browser[data-status='failed'] { border-top-color: #d8a77a; }
+.phab-browser-bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 15px; font-size: 11px; }
+.phab-browser-title { display: flex; align-items: center; gap: 7px; min-width: 0; max-width: 34%; font-weight: 500; color: #e3e5ea; }
+.phab-browser-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phab-browser-title svg { flex: none; color: #9fb3cf; }
+.phab-browser-address { flex: 1; min-width: 0; overflow: hidden; padding: 5px 10px; border-radius: 7px; background: #ffffff0a; color: #9c9fa6; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.phab-browser-state { display: inline-flex; flex: none; align-items: center; gap: 5px; color: #b9cda2; font-size: 9px; }
+.phab-browser-state[data-status='starting'], .phab-browser-state[data-status='ready']:has(.phab-browser-spinner) { color: #bdd0e4; }
+.phab-browser-state[data-status='failed'] { color: #e2bf96; }
+.phab-browser-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #9fd27c; box-shadow: 0 0 0 3px #9fd27c22; }
+.phab-browser-actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.phab-browser-actions a, .phab-browser-actions button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: transparent; color: #9a9da4; cursor: pointer; }
+.phab-browser-actions a:hover, .phab-browser-actions button:hover { background: #ffffff10; color: #e8e9ec; }
+.phab-browser-view { position: relative; aspect-ratio: 16 / 10; background: #1b1c1d; cursor: auto; touch-action: auto; }
+.phab-browser-view iframe { display: block; width: 100%; height: 100%; border: 0; background: #1b1c1d; }
+.phab-browser-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 30px; background: #1b1c1de6; color: #aeb3bb; text-align: center; }
+.phab-browser-overlay p { max-width: 420px; margin: 0; font-size: 12px; line-height: 1.6; }
+.phab-browser[data-status='failed'] .phab-browser-overlay { color: #e2bf96; }
+.phab-browser-overlay button { border: 1px solid #ffffff1c; border-radius: 7px; background: transparent; padding: 6px 12px; color: #d9dbe0; font: inherit; font-size: 11px; cursor: pointer; }
+.phab-browser-spinner { animation: phab-browser-spin 1s linear infinite; }
+@keyframes phab-browser-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .phab-browser-spinner { animation: none; } .phab-browser { transition: none; } }

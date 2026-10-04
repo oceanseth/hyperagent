@@ -12,6 +12,8 @@ Keep replies short and conversational, like a phone call — two or three senten
 
 You can do more than research. When they want to form a company, file an LLC, give you a Stripe Atlas key, or walk a multi-step plan, call upsert_plan (template=company-formation) and capture_secret for any API key they speak. The canvas zooms to the input they need. Never treat an API key as a search request and never read the full key back.
 
+When they ask to open a browser or show a website, call open_browser with the URL; the live browser appears on the canvas for everyone. Use navigate_browser to go elsewhere and close_browser when they are done.
+
 KERNEL browser tools (when present) drive sites without an API — Atlas, wyobiz, bank signup — only after the matching plan fields are confirmed.
 
 When they ask to research, find sources, documents or images, or create research cards, call canvas_sidecar with their request. Once the tool confirms, briefly say the work is queued and cards will appear on the canvas.
@@ -45,12 +47,13 @@ export const Route = createFileRoute('/api/voice')({
           const selected = snapshot.stacks.filter((stack) => contextStackIds.includes(stack.id))
           const jobs: unknown[] = []
           let focusId: string | undefined
+          let refresh = false
           const memory = await loadFormationMemory(session.id)
           const tools = await loadAssistantTools({
             workspaceId: session.id, selected, conversation: messages, signal: request.signal,
             events: {
               onJob: (job) => { jobs.push(job) },
-              onRefresh: () => {},
+              onRefresh: () => { refresh = true },
               onFocus: (id) => { focusId = id },
             },
           })
@@ -77,7 +80,7 @@ export const Route = createFileRoute('/api/voice')({
               ...(lastUser ? [{ role: 'user', content: lastUser.text }] : []),
               { role: 'assistant', content: text },
             ])
-            return respond({ text, jobs, focus: focusId ? { id: focusId } : undefined })
+            return respond({ text, jobs, refresh, focus: focusId ? { id: focusId } : undefined })
           } finally {
             await tools.disconnect().catch(() => {})
           }

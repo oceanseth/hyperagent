@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as MonitorRouteImport } from './routes/monitor'
 import { Route as ApiAgentmailRouteImport } from './routes/api/agentmail'
+import { Route as ApiBrowsersRouteImport } from './routes/api/browsers'
 import { Route as ApiCanvasRouteImport } from './routes/api/canvas'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiEmbeddableRouteImport } from './routes/api/embeddable'
@@ -51,6 +52,11 @@ const MonitorRoute = MonitorRouteImport.update({
 const ApiAgentmailRoute = ApiAgentmailRouteImport.update({
   id: '/api/agentmail',
   path: '/api/agentmail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBrowsersRoute = ApiBrowsersRouteImport.update({
+  id: '/api/browsers',
+  path: '/api/browsers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCanvasRoute = ApiCanvasRouteImport.update({
@@ -154,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/boards': typeof BoardsRoute
   '/monitor': typeof MonitorRoute
   '/api/agentmail': typeof ApiAgentmailRoute
+  '/api/browsers': typeof ApiBrowsersRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByTo {
   '/boards': typeof BoardsRoute
   '/monitor': typeof MonitorRoute
   '/api/agentmail': typeof ApiAgentmailRoute
+  '/api/browsers': typeof ApiBrowsersRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
@@ -205,6 +213,7 @@ export interface FileRoutesById {
   '/boards': typeof BoardsRoute
   '/monitor': typeof MonitorRoute
   '/api/agentmail': typeof ApiAgentmailRoute
+  '/api/browsers': typeof ApiBrowsersRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
@@ -232,6 +241,7 @@ export interface FileRouteTypes {
     | '/boards'
     | '/monitor'
     | '/api/agentmail'
+    | '/api/browsers'
     | '/api/canvas'
     | '/api/chat'
     | '/api/embeddable'
@@ -257,6 +267,7 @@ export interface FileRouteTypes {
     | '/boards'
     | '/monitor'
     | '/api/agentmail'
+    | '/api/browsers'
     | '/api/canvas'
     | '/api/chat'
     | '/api/embeddable'
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | '/boards'
     | '/monitor'
     | '/api/agentmail'
+    | '/api/browsers'
     | '/api/canvas'
     | '/api/chat'
     | '/api/embeddable'
@@ -308,6 +320,7 @@ export interface RootRouteChildren {
   BoardsRoute: typeof BoardsRoute
   MonitorRoute: typeof MonitorRoute
   ApiAgentmailRoute: typeof ApiAgentmailRoute
+  ApiBrowsersRoute: typeof ApiBrowsersRoute
   ApiCanvasRoute: typeof ApiCanvasRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiEmbeddableRoute: typeof ApiEmbeddableRoute
@@ -357,6 +370,13 @@ declare module '@tanstack/react-router' {
       path: '/api/agentmail'
       fullPath: '/api/agentmail'
       preLoaderRoute: typeof ApiAgentmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/browsers': {
+      id: '/api/browsers'
+      path: '/api/browsers'
+      fullPath: '/api/browsers'
+      preLoaderRoute: typeof ApiBrowsersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/canvas': {
@@ -500,6 +520,7 @@ const rootRouteChildren: RootRouteChildren = {
   BoardsRoute: BoardsRoute,
   MonitorRoute: MonitorRoute,
   ApiAgentmailRoute: ApiAgentmailRoute,
+  ApiBrowsersRoute: ApiBrowsersRoute,
   ApiCanvasRoute: ApiCanvasRoute,
   ApiChatRoute: ApiChatRoute,
   ApiEmbeddableRoute: ApiEmbeddableRoute,
@@ -523,3 +544,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
