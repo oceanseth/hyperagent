@@ -14,7 +14,7 @@ export type WorkspaceState = CanvasSnapshot & {
   loaded: boolean
   syncedAt: number | null
 }
-const initial: WorkspaceState = { stacks: [], jobs: [], plans: [], notes: [], shared: false, positions: {}, excludedIds: [], openPlanIds: [], focus: null, error: null, loaded: false, syncedAt: null }
+const initial: WorkspaceState = { stacks: [], jobs: [], plans: [], notes: [], shared: false, boardTitle: '', positions: {}, excludedIds: [], openPlanIds: [], focus: null, error: null, loaded: false, syncedAt: null }
 export const canvasWorkspace = createStore<WorkspaceState>(() => initial)
 let pending: Promise<void> | undefined
 let subscriptions = 0
@@ -77,6 +77,7 @@ export function refreshCanvas() {
       canvasWorkspace.setState((current) => ({
         stacks, jobs, plans,
         shared: snapshot.shared ?? current.shared,
+        boardTitle: snapshot.boardTitle ?? '',
         // Server layout wins so shared boards converge; local wins briefly
         // around a drag or edit so your own hand never fights the poll.
         ...(holdLocal() ? {} : {

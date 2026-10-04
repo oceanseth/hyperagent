@@ -70,4 +70,5 @@ export type CanvasSnapshot = {
   notes?: CanvasNote[]
   positions?: Record<string, { x: number; y: number }>
   shared?: boolean
+  boardTitle?: string
 }

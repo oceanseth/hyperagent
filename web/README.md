@@ -44,7 +44,10 @@ Server secrets for the app: `NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`,
 Northwest is the default filing provider, not required. The worker needs
 `NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`, `DATABASE_URL`,
 `JOBS_SECRET`, `EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`, and optionally
-`COSMOS_TOKEN`. Optional model overrides: `NEON_MODEL_ASSISTANT` (default
+`COSMOS_TOKEN`. Auth0 login needs `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, and
+`AUTH0_SECRET` (or `AUTH0_CLIENT_SECRET`). Register
+`https://hyperagent.lol/api/auth/callback` as an allowed callback and
+`https://hyperagent.lol` as an allowed logout URL. Optional model overrides: `NEON_MODEL_ASSISTANT` (default
 claude-sonnet-5) and `NEON_MODEL_RESEARCH` (default gpt-5-5).
 Values are mirrored in AWS SSM under `/hyperagent/*`.
 Keep values in ignored `.env.local` during development and the hosting secret

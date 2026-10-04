@@ -59,10 +59,19 @@ async function ready() {
     )`
     await sql`CREATE TABLE IF NOT EXISTS phab_share_codes (
       code text PRIMARY KEY, workspace_id uuid NOT NULL,
+      title text NOT NULL DEFAULT 'Untitled board',
+      owner_sub text,
       created_at timestamptz NOT NULL DEFAULT now()
     )`
+    await sql`ALTER TABLE phab_share_codes
+      ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT 'Untitled board',
+      ADD COLUMN IF NOT EXISTS owner_sub text`
     await sql`CREATE INDEX IF NOT EXISTS phab_share_codes_workspace_idx
       ON phab_share_codes (workspace_id)`
+    await sql`CREATE TABLE IF NOT EXISTS phab_board_members (
+      sub text NOT NULL, code text NOT NULL, role text NOT NULL DEFAULT 'member',
+      created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (sub, code)
+    )`
   })().catch((error) => { schemaReady = undefined; throw error })
   await schemaReady
   return sql
@@ -106,12 +115,13 @@ export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
     listPlans(workspaceId).catch(() => []),
     listNotes(workspaceId).catch(() => []),
     sql`SELECT positions FROM phab_canvas_layout WHERE workspace_id = ${workspaceId}`,
-    sql`SELECT 1 AS shared FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`,
+    sql`SELECT title FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`,
   ])
   return {
     stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob), plans, notes,
     positions: (layout[0]?.positions ?? {}) as Record<string, { x: number; y: number }>,
     shared: shared.length > 0,
+    boardTitle: shared[0]?.title ? String(shared[0].title) : '',
   }
 }
 
@@ -149,20 +159,129 @@ export async function saveLayout(workspaceId: string, positions: Record<string, 
     ON CONFLICT (workspace_id) DO UPDATE SET positions = EXCLUDED.positions, updated_at = now()`
 }
 
-export async function createShareCode(workspaceId: string) {
+export function cleanTitle(value: unknown) {
+  const title = String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120)
+  return title || 'Untitled board'
+}
+
+const shareCode = /^[a-z0-9]{4,32}$/i
+
+async function saveMember(sql: Awaited<ReturnType<typeof ready>>, sub: string, code: string, role: 'owner' | 'member') {
+  await sql`INSERT INTO phab_board_members (sub, code, role) VALUES (${sub}, ${code}, ${role})
+    ON CONFLICT (sub, code) DO UPDATE SET role = CASE
+      WHEN EXCLUDED.role = 'owner' OR phab_board_members.role = 'owner' THEN 'owner'
+      ELSE phab_board_members.role
+    END`
+}
+
+export async function createShareCode(workspaceId: string, options?: { title?: string; ownerSub?: string }) {
   const sql = await ready()
+  const title = options?.title === undefined ? undefined : cleanTitle(options.title)
   const existing = await sql`SELECT code FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
-  if (existing[0]) return String(existing[0].code)
+  if (existing[0]) {
+    const code = String(existing[0].code)
+    if (title) await sql`UPDATE phab_share_codes SET title = ${title} WHERE workspace_id = ${workspaceId}`
+    if (options?.ownerSub) {
+      await sql`UPDATE phab_share_codes SET owner_sub = ${options.ownerSub} WHERE workspace_id = ${workspaceId} AND owner_sub IS NULL`
+      await saveMember(sql, options.ownerSub, code, 'owner')
+    }
+    return code
+  }
   const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
-  await sql`INSERT INTO phab_share_codes (code, workspace_id) VALUES (${code}, ${workspaceId})
+  await sql`INSERT INTO phab_share_codes (code, workspace_id, title, owner_sub)
+    VALUES (${code}, ${workspaceId}, ${title ?? 'Untitled board'}, ${options?.ownerSub ?? null})
     ON CONFLICT (code) DO NOTHING`
-  return code
+  const row = await sql`SELECT code FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
+  const saved = String(row[0]?.code ?? code)
+  if (options?.ownerSub) await saveMember(sql, options.ownerSub, saved, 'owner')
+  return saved
 }
 
 export async function resolveShareCode(code: string) {
   const sql = await ready()
   const rows = await sql`SELECT workspace_id FROM phab_share_codes WHERE code = ${code}`
   return rows[0] ? String(rows[0].workspace_id) : undefined
+}
+
+export async function getShareCard(code: string) {
+  if (!shareCode.test(code)) return undefined
+  const sql = await ready()
+  const rows = await sql`SELECT code, title FROM phab_share_codes WHERE code = ${code} LIMIT 1`
+  if (!rows[0]) return undefined
+  return { code: String(rows[0].code), title: cleanTitle(rows[0].title) }
+}
+
+export async function rememberBoard(sub: string, code: string) {
+  if (!shareCode.test(code)) return
+  const sql = await ready()
+  const rows = await sql`SELECT code, owner_sub FROM phab_share_codes WHERE code = ${code} LIMIT 1`
+  if (!rows[0]) return
+  const role = rows[0].owner_sub === sub ? 'owner' : 'member'
+  await saveMember(sql, sub, String(rows[0].code), role)
+}
+
+// The first signed-in person to touch an unowned board becomes its owner.
+// A board that already has an owner is only added to this account's list.
+export async function claimWorkspace(sub: string, workspaceId: string) {
+  const sql = await ready()
+  const existing = await sql`SELECT code, owner_sub FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
+  if (!existing[0]) {
+    const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
+    await sql`INSERT INTO phab_share_codes (code, workspace_id, title, owner_sub)
+      VALUES (${code}, ${workspaceId}, 'Untitled board', ${sub})
+      ON CONFLICT (code) DO NOTHING`
+    const row = await sql`SELECT code FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
+    if (row[0]) await saveMember(sql, sub, String(row[0].code), 'owner')
+    return
+  }
+  const code = String(existing[0].code)
+  if (!existing[0].owner_sub) {
+    await sql`UPDATE phab_share_codes SET owner_sub = ${sub} WHERE code = ${code} AND owner_sub IS NULL`
+  }
+  const owned = await sql`SELECT owner_sub FROM phab_share_codes WHERE code = ${code}`
+  await saveMember(sql, sub, code, owned[0]?.owner_sub === sub ? 'owner' : 'member')
+}
+
+export async function listBoards(sub: string) {
+  const sql = await ready()
+  const rows = await sql`SELECT s.code, s.title, m.role, m.created_at
+    FROM phab_board_members m
+    JOIN phab_share_codes s ON s.code = m.code
+    WHERE m.sub = ${sub}
+    ORDER BY m.created_at DESC
+    LIMIT 100`
+  return rows.map((row) => ({
+    code: String(row.code),
+    title: cleanTitle(row.title),
+    role: row.role === 'owner' ? 'owner' as const : 'member' as const,
+  }))
+}
+
+export async function renameBoard(options: { title: string; workspaceId?: string; code?: string; ownerSub?: string }) {
+  const sql = await ready()
+  const title = cleanTitle(options.title)
+  if (options.workspaceId) {
+    const rows = await sql`UPDATE phab_share_codes SET title = ${title} WHERE workspace_id = ${options.workspaceId} RETURNING code, title`
+    return rows[0] ? { code: String(rows[0].code), title: String(rows[0].title) } : undefined
+  }
+  if (options.code && options.ownerSub && shareCode.test(options.code)) {
+    const rows = await sql`UPDATE phab_share_codes SET title = ${title}
+      WHERE code = ${options.code} AND owner_sub = ${options.ownerSub}
+      RETURNING code, title`
+    return rows[0] ? { code: String(rows[0].code), title: String(rows[0].title) } : undefined
+  }
+  return undefined
+}
+
+export async function createOwnedBoard(ownerSub: string, title: string) {
+  const sql = await ready()
+  const workspaceId = crypto.randomUUID()
+  const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
+  const name = cleanTitle(title)
+  await sql`INSERT INTO phab_share_codes (code, workspace_id, title, owner_sub)
+    VALUES (${code}, ${workspaceId}, ${name}, ${ownerSub})`
+  await saveMember(sql, ownerSub, code, 'owner')
+  return { workspaceId, code, title: name }
 }
 
 export type ChatHistoryMessage = { id: string; role: 'user' | 'assistant'; modality: 'chat' | 'voice'; text: string; at: string }

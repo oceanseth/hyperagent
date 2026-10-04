@@ -23,6 +23,7 @@
 .phab-canvas-toolbar-left, .phab-canvas-toolbar-right { display: flex; align-items: center; gap: 9px; pointer-events: auto; }
 .phab-wordmark { display: flex; align-items: center; gap: 7px; color: #f2f2ed; text-decoration: none; font-size: 21px; font-weight: 650; letter-spacing: -1.2px; line-height: 1; margin-right: 11px; cursor: pointer; }
 .phab-wordmark svg { opacity: .94; }
+.phab-board-title { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .phab-toolbar-divider { height: 14px; width: 1px; background: #3b3b3b; margin-inline: 3px; flex: none; }
 .phab-icon-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; color: #969696; border: 0; border-radius: 7px; background: transparent; cursor: pointer; transition: color .15s, background .15s; }
 .phab-icon-button:hover, .phab-icon-button[aria-expanded='true'] { color: #f0f0ec; background: #ffffff0a; }

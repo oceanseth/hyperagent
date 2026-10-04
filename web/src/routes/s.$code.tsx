@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { loadShareCard } from '#/server/share-card'
 
-// Joining swaps the workspace cookie via a same-origin fetch (a server-side
-// redirect cannot: the SameSite=Strict cookie would be dropped on the
-// cross-site navigation chain), then lands on the shared board.
+// The first HTML response carries the Open Graph tags. Crawlers do not run
+// the join redirect, so a pasted /s/<code> link unfurls with the board title.
 function JoinSharedSpace() {
   const { code } = Route.useParams()
+  const { title } = Route.useLoaderData()
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -28,9 +29,37 @@ function JoinSharedSpace() {
 
   return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '100dvh', background: '#1b1b1b', color: '#f2f2f3', fontFamily: 'inherit' }}>
-      <p role="status">{error ?? 'Joining the shared space…'}</p>
+      <p role="status">{error ?? `Joining ${title}…`}</p>
     </div>
   )
 }
 
-export const Route = createFileRoute('/s/$code')({ ssr: false, component: JoinSharedSpace })
+export const Route = createFileRoute('/s/$code')({
+  loader: ({ params }) => loadShareCard({ data: params.code }),
+  headers: () => ({ 'Cache-Control': 'public, max-age=60' }),
+  head: ({ loaderData, params }) => {
+    const title = loaderData?.title || 'Shared canvas'
+    const origin = loaderData?.origin || 'https://hyperagent.lol'
+    const page = `${origin}/s/${params.code}`
+    const image = `${origin}/api/og/${params.code}`
+    const description = 'A live shared canvas on hyperagent.'
+    return {
+      meta: [
+        { title },
+        { property: 'og:title', content: title },
+        { property: 'og:description', content: description },
+        { property: 'og:type', content: 'website' },
+        { property: 'og:url', content: page },
+        { property: 'og:image', content: image },
+        { property: 'og:image:width', content: '1200' },
+        { property: 'og:image:height', content: '630' },
+        { property: 'og:site_name', content: 'hyperagent' },
+        { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:title', content: title },
+        { name: 'twitter:description', content: description },
+        { name: 'twitter:image', content: image },
+      ],
+    }
+  },
+  component: JoinSharedSpace,
+})

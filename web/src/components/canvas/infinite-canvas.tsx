@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Activity, Check, Crosshair, Grid2X2, Minus, PanelLeft, Plus, Search, Share2, StickyNote, X } from 'lucide-react'
 import { ArtifactCard } from '#/components/assistant-ui/elements/artifact-card'
 import { field, paper } from '#/components/assistant-ui/elements/surfaces'
@@ -7,6 +7,7 @@ import { cn } from '#/lib/utils'
 import { ResearchCard } from './research-cards'
 import { MonitorWidget } from './monitor-widget'
 import { SettingsDialog } from './settings-dialog'
+import { refreshCanvas } from '#/lib/canvas-workspace'
 import { PlanCard, PlanInspector } from './plan-graph'
 import './canvas.css'
 
@@ -31,7 +32,11 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
           {canvas.workspace.contextCount > 0 && <span className="phab-context-badge">{canvas.workspace.contextCount} in context</span>}
         </div>
         <div className="phab-canvas-toolbar-right">
-          <ShareButton shared={canvas.workspace.shared} />
+          <AccountLink />
+          {canvas.workspace.shared && canvas.workspace.boardTitle && (
+            <button type="button" className="phab-monitor-link phab-board-title" title="Rename this board" onClick={() => void renameBoard(canvas.workspace.boardTitle)}>{canvas.workspace.boardTitle}</button>
+          )}
+          <ShareButton shared={canvas.workspace.shared} title={canvas.workspace.boardTitle} />
           <a className="phab-monitor-link" href="/monitor" target="_blank" rel="noopener noreferrer"><Activity size={15} /><span>Activity</span></a>
           <button className="phab-icon-button" {...canvas.overviewButtonProps}><Grid2X2 size={17} strokeWidth={1.5} /></button>
           <button className="phab-icon-button" {...canvas.resetButtonProps}><Crosshair size={19} strokeWidth={1.5} /></button>
@@ -119,19 +124,53 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
   )
 }
 
+function AccountLink() {
+  const [label, setLabel] = useState<string | null>(null)
+  const [configured, setConfigured] = useState(true)
+  useEffect(() => {
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((response) => response.json() as Promise<{ account: { name?: string; email?: string } | null; configured?: boolean }>)
+      .then((body) => {
+        setConfigured(body.configured !== false)
+        setLabel(body.account ? (body.account.name || body.account.email || 'Boards') : '')
+      })
+      .catch(() => setLabel(''))
+  }, [])
+  if (label === null) return null
+  if (!label) return <a className="phab-monitor-link" href={configured ? '/api/auth/login' : '/boards?error=config'}>Log in</a>
+  return <a className="phab-monitor-link phab-board-title" href="/boards">{label}</a>
+}
+
+async function renameBoard(current?: string) {
+  const title = window.prompt('Rename this board', current || 'Untitled board')
+  if (title === null) return
+  const response = await fetch('/api/share', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'rename', title }),
+  })
+  if (response.ok) await refreshCanvas()
+}
+
 // Mints (or reuses) this workspace's share link and copies it. Everyone who
 // opens the link lands on the same live board.
-function ShareButton({ shared }: { shared: boolean }) {
+function ShareButton({ shared, title }: { shared: boolean; title?: string }) {
   const [status, setStatus] = useState<'idle' | 'working' | 'copied' | 'error'>('idle')
 
   const share = async () => {
     if (status === 'working') return
+    let name = title
+    if (!shared) {
+      const entered = window.prompt('Name this board', title || 'Untitled board')
+      if (entered === null) return
+      name = entered
+    }
     setStatus('working')
     try {
       const response = await fetch('/api/share', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create' }),
+        body: JSON.stringify({ action: 'create', title: name }),
         signal: AbortSignal.timeout(15_000),
       })
       const body = await response.json() as { url?: string; error?: string }
@@ -139,6 +178,7 @@ function ShareButton({ shared }: { shared: boolean }) {
       const url = `${location.origin}${body.url}`
       await navigator.clipboard?.writeText(url).catch(() => undefined)
       window.prompt('Anyone with this link joins your live board:', url)
+      await refreshCanvas()
       setStatus('copied')
     } catch {
       setStatus('error')
