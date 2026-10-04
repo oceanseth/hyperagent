@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { MouseEvent, PointerEvent, WheelEvent } from 'react'
-import { canvasArtifacts, canvasWorkspace, contextIds, planArtifacts, planConnections, selectedContextIds, subscribeCanvas, toggleContextStack, type CanvasArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
+import { canvasArtifacts, canvasWorkspace, contextIds, planArtifacts, planConnections, selectedContextIds, subscribeCanvas, toggleContextStack, type CanvasArtifact } from '#/lib/canvas-workspace'
 
 export function useCanvasWorkspace() {
   const state = useSyncExternalStore(subscribeCanvas, canvasWorkspace.getState, canvasWorkspace.getInitialState)
