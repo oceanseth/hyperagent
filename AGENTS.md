@@ -3,6 +3,13 @@
 Shared instructions for Codex and Claude. Keep project guidance here; do not
 create a separate `CLAUDE.md`.
 
+## UI components
+
+- Use Assistant UI for every UI component it provides. Check Assistant UI before
+  building a custom component or choosing one from another library.
+- Use custom components or another library only when Assistant UI does not
+  provide the needed component.
+
 ## Hackathon mode: ship constantly
 
 We are building for a hackathon. Speed beats everything.
