@@ -48,11 +48,9 @@ first use. Nothing to install globally; ignore any `bd` from Homebrew.
   claimed by another session; do not reset, delete, or overwrite it.
 - Record decisions and handoff notes in the issue. Close completed work with
   `bd close <id> --reason "..."`; leave unfinished work with clear next steps.
-- Repos: `oxfern/phab` is the shared hub; code and Beads (`refs/dolt/data`)
-  are pushed there. `oceanseth/hyperagent` is a fork that receives changes by
-  PR. In clones that have both, `oxfern/phab` is the `upstream` remote and the
-  push default.
-- Beads sync through GitHub (`refs/dolt/data` on `oxfern/phab`). New clone:
+- Repo: `oceanseth/hyperagent` is the shared hub (`origin`). Push code and
+  Beads there. `oxfern/phab` is the old repo, kept as `upstream` in some clones.
+- Beads sync through GitHub (`refs/dolt/data` on `oceanseth/hyperagent`). New clone:
   `bin/setup-beads`, then `bd dolt pull`. Run `bd dolt pull` before picking
   work and `bd dolt push` right after claiming or changing issues, so other
   agents see your claims quickly.
