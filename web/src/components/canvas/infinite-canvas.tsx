@@ -6,6 +6,7 @@ import { useCanvasNote, useInfiniteCanvas } from '#/hooks/use-infinite-canvas'
 import { cn } from '#/lib/utils'
 import { ResearchCard } from './research-cards'
 import { MonitorWidget } from './monitor-widget'
+import { SettingsDialog } from './settings-dialog'
 import { PlanCard, PlanInspector } from './plan-graph'
 import './canvas.css'
 
@@ -35,6 +36,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
           <button className="phab-icon-button" {...canvas.resetButtonProps}><Crosshair size={19} strokeWidth={1.5} /></button>
           <span className="phab-toolbar-divider" />
           <button className="phab-icon-button" {...canvas.searchButtonProps}><Search size={18} strokeWidth={1.5} /></button>
+          <SettingsDialog />
         </div>
       </header>
 

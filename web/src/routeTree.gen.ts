@@ -11,11 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MonitorRouteImport } from './routes/monitor'
+import { Route as ApiAgentmailRouteImport } from './routes/api/agentmail'
 import { Route as ApiCanvasRouteImport } from './routes/api/canvas'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiEmbeddableRouteImport } from './routes/api/embeddable'
+import { Route as ApiPlansRouteImport } from './routes/api/plans'
 import { Route as ApiResearchRouteImport } from './routes/api/research'
+import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiVoiceRouteImport } from './routes/api/voice'
+import { Route as PSlugRouteImport } from './routes/p.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -25,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const MonitorRoute = MonitorRouteImport.update({
   id: '/monitor',
   path: '/monitor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentmailRoute = ApiAgentmailRouteImport.update({
+  id: '/api/agentmail',
+  path: '/api/agentmail',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCanvasRoute = ApiCanvasRouteImport.update({
@@ -42,9 +51,19 @@ const ApiEmbeddableRoute = ApiEmbeddableRouteImport.update({
   path: '/api/embeddable',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPlansRoute = ApiPlansRouteImport.update({
+  id: '/api/plans',
+  path: '/api/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiResearchRoute = ApiResearchRouteImport.update({
   id: '/api/research',
   path: '/api/research',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSettingsRoute = ApiSettingsRouteImport.update({
+  id: '/api/settings',
+  path: '/api/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiVoiceRoute = ApiVoiceRouteImport.update({
@@ -52,73 +71,106 @@ const ApiVoiceRoute = ApiVoiceRouteImport.update({
   path: '/api/voice',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PSlugRoute = PSlugRouteImport.update({
+  id: '/p/$slug',
+  path: '/p/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/monitor': typeof MonitorRoute
+  '/api/agentmail': typeof ApiAgentmailRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
+  '/api/plans': typeof ApiPlansRoute
   '/api/research': typeof ApiResearchRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/voice': typeof ApiVoiceRoute
+  '/p/$slug': typeof PSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/monitor': typeof MonitorRoute
+  '/api/agentmail': typeof ApiAgentmailRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
+  '/api/plans': typeof ApiPlansRoute
   '/api/research': typeof ApiResearchRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/voice': typeof ApiVoiceRoute
+  '/p/$slug': typeof PSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/monitor': typeof MonitorRoute
+  '/api/agentmail': typeof ApiAgentmailRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/embeddable': typeof ApiEmbeddableRoute
+  '/api/plans': typeof ApiPlansRoute
   '/api/research': typeof ApiResearchRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/voice': typeof ApiVoiceRoute
+  '/p/$slug': typeof PSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/monitor'
+    | '/api/agentmail'
     | '/api/canvas'
     | '/api/chat'
     | '/api/embeddable'
+    | '/api/plans'
     | '/api/research'
+    | '/api/settings'
     | '/api/voice'
+    | '/p/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/monitor'
+    | '/api/agentmail'
     | '/api/canvas'
     | '/api/chat'
     | '/api/embeddable'
+    | '/api/plans'
     | '/api/research'
+    | '/api/settings'
     | '/api/voice'
+    | '/p/$slug'
   id:
     | '__root__'
     | '/'
     | '/monitor'
+    | '/api/agentmail'
     | '/api/canvas'
     | '/api/chat'
     | '/api/embeddable'
+    | '/api/plans'
     | '/api/research'
+    | '/api/settings'
     | '/api/voice'
+    | '/p/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MonitorRoute: typeof MonitorRoute
+  ApiAgentmailRoute: typeof ApiAgentmailRoute
   ApiCanvasRoute: typeof ApiCanvasRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiEmbeddableRoute: typeof ApiEmbeddableRoute
+  ApiPlansRoute: typeof ApiPlansRoute
   ApiResearchRoute: typeof ApiResearchRoute
+  ApiSettingsRoute: typeof ApiSettingsRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
+  PSlugRoute: typeof PSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -135,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/monitor'
       fullPath: '/monitor'
       preLoaderRoute: typeof MonitorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agentmail': {
+      id: '/api/agentmail'
+      path: '/api/agentmail'
+      fullPath: '/api/agentmail'
+      preLoaderRoute: typeof ApiAgentmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/canvas': {
@@ -158,11 +217,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEmbeddableRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/plans': {
+      id: '/api/plans'
+      path: '/api/plans'
+      fullPath: '/api/plans'
+      preLoaderRoute: typeof ApiPlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/research': {
       id: '/api/research'
       path: '/api/research'
       fullPath: '/api/research'
       preLoaderRoute: typeof ApiResearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/settings': {
+      id: '/api/settings'
+      path: '/api/settings'
+      fullPath: '/api/settings'
+      preLoaderRoute: typeof ApiSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/voice': {
@@ -172,17 +245,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiVoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/p/$slug': {
+      id: '/p/$slug'
+      path: '/p/$slug'
+      fullPath: '/p/$slug'
+      preLoaderRoute: typeof PSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MonitorRoute: MonitorRoute,
+  ApiAgentmailRoute: ApiAgentmailRoute,
   ApiCanvasRoute: ApiCanvasRoute,
   ApiChatRoute: ApiChatRoute,
   ApiEmbeddableRoute: ApiEmbeddableRoute,
+  ApiPlansRoute: ApiPlansRoute,
   ApiResearchRoute: ApiResearchRoute,
+  ApiSettingsRoute: ApiSettingsRoute,
   ApiVoiceRoute: ApiVoiceRoute,
+  PSlugRoute: PSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
