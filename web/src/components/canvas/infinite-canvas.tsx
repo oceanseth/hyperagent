@@ -13,6 +13,13 @@ import { refreshCanvas } from '#/lib/canvas-workspace'
 import { PlanCard, PlanInspector } from './plan-graph'
 import './canvas.css'
 
+// A shared board lives at /s/<code>. The wordmark must not send people to /
+// or the address bar stops being the link they can hand to someone else.
+function boardHref() {
+  if (typeof window === 'undefined') return '/'
+  return /^\/s\/[a-z0-9]{4,32}$/i.test(window.location.pathname) ? window.location.pathname : '/'
+}
+
 export function InfiniteCanvas({ children }: { children: ReactNode }) {
   const canvas = useInfiniteCanvas()
 
@@ -22,7 +29,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
 
       <header className="phab-canvas-toolbar" data-canvas-overlay>
         <div className="phab-canvas-toolbar-left">
-          <a className="phab-wordmark" href="/" aria-label="hyperagent home">
+          <a className="phab-wordmark" href={boardHref()} aria-label="hyperagent home">
             <HTreeMark size={24} dither />
             <span>hyperagent</span>
           </a>
