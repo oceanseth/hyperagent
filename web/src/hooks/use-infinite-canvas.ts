@@ -228,9 +228,13 @@ export function useInfiniteCanvas() {
       if (item.kind === 'source' || item.kind === 'summary' || item.kind === 'plan-node' || item.kind === 'plan-title') {
         moveCanvasArtifact(item.id, { x: item.x + delta[0] * step, y: item.y + delta[1] * step })
         saveCanvasLayout()
-      } else setItems((previous) => previous.map((entry) => entry.id === item.id)
-        ? { ...entry, x: entry.x + delta[0] * step, y: entry.y + delta[1] * step }
-        : entry))
+      } else {
+        setItems((previous) => previous.map((entry) => (
+          entry.id === item.id
+            ? { ...entry, x: entry.x + delta[0] * step, y: entry.y + delta[1] * step }
+            : entry
+        )))
+      }
     },
   })
   const getNoteProps = (item: CanvasItem) => ({
