@@ -178,3 +178,10 @@ body {
 @custom-variant data-open (&:where([data-state="open"], [data-open]:not([data-open="false"])));
 
 @custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));
+/* Brand mark: a soft dither shimmer on hover (see components/brand/htree-mark.tsx). */
+.htree-mark { position: relative; display: inline-block; flex: none; line-height: 0; }
+.htree-mark > svg { display: block; width: 100%; height: 100%; }
+.htree-mark-dither { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 320ms ease-out; }
+.htree-mark[data-dither='true'] .htree-mark-dither { opacity: 0.85; }
+@starting-style { .htree-mark[data-dither='true'] .htree-mark-dither { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .htree-mark-dither { display: none; } }

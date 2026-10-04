@@ -18,10 +18,8 @@ export type HTreeOptions = {
   ratio?: number
 }
 
-/** Levels that still read at a given rendered size: 16px → 2, 32 → 3, 64 → 4, 128+ → 5. */
-export function depthForSize(px: number) {
-  return Math.max(1, Math.min(5, Math.floor(Math.log2(Math.max(16, px) / 16)) + 2))
-}
+/** The mark is one H whose tips each grow a single smaller H. Deeper trees exist as brand candidates but crowd the mark. */
+export const MARK_DEPTH = 1
 
 export function htreeRects(depth: number, size = 1000, options: HTreeOptions = {}): Rect[] {
   // Deep trees need thinner, faster-tapering branches or the tips turn solid.
@@ -75,12 +73,12 @@ export function htreePath(depth: number, size = 1000, options?: HTreeOptions) {
 }
 
 export function htreeSvg({ size = 1000, depth, color = BRAND_BLUE, options }: { size?: number; depth?: number; color?: string; options?: HTreeOptions }) {
-  const levels = depth ?? depthForSize(size)
+  const levels = depth ?? MARK_DEPTH
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><path fill="${color}" d="${htreePath(levels, size, options)}"/></svg>`
 }
 
 /** Coverage-sampled RGBA raster of the mark, transparent background. */
-export function htreeRaster(size: number, depth = depthForSize(size), color = BRAND_BLUE, options?: HTreeOptions, samples = 4) {
+export function htreeRaster(size: number, depth = MARK_DEPTH, color = BRAND_BLUE, options?: HTreeOptions, samples = 4) {
   const rects = htreeRects(depth, size, options)
   const cover = new Float32Array(size * size)
   const s = samples

@@ -23,6 +23,7 @@
     "@mastra/core": "^1.74.0",
     "@mastra/mcp": "^1.18.0",
     "@neondatabase/serverless": "^1.2.0",
+    "@paper-design/shaders-react": "^0.0.81",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-devtools": "0.10.13",
     "@tanstack/react-router": "1.170.41",
