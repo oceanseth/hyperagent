@@ -2,8 +2,25 @@ import { neon } from '@neondatabase/serverless'
 
 // Per-workspace credentials (AgentMail, provider API keys). Values are only
 // ever returned masked; full values stay server-side for outbound API calls.
-export const SETTING_KEYS = ['agentmail', 'northwest', 'mercury', 'stripe', 'mastra', 'kernel'] as const
+export const SETTING_KEYS = ['agentmail', 'northwest', 'mercury', 'stripe'] as const
 export type SettingKey = (typeof SETTING_KEYS)[number]
+
+// Platform credentials the agent executor provides through its server
+// environment. Users never enter these; stored workspace rows are ignored.
+export const EXECUTOR_ENV: Record<'mastra' | 'kernel', string> = {
+  mastra: 'MASTRA_MEMORY_GATEWAY_KEY',
+  kernel: 'KERNEL_API_KEY',
+}
+export type ExecutorKey = keyof typeof EXECUTOR_ENV
+
+export function executorSecret(key: ExecutorKey): string | undefined {
+  return process.env[EXECUTOR_ENV[key]]?.trim() || undefined
+}
+
+/** Which executor-provided credentials are present. Booleans only. */
+export function executorStatus(): Record<ExecutorKey, boolean> {
+  return { mastra: Boolean(executorSecret('mastra')), kernel: Boolean(executorSecret('kernel')) }
+}
 
 export type MaskedSetting = { key: SettingKey; set: boolean; hint: string }
 
@@ -64,8 +81,6 @@ export async function getSecret(workspaceId: string, key: SettingKey): Promise<s
     northwest: process.env.NORTHWEST_ACCESS_TOKEN,
     mercury: process.env.MERCURY_API_TOKEN,
     stripe: process.env.STRIPE_SECRET_KEY,
-    mastra: process.env.MASTRA_MEMORY_GATEWAY_KEY,
-    kernel: process.env.KERNEL_API_KEY,
   }
   try {
     const sql = await ready()

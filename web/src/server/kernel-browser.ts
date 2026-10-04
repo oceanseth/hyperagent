@@ -1,11 +1,11 @@
 import type { CanvasBrowser } from '#/lib/canvas'
 import { redactResearchSecrets } from './mcp'
-import { getSecret } from './settings-db'
+import { executorSecret } from './settings-db'
 
 // KERNEL cloud browsers for the canvas. The Executor MCP proxy is preferred:
 // its connected KERNEL source is discovered by `search` and called through
-// `invoke`, so the key never leaves Executor. A workspace KERNEL key (or
-// KERNEL_API_KEY) is the fallback, called directly against the KERNEL API.
+// `invoke`, so the key never leaves Executor. The executor-provided
+// KERNEL_API_KEY is the fallback, called directly against the KERNEL API.
 // Neither path ever returns credentials or raw provider errors to callers.
 
 export class KernelBrowserError extends Error {}
@@ -188,10 +188,10 @@ async function openExecutor(signal: AbortSignal) {
   return { tools, invoke }
 }
 
-// --- Direct KERNEL API fallback (workspace key or KERNEL_API_KEY) ---
+// --- Direct KERNEL API fallback (executor-provided KERNEL_API_KEY) ---
 
-async function kernelApi(workspaceId: string, path: string, init: { method: string; body?: unknown; signal: AbortSignal }) {
-  const key = (await getSecret(workspaceId, 'kernel'))?.trim()
+async function kernelApi(_workspaceId: string, path: string, init: { method: string; body?: unknown; signal: AbortSignal }) {
+  const key = executorSecret('kernel')
   if (!key) return null
   const response = await fetch(`${KERNEL_API}${path}`, {
     method: init.method, redirect: 'error', signal: init.signal,
@@ -201,7 +201,7 @@ async function kernelApi(workspaceId: string, path: string, init: { method: stri
     },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   })
-  if (response.status === 401 || response.status === 403) throw new KernelBrowserError('KERNEL rejected the API key. Update it in Settings.')
+  if (response.status === 401 || response.status === 403) throw new KernelBrowserError('KERNEL rejected the executor-provided API key.')
   if (response.status === 404 && init.method === 'DELETE') return {}
   if (!response.ok) throw new KernelBrowserError(`KERNEL is unavailable (HTTP ${response.status}).`)
   const text = await response.text()
@@ -223,9 +223,9 @@ function timeoutSignal(signal: AbortSignal | undefined, ms: number) {
   return signal ? AbortSignal.any([signal, timeout]) : timeout
 }
 
-export async function kernelBrowserAvailable(workspaceId: string) {
+export async function kernelBrowserAvailable(_workspaceId: string) {
   const viaExecutor = Boolean(process.env.EXECUTOR_MCP_URL?.trim() && process.env.EXECUTOR_API_KEY?.trim())
-  return viaExecutor || Boolean((await getSecret(workspaceId, 'kernel'))?.trim())
+  return viaExecutor || Boolean(executorSecret('kernel'))
 }
 
 /** Launches a headful KERNEL browser and returns its live view. */

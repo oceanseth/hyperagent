@@ -40,7 +40,7 @@ export async function loadAssistantTools(options: {
       }
     },
   })
-  const plans = planTools(workspaceId, events?.onRefresh, events?.onFocus)
+  const plans = planTools(workspaceId, events?.onRefresh, events?.onFocus, signal)
   const browsers = browserTools(workspaceId, events?.onRefresh, events?.onFocus)
   const executor = createExecutorClient(signal)
   const kernel = await createKernelClient(workspaceId, signal)
@@ -56,7 +56,7 @@ export async function loadAssistantTools(options: {
   }
   return {
     toolsets: {
-      canvas: { canvas_sidecar: canvasSidecar, upsert_plan: plans.upsert_plan, capture_secret: plans.capture_secret, ...browsers },
+      canvas: { canvas_sidecar: canvasSidecar, upsert_plan: plans.upsert_plan, capture_secret: plans.capture_secret, request_stripe_key: plans.request_stripe_key, ...browsers },
       ...executorToolsets,
       ...kernelToolsets,
     },

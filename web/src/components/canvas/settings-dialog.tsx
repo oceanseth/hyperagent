@@ -17,13 +17,18 @@ const LABELS: Record<string, { label: string; placeholder: string; note?: string
   northwest: { label: 'Northwest access token', placeholder: 'Bearer token' },
   mercury: { label: 'Mercury API token', placeholder: 'secret-token:…' },
   stripe: { label: 'Stripe / Atlas key', placeholder: 'sk_… or Atlas token', note: 'Stored for this workspace. Atlas has no public form-an-LLC API — KERNEL drives the Atlas site after you confirm.' },
-  mastra: { label: 'Mastra Memory Gateway', placeholder: 'msk_…', note: 'Orchestrates company-formation memory across talk and chat. Neon still does inference.' },
-  kernel: { label: 'KERNEL API key', placeholder: 'KERNEL key', note: 'Cloud browsers for Atlas, wyobiz, and any filing site without an API.' },
+}
+
+// Provided by the agent executor's server environment; never entered here.
+const EXECUTOR_LABELS: Record<string, { label: string; note: string }> = {
+  mastra: { label: 'Mastra Memory Gateway', note: 'Company-formation memory across talk and chat.' },
+  kernel: { label: 'KERNEL cloud browsers', note: 'Atlas, wyobiz, and any filing site without an API.' },
 }
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false)
   const [settings, setSettings] = useState<MaskedSetting[]>([])
+  const [executor, setExecutor] = useState<Record<string, boolean>>({})
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +38,8 @@ export function SettingsDialog() {
     setError(null)
     fetch('/api/settings')
       .then(async (response) => {
-        const data = await response.json() as { settings?: MaskedSetting[]; error?: string }
+        const data = await response.json() as { settings?: MaskedSetting[]; executor?: Record<string, boolean>; error?: string }
+        if (data.executor) setExecutor(data.executor)
         if (data.settings) setSettings(data.settings)
         else setError(data.error ?? 'Could not load settings.')
       })
@@ -105,6 +111,17 @@ export function SettingsDialog() {
               </div>
             )
           })}
+          {Object.entries(EXECUTOR_LABELS).map(([key, meta]) => (
+            <div key={key} className="flex flex-col gap-1">
+              <span className="text-sm font-medium">
+                {meta.label}
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {key in executor ? (executor[key] ? 'configured via executor' : 'not configured on executor') : 'via executor'}
+                </span>
+              </span>
+              <p className="text-xs text-muted-foreground">{meta.note}</p>
+            </div>
+          ))}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
       </DialogContent>

@@ -1,14 +1,10 @@
 import { MCPClient } from '@mastra/mcp'
-import { getSecret } from './settings-db'
+import { executorSecret } from './settings-db'
 
 const DEFAULT_URL = 'https://mcp.onkernel.com/mcp'
 
-export async function kernelConfigured(workspaceId: string) {
-  return Boolean((await getSecret(workspaceId, 'kernel'))?.trim())
-}
-
-export async function createKernelClient(workspaceId: string, signal?: AbortSignal) {
-  const key = (await getSecret(workspaceId, 'kernel'))?.trim()
+export async function createKernelClient(_workspaceId: string, signal?: AbortSignal) {
+  const key = executorSecret('kernel')
   if (!key) return null
   const endpoint = process.env.KERNEL_MCP_URL?.trim() || DEFAULT_URL
   let url: URL

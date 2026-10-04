@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { deleteSetting, isSettingKey, listSettings, putSetting } from '#/server/settings-db'
+import { deleteSetting, executorStatus, isSettingKey, listSettings, putSetting } from '#/server/settings-db'
 import { isSameOrigin, workspaceSession } from '#/server/workspace'
 
 export const Route = createFileRoute('/api/settings')({
@@ -8,7 +8,7 @@ export const Route = createFileRoute('/api/settings')({
       GET: async ({ request }) => {
         const session = workspaceSession(request)
         try {
-          return Response.json({ settings: await listSettings(session.id) }, { headers: session.headers })
+          return Response.json({ settings: await listSettings(session.id), executor: executorStatus() }, { headers: session.headers })
         } catch { return Response.json({ error: 'Could not load settings.' }, { status: 503, headers: session.headers }) }
       },
       PUT: async ({ request }) => {
@@ -25,7 +25,7 @@ export const Route = createFileRoute('/api/settings')({
             if (value.length > 4096) return Response.json({ error: 'Value is too long.' }, { status: 400, headers: session.headers })
             await putSetting(session.id, key, value)
           }
-          return Response.json({ settings: await listSettings(session.id) }, { headers: session.headers })
+          return Response.json({ settings: await listSettings(session.id), executor: executorStatus() }, { headers: session.headers })
         } catch { return Response.json({ error: 'Could not save settings.' }, { status: 503, headers: session.headers }) }
       },
     },

@@ -19,6 +19,7 @@ import { useState } from 'react'
 import { ChatHistoryPanel } from '#/components/canvas/chat-history'
 import { MarkdownText } from '#/components/assistant-ui/elements/markdown-text'
 import { ToolFallback } from '#/components/assistant-ui/elements/tool-fallback.aui'
+import { StripeKeyTool } from '#/components/canvas/stripe-key-tool'
 import {
   useCanvasComposer,
   useCanvasMessage,
@@ -162,7 +163,7 @@ function CanvasMessage() {
       </div>
       <div className="canvas-message-content">
         <MessagePrimitive.Parts
-          components={{ Text: MarkdownText, tools: { Fallback: ToolFallback } }}
+          components={{ Text: MarkdownText, tools: { by_name: { request_stripe_key: StripeKeyTool }, Fallback: ToolFallback } }}
         />
         <MessagePrimitive.Error>
           <ErrorPrimitive.Root className="canvas-message-error">
