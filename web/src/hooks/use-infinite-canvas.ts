@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, KeyboardEvent, PointerEvent } from 'react'
 import { useCanvasWorkspace } from './use-canvas-workspace'
-import { browserArtifacts, canvasArtifacts, canvasWorkspace, commitNote, createNote, deleteNote, moveCanvasArtifact, moveNote, planArtifacts, saveCanvasLayout, setCanvasDragging, updateNoteText, type BrowserArtifact, type CanvasArtifact, type NoteArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
+import { browserArtifacts, canvasArtifacts, canvasWorkspace, commitNote, createNote, deleteNote, moveCanvasArtifact, moveNote, noteArtifacts, planArtifacts, saveCanvasLayout, setCanvasDragging, updateNoteText, type BrowserArtifact, type CanvasArtifact, type NoteArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
 
 type Camera = { x: number; y: number; scale: number }
 type CanvasItem = NoteArtifact | CanvasArtifact | PlanArtifact | BrowserArtifact
@@ -19,6 +19,16 @@ type Drag = {
 
 const INITIAL_CAMERA: Camera = { x: 0, y: 0, scale: 1 }
 const clampScale = (scale: number) => Math.min(2, Math.max(0.35, scale))
+// Half-size of each card around its center. Browsers default above the fold
+// (y ≈ -620); fitting these extents is what puts them on screen for a joiner.
+const ITEM_HALF: Record<CanvasItem['kind'], { w: number; h: number }> = {
+  browser: { w: 500, h: 340 },
+  summary: { w: 200, h: 240 },
+  source: { w: 150, h: 180 },
+  'plan-title': { w: 160, h: 70 },
+  'plan-node': { w: 120, h: 90 },
+  note: { w: 160, h: 90 },
+}
 const isInteractive = (target: EventTarget | null) =>
   target instanceof Element && Boolean(target.closest('button, input, textarea, a, iframe, [data-canvas-content], [data-canvas-overlay]'))
 
@@ -33,13 +43,49 @@ export function useInfiniteCanvas() {
   const [isDragging, setIsDragging] = useState(false)
   const drag = useRef<Drag | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const framedRef = useRef(false)
 
   // The ref owns the lifetime of DOM subscriptions, including the non-passive
   // wheel listener needed to keep trackpad pinch inside this canvas.
   const canvasRef = useCallback((node: HTMLDivElement | null) => {
     viewportRef.current = node
     if (!node) return
-    const measure = () => setViewport({ width: node.clientWidth, height: node.clientHeight })
+    const frameAll = () => {
+      if (framedRef.current) return false
+      if (node.clientWidth < 80 || node.clientHeight < 80) return false
+      const state = canvasWorkspace.getState()
+      const items = [...noteArtifacts(state), ...canvasArtifacts(state), ...planArtifacts(state), ...browserArtifacts(state)]
+      if (!items.length) return false
+      let left = Infinity
+      let right = -Infinity
+      let top = Infinity
+      let bottom = -Infinity
+      for (const item of items) {
+        const extent = ITEM_HALF[item.kind]
+        const x = item.anchorX * node.clientWidth + item.x
+        const y = item.anchorY * node.clientHeight + item.y
+        left = Math.min(left, x - extent.w)
+        right = Math.max(right, x + extent.w)
+        top = Math.min(top, y - extent.h)
+        bottom = Math.max(bottom, y + extent.h)
+      }
+      const width = Math.max(right - left, 240)
+      const height = Math.max(bottom - top, 180)
+      const scale = clampScale(Math.min((node.clientWidth - 96) / width, (node.clientHeight - 160) / height, 1))
+      const cx = (left + right) / 2
+      const cy = (top + bottom) / 2
+      setCamera({
+        scale,
+        x: node.clientWidth / 2 - cx * scale,
+        y: (node.clientHeight - 48) / 2 - cy * scale,
+      })
+      framedRef.current = true
+      return true
+    }
+    const measure = () => {
+      setViewport({ width: node.clientWidth, height: node.clientHeight })
+      frameAll()
+    }
     const observer = new ResizeObserver(measure)
     observer.observe(node)
     measure()
@@ -90,18 +136,18 @@ export function useInfiniteCanvas() {
       setSelectedId(nodeId)
     }
     const unsubscribe = canvasWorkspace.subscribe((state, previous) => {
+      if (frameAll()) return
       const newest = [...state.stacks].reverse().find((stack) => !previous.stacks.some((entry) => entry.id === stack.id))
       if (newest) showStack(newest.id)
       const newestPlan = [...state.plans].reverse().find((plan) => !previous.plans.some((entry) => entry.id === plan.id))
       if (newestPlan) showPlan(newestPlan.id)
-      // Live browsers are the most active thing on a board: bring the newest
-      // into view, including on first load, since they start above the fold.
+      // A browser opened after the opening frame still needs to be brought
+      // on screen; the first snapshot is handled by frameAll above.
       const newestBrowser = [...state.browsers].reverse().find((browser) => !previous.browsers.some((entry) => entry.id === browser.id))
       if (newestBrowser) showBrowser(newestBrowser.id)
       if (state.focus && state.focus.at !== previous.focus?.at) showNode(state.focus.id)
     })
-    const lastStack = canvasWorkspace.getState().stacks.at(-1)
-    if (lastStack) showStack(lastStack.id)
+    frameAll()
     const onWheel = (event: WheelEvent) => {
       if (event.target instanceof Element && event.target.closest('[data-canvas-overlay], [data-canvas-content], textarea, iframe')) return
       event.preventDefault()
