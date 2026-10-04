@@ -2,6 +2,7 @@ import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
 import { isSettingKey, putSetting, type SettingKey } from './settings-db'
 import { listPlans, patchNode, upsertCustomPlan, upsertTemplatePlan } from './plans'
+import { stripeKeyStatus } from './stripe'
 
 const fieldInput = z.object({
   key: z.string().min(1).max(80),
@@ -46,15 +47,27 @@ function focusTarget(plans: Awaited<ReturnType<typeof upsertTemplatePlan>>) {
 
 const SECRET_FIELD: Record<SettingKey, string> = {
   stripe: 'stripeAtlasKey',
-  mastra: 'mastraGatewayKey',
-  kernel: 'kernelApiKey',
   mercury: 'mercuryToken',
   northwest: 'northwestToken',
   agentmail: 'agentmailKey',
 }
 
-export function planTools(workspaceId: string, onChange?: () => void, onFocus?: (id: string) => void) {
+export function planTools(workspaceId: string, onChange?: () => void, onFocus?: (id: string) => void, signal?: AbortSignal) {
   return {
+    request_stripe_key: createTool({
+      id: 'request_stripe_key',
+      description: 'Call before any company-formation step that needs Stripe (Stripe Atlas, Stripe payments or billing). Checks the workspace Stripe key server-side. If status is needs_key, the chat shows the human a secure inline form for the key: stop and wait — do not ask them to paste the key in chat and do not continue the Stripe steps. When they submit the form they will tell you to continue; call this tool again to confirm the key before resuming. Never reveals the key.',
+      inputSchema: z.object({
+        purpose: z.string().max(300).optional().describe('Short reason shown on the form, e.g. "Open Stripe Atlas for Acme LLC".'),
+      }),
+      execute: async () => {
+        const result = await stripeKeyStatus(workspaceId, signal)
+        if (result.status === 'needs_key') {
+          return { ...result, note: 'Waiting for the human to submit their Stripe key in the inline form. Do not continue Stripe steps until they say it is saved.' }
+        }
+        return { ...result, note: 'Stripe key is stored server-side for this workspace. Continue the Stripe steps.' }
+      },
+    }),
     upsert_plan: createTool({
       id: 'upsert_plan',
       description: 'Create or update a named fractal state machine on the canvas. Use when the humans have a goal that needs an agent (company formation, a multi-step project, etc.). Prefer template=company-formation for forming an LLC/company. Guessed field values from the conversation auto-fill but stay unconfirmed until a human confirms them. Nested child graphs become inner state machines on a node. After creating the plan, the canvas zooms to the first field that still needs input.',
@@ -92,9 +105,9 @@ export function planTools(workspaceId: string, onChange?: () => void, onFocus?: 
     }),
     capture_secret: createTool({
       id: 'capture_secret',
-      description: 'Store an API key or token the human just spoke or typed (Stripe/Atlas, Mastra Memory Gateway, KERNEL, Mercury, Northwest, AgentMail). Writes it to workspace settings (never shown again in full) and attaches a secret input field on the company plan, then zooms the canvas to that field. Use this instead of treating a key as a research query.',
+      description: 'Store an API key or token the human just spoke or typed (Stripe/Atlas, Mercury, Northwest, AgentMail). Mastra memory and KERNEL keys come from the executor environment and are never collected from users. Writes it to workspace settings (never shown again in full) and attaches a secret input field on the company plan, then zooms the canvas to that field. Use this instead of treating a key as a research query.',
       inputSchema: z.object({
-        key: z.enum(['stripe', 'mastra', 'kernel', 'mercury', 'northwest', 'agentmail']),
+        key: z.enum(['stripe', 'mercury', 'northwest', 'agentmail']),
         value: z.string().min(8).max(4096),
         companyName: z.string().max(160).optional(),
       }),

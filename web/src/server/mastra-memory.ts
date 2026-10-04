@@ -1,4 +1,4 @@
-import { getSecret } from './settings-db'
+import { executorSecret } from './settings-db'
 
 const GATEWAY = 'https://gateway-api.mastra.ai'
 
@@ -37,7 +37,7 @@ async function ensureThread(key: string, workspaceId: string) {
 }
 
 export async function loadFormationMemory(workspaceId: string): Promise<string> {
-  const key = await getSecret(workspaceId, 'mastra')
+  const key = executorSecret('mastra')
   if (!key) return ''
   try {
     const id = await ensureThread(key, workspaceId)
@@ -60,7 +60,7 @@ export async function loadFormationMemory(workspaceId: string): Promise<string> 
 }
 
 export async function rememberFormationTurn(workspaceId: string, messages: Array<{ role: string; content: string }>) {
-  const key = await getSecret(workspaceId, 'mastra')
+  const key = executorSecret('mastra')
   if (!key || !messages.length) return
   try {
     const id = await ensureThread(key, workspaceId)
