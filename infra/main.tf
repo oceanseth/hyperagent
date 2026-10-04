@@ -17,10 +17,10 @@ variable "domain" {
   default = "hyperagent.lol"
 }
 
-# The existing Cloudflare deployment keeps serving the app; CloudFront proxies
-# to it so hyperagent.lol works end to end (SSR shell, /api/*, streaming).
+# The App Runner service (hyperagent-app, us-east-1) serves the app; CloudFront
+# proxies to it so hyperagent.lol works end to end (SSR shell, /api/*, streaming).
 variable "app_origin" {
-  default = "phab.oxwilde.workers.dev"
+  default = "y8h6g3vd2a.us-east-1.awsapprunner.com"
 }
 
 resource "aws_route53_zone" "main" {
@@ -141,7 +141,7 @@ resource "aws_cloudfront_distribution" "site" {
     origin_access_control_id = aws_cloudfront_origin_access_control.site.id
   }
 
-  # App (SSR shell + APIs + streaming) via the Cloudflare worker.
+  # App (SSR shell + APIs + streaming) via the App Runner service.
   default_cache_behavior {
     target_origin_id         = "app"
     viewer_protocol_policy   = "redirect-to-https"

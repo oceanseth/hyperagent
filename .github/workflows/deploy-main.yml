@@ -1,53 +1,60 @@
-name: Deploy main to Cloudflare
+name: deploy
 
 on:
   push:
     branches: [main]
-    paths: ['web/**', '.github/workflows/deploy-main.yml']
-  workflow_dispatch:
 
 permissions:
+  id-token: write
   contents: read
 
 concurrency:
-  group: cloudflare-main
-  cancel-in-progress: false
+  group: deploy-main
+  cancel-in-progress: true
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: web
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      - run: npm run build:cloudflare
-      - name: Deploy production
-        uses: cloudflare/wrangler-action@v4
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
         env:
-          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JOBS_URL: ${{ secrets.JOBS_URL }}
-          JOBS_SECRET: ${{ secrets.JOBS_SECRET }}
-          NORTHWEST_ACCESS_TOKEN: ${{ secrets.NORTHWEST_ACCESS_TOKEN }}
-          MERCURY_API_TOKEN: ${{ secrets.MERCURY_API_TOKEN }}
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: web
-          command: deploy --config .output/server/wrangler.json --name phab
-          postCommands: |
-            printf '%s' "$XAI_API_KEY" | npx wrangler secret put XAI_API_KEY --config .output/server/wrangler.json --name phab
-            printf '%s' "$DATABASE_URL" | npx wrangler secret put DATABASE_URL --config .output/server/wrangler.json --name phab
-            printf '%s' "$JOBS_URL" | npx wrangler secret put JOBS_URL --config .output/server/wrangler.json --name phab
-            printf '%s' "$JOBS_SECRET" | npx wrangler secret put JOBS_SECRET --config .output/server/wrangler.json --name phab
-            if [ -n "$NORTHWEST_ACCESS_TOKEN" ]; then printf '%s' "$NORTHWEST_ACCESS_TOKEN" | npx wrangler secret put NORTHWEST_ACCESS_TOKEN --config .output/server/wrangler.json --name phab; fi
-            if [ -n "$MERCURY_API_TOKEN" ]; then printf '%s' "$MERCURY_API_TOKEN" | npx wrangler secret put MERCURY_API_TOKEN --config .output/server/wrangler.json --name phab; fi
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker build -f web/Dockerfile.app \
+            -t "$ECR_REGISTRY/hyperagent-app:latest" \
+            -t "$ECR_REGISTRY/hyperagent-app:${{ github.sha }}" \
+            web
+
+      - name: Push image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker push "$ECR_REGISTRY/hyperagent-app:latest"
+          docker push "$ECR_REGISTRY/hyperagent-app:${{ github.sha }}"
+
+      # App Runner auto-deploys on :latest pushes; this explicit StartDeployment
+      # is belt-and-braces. It must not fail the job if the service does not
+      # exist yet (first deploy happens before the service is created).
+      - name: Trigger App Runner deployment
+        run: |
+          SERVICE_ARN=$(aws apprunner list-services --region us-east-1 \
+            --query "ServiceSummaryList[?ServiceName=='hyperagent-app'].ServiceArn | [0]" \
+            --output text)
+          if [ -n "$SERVICE_ARN" ] && [ "$SERVICE_ARN" != "None" ]; then
+            aws apprunner start-deployment --region us-east-1 --service-arn "$SERVICE_ARN" || true
+          else
+            echo "App Runner service hyperagent-app not found; skipping StartDeployment."
+          fi
