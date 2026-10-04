@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
 import { listBrowsers } from './canvas-db'
-import { closeAllCanvasBrowsers, closeCanvasBrowser, navigateCanvasBrowser, openCanvasBrowser } from './browser-canvas'
+import { closeAllCanvasBrowsers, closeCanvasBrowser, dispatchBrowserAgent, navigateCanvasBrowser, openCanvasBrowser } from './browser-canvas'
 
 const message = (error: unknown) => error instanceof Error ? error.message : 'The browser request failed.'
 
@@ -34,12 +34,34 @@ export function browserTools(workspaceId: string, onRefresh?: () => void, onFocu
         } catch (error) { return { ok: false, error: message(error) } }
       },
     }),
+    browser_agent: createTool({
+      id: 'browser_agent',
+      description: 'Have the browser agent (runs on Fly, attaches to a canvas browser\'s live session) perform actions in it: click buttons, accept/reject cookies, fill and submit forms, search, scroll, read and extract page content. Pass the task in plain words with any needed values. Uses browserId, or the only open browser; opens a browser at url first if none is open. Returns at once; everyone watches the agent work in the live view and its result lands on the canvas.',
+      inputSchema: z.object({
+        task: z.string().min(1).max(4000).describe('What to do in the browser, e.g. "Accept the cookie banner, then open the Menu page and list the first five items."'),
+        browserId: z.string().uuid().optional(),
+        url: z.string().max(4096).optional().describe('Where to open a new browser when none is on the canvas.'),
+      }),
+      execute: async ({ task, browserId, url }) => {
+        try {
+          let id = browserId
+          if (!id) {
+            const ready = (await listBrowsers(workspaceId)).filter((browser) => browser.status === 'ready')
+            if (ready.length > 1) return { ok: false, error: 'Several browsers are open. Pass the browserId from list_browsers.', browsers: ready.map(({ id: entry, title, url: page }) => ({ id: entry, title, url: page })) }
+            id = ready[0]?.id ?? (await openCanvasBrowser(workspaceId, { url }, { onChange })).id
+          }
+          const job = await dispatchBrowserAgent(workspaceId, id, task)
+          onChange(id)
+          return { ok: true, browserId: id, jobId: job.id, note: 'The browser agent is working in the live view; its result will appear on the canvas. Do not claim it is done yet.' }
+        } catch (error) { return { ok: false, error: message(error) } }
+      },
+    }),
     list_browsers: createTool({
       id: 'list_browsers',
-      description: 'List live browsers currently on the canvas (id, title, url, status).',
+      description: 'List live browsers currently on the canvas (id, title, url, status, and the browser agent\'s latest task/result).',
       inputSchema: z.object({}),
       execute: async () => ({
-        browsers: (await listBrowsers(workspaceId)).map(({ id, title, url, status, statusText }) => ({ id, title, url, status, statusText })),
+        browsers: (await listBrowsers(workspaceId)).map(({ id, title, url, status, statusText, agent }) => ({ id, title, url, status, statusText, agent })),
       }),
     }),
     close_browser: createTool({

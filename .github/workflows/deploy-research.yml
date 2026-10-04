@@ -2,7 +2,7 @@ name: Deploy research worker to Fly
 on:
   push:
     branches: [main]
-    paths: ['web/worker/**', 'web/src/server/**', 'web/src/lib/canvas.ts', 'web/src/lib/cosmos.ts', 'web/package*.json', 'web/Dockerfile.worker', 'web/fly.toml', '.github/workflows/deploy-research.yml']
+    paths: ['web/worker/**', 'web/src/server/**', 'web/src/lib/**', 'web/src/mastra/**', 'web/package*.json', 'web/Dockerfile.worker', 'web/fly.toml', '.github/workflows/deploy-research.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,3 +21,5 @@ jobs:
       - run: flyctl deploy --remote-only --ha=false --config fly.toml
         if: env.FLY_API_TOKEN != ''
         working-directory: web
+      - run: echo "::warning title=Fly worker not deployed::FLY_API_TOKEN is not set in repository secrets, so the research and browser-agent worker was not deployed."
+        if: env.FLY_API_TOKEN == ''

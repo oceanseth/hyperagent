@@ -43,6 +43,8 @@ export type CanvasJob = {
   id: string
   title: string
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+  kind?: 'browser'
+  browserId?: string
   progress: string
   createdAt: string
   updatedAt: string
@@ -74,6 +76,15 @@ export const canvasBrowserSchema = z.object({
   liveViewUrl: publicUrl.optional(),
   sessionId: z.string().max(200).optional(),
   provider: z.enum(['executor', 'kernel']).optional(),
+  // The browser agent (Fly worker) currently or most recently driving this session.
+  agent: z.object({
+    jobId: z.string().uuid(),
+    task: z.string().max(500),
+    status: z.enum(['queued', 'running', 'completed', 'failed']),
+    step: z.string().max(300).optional(),
+    result: z.string().max(2000).optional(),
+    updatedAt: z.string(),
+  }).optional(),
   createdAt: z.string(),
 })
 export type CanvasBrowser = z.infer<typeof canvasBrowserSchema>

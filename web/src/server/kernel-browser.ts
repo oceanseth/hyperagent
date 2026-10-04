@@ -28,7 +28,7 @@ function resultShape(text: string) {
 }
 
 export type KernelSession = { sessionId: string; liveViewUrl: string; provider: CanvasBrowser['provider'] }
-type KernelRef = { sessionId: string; provider?: CanvasBrowser['provider'] }
+export type KernelRef = { sessionId: string; provider?: CanvasBrowser['provider'] }
 
 const KERNEL_API = 'https://api.onkernel.com'
 // Inactivity timeout. An open live view counts as activity, so the browser
@@ -269,22 +269,55 @@ export async function createKernelBrowser(workspaceId: string, startUrl?: string
   return { ...session, provider: 'kernel' }
 }
 
-/** Points an existing session at a new URL. Returns the page title when known. */
-export async function navigateKernelBrowser(workspaceId: string, browser: KernelRef, url: string, parent?: AbortSignal) {
-  const signal = timeoutSignal(parent, 75_000)
+export type PlaywrightOutcome = { result: unknown; error?: string }
+
+// The result field of an execution, from either the KERNEL response object or
+// Executor's text passthrough. JSON-looking strings are parsed.
+function executionOutcome(value: unknown): PlaywrightOutcome {
+  let outcome = record(value)
+  if (typeof value === 'string') {
+    try { outcome = record(JSON.parse(value)) } catch { return { result: value } }
+    if (!('success' in outcome) && !('result' in outcome)) {
+      for (const entry of Array.isArray(outcome.content) ? outcome.content : []) {
+        const text = record(entry).text
+        if (typeof text === 'string') return executionOutcome(text)
+      }
+    }
+  }
+  if (outcome.success === false) {
+    const detail = typeof outcome.error === 'string' ? safeDetail(outcome.error) : ''
+    return { result: undefined, error: detail || 'The browser action failed.' }
+  }
+  let result = outcome.result
+  if (typeof result === 'string' && /^\s*[[{]/.test(result)) { try { result = JSON.parse(result) } catch { /* keep text */ } }
+  return { result }
+}
+
+/**
+ * Runs Playwright code inside the browser's VM (KERNEL Playwright Execution,
+ * https://kernel.sh/docs/browsers/playwright-execution). `page`, `context` and
+ * `browser` are in scope; the code's `return` value comes back. This is how
+ * agents attach to the same session the canvas live view shows.
+ */
+export async function executeKernelPlaywright(workspaceId: string, browser: KernelRef, code: string, options?: { timeoutSec?: number; signal?: AbortSignal }): Promise<PlaywrightOutcome> {
+  const timeoutSec = Math.min(Math.max(options?.timeoutSec ?? 30, 5), 120)
+  const signal = timeoutSignal(options?.signal, (timeoutSec + 20) * 1000)
   if (browser.provider === 'executor') {
     const executor = await openExecutor(signal)
-    if (!executor?.tools.playwright) throw new KernelBrowserError('KERNEL navigation is not available through Executor.')
-    const text = await executor.invoke(executor.tools.playwright, { session_id: browser.sessionId, code: gotoCode(url) })
-    if (/"success"\s*:\s*false/.test(text)) throw new KernelBrowserError('The browser could not open that page.')
-    return findField(text, 'result')
+    if (!executor?.tools.playwright) throw new KernelBrowserError('KERNEL Playwright execution is not available through Executor.')
+    return executionOutcome(await executor.invoke(executor.tools.playwright, { session_id: browser.sessionId, code }))
   }
   const result = await kernelApi(workspaceId, `/browsers/${encodeURIComponent(browser.sessionId)}/playwright/execute`, {
-    method: 'POST', body: { code: gotoCode(url), timeout_sec: 60 }, signal,
+    method: 'POST', body: { code, timeout_sec: timeoutSec }, signal,
   })
   if (result === null) throw new KernelBrowserError('KERNEL is not connected.')
-  const outcome = record(result)
-  if (outcome.success === false) throw new KernelBrowserError('The browser could not open that page.')
+  return executionOutcome(result)
+}
+
+/** Points an existing session at a new URL. Returns the page title when known. */
+export async function navigateKernelBrowser(workspaceId: string, browser: KernelRef, url: string, parent?: AbortSignal) {
+  const outcome = await executeKernelPlaywright(workspaceId, browser, gotoCode(url), { timeoutSec: 60, signal: parent })
+  if (outcome.error) throw new KernelBrowserError('The browser could not open that page.')
   return typeof outcome.result === 'string' ? outcome.result : undefined
 }
 

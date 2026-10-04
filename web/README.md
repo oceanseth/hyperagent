@@ -48,7 +48,8 @@ Northwest is the default filing provider, not required. The worker needs
 `AUTH0_SECRET` (or `AUTH0_CLIENT_SECRET`). Register
 `https://hyperagent.lol/api/auth/callback` as an allowed callback and
 `https://hyperagent.lol` as an allowed logout URL. Optional model overrides: `NEON_MODEL_ASSISTANT` (default
-claude-sonnet-5) and `NEON_MODEL_RESEARCH` (default gpt-5-5).
+claude-sonnet-5), `NEON_MODEL_RESEARCH` (default gpt-5-5), and
+`NEON_MODEL_BROWSER` (browser agent; defaults to the assistant model).
 Values are mirrored in AWS SSM under `/hyperagent/*`.
 Keep values in ignored `.env.local` during development and the hosting secret
 stores in production. Never send integration keys to the browser.
@@ -75,6 +76,30 @@ or per-operation browser tools) and calls them with `invoke`, so the KERNEL key
 stays in Executor. If Executor has no KERNEL connection, the app falls back to
 the KERNEL API with the workspace KERNEL key from Settings or `KERNEL_API_KEY`.
 At most four browsers can be open per board.
+
+### Browser agent (Fly worker)
+
+Opening a browser only shows it; the browser agent is what acts in it. The
+assistant's `browser_agent` tool (or the task field under any browser card)
+queues a `kind = 'browser'` job in `phab_canvas_jobs` tied to that card and
+wakes the Fly worker. The worker's agent uses Neon AI Gateway inference
+(`NEON_MODEL_BROWSER`) and attaches to the card's KERNEL session through
+[Playwright Execution](https://kernel.sh/docs/browsers/playwright-execution)
+(KERNEL's recommended agent control path; the code runs in the browser's VM,
+via Executor's `execute_playwright_code` or the KERNEL API). Its skills
+(`web/src/server/browser-skills.ts`) are `read_page` (URL, text, and numbered
+interactive elements across frames), `navigate`, `click` (by ref, text or
+coordinates), `type_text`, `press_key`, `scroll`, `go_back`, `screenshot`, and
+`finish`. Every action happens in the same session the card's live view shows,
+so everyone watches it live; each step is logged to the Activity monitor and
+shown on the card, and the final answer is published as a result card.
+
+The worker needs KERNEL access for this: the same Executor secrets as the app
+(`EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`) and/or `KERNEL_API_KEY`, matching
+whichever path opened the browser. `BROWSER_AGENT_VISION=1` sends screenshots
+to the model as images (only if the Neon model accepts images). If the app
+cannot reach the worker (`JOBS_URL`), it runs the same agent in-process so the
+task is not stranded; set `BROWSER_AGENT_INLINE_FALLBACK=0` to disable that.
 
 ## AWS deployments
 

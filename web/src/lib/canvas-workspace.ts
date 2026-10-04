@@ -193,6 +193,20 @@ export function closeBrowser(id: string) {
   postJson('/api/browsers', { action: 'close', id })
 }
 
+/** Hands a task to the Fly browser agent attached to this browser. Resolves to an error message, if any. */
+export async function askBrowserAgent(id: string, task: string): Promise<string | undefined> {
+  markLocalChange()
+  try {
+    const response = await fetch('/api/browsers', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'agent', id, task }), signal: AbortSignal.timeout(20000),
+    })
+    if (response.ok) return undefined
+    const body = await response.json().catch(() => ({})) as { error?: string }
+    return body.error ?? 'Could not reach the browser agent.'
+  } catch { return 'Could not reach the browser agent.' }
+}
+
 export type BrowserArtifact = {
   id: string; kind: 'browser'; label: string; text: string
   anchorX: number; anchorY: number; x: number; y: number
