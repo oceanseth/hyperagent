@@ -1,7 +1,7 @@
 # Build context: the web/ directory (docker build -f web/Dockerfile.app web)
 
 # --- Stage 1: build the TanStack Start + Nitro SSR app ---
-FROM node:22-slim AS build
+FROM node:24-slim AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -14,7 +14,7 @@ RUN if [ -d src/routes ]; then npx tsr generate || true; fi
 RUN NITRO_PRESET=node_server npm run build
 
 # --- Stage 2: runtime ---
-FROM node:22-slim
+FROM node:24-slim
 WORKDIR /app
 
 COPY --from=build /app/.output ./.output
