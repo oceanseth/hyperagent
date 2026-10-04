@@ -75,14 +75,28 @@ export async function savePlans(workspaceId: string, plans: Plan[]) {
   return written
 }
 
+async function deletePlans(workspaceId: string, ids: string[]) {
+  if (!ids.length) return
+  const sql = await ready()
+  for (const id of ids) {
+    await sql`DELETE FROM phab_plans WHERE workspace_id = ${workspaceId} AND id = ${id}`
+  }
+}
+
 export async function upsertTemplatePlan(workspaceId: string, name: string, guesses: { key: string; value: string }[]) {
   const existing = await listPlans(workspaceId)
   const prior = existing.find((plan) => plan.template === 'company-formation' && !plan.parentId)
-  if (prior) {
+  const children = existing.filter((plan) => plan.parentId === prior?.id)
+  const current = children.some((plan) => plan.template === 'open-bank')
+  if (prior && current) {
     const overlay = applyGuesses(prior, guesses)
     if (name.trim()) overlay.name = name.trim().slice(0, 160)
-    return [await writePlan(workspaceId, overlay), ...existing.filter((plan) => plan.id !== overlay.id && (plan.parentId === overlay.id || plan.id !== prior.id))]
+    const written = [await writePlan(workspaceId, overlay)]
+    for (const child of children) written.push(await writePlan(workspaceId, applyGuesses(child, guesses)))
+    const keep = new Set(written.map((plan) => plan.id))
+    return [...written, ...existing.filter((plan) => !keep.has(plan.id))]
   }
+  if (prior) await deletePlans(workspaceId, [prior.id, ...children.map((plan) => plan.id)])
   const { plans } = companyFormationPlan(name.trim() || 'Form a company', guesses)
   return savePlans(workspaceId, plans)
 }
@@ -278,11 +292,6 @@ export async function executeNode(workspaceId: string, planId: string, nodeId: s
       throw new Error('Open the inner machine and finish every nested state first.')
     }
   }
-  if (readyNode.executeHint === 'save-card' || readyNode.executeHint === 'pay-fee') {
-    const card = await getCard(workspaceId)
-    if (!card) throw new Error('Bind a Northwest payment method before running this state.')
-  }
-
   const card = await getCardSecret(workspaceId)
   const result = await runFormation(readyNode.executeHint ?? '', { plans, node: readyNode, card })
   const produced = result.produced
@@ -303,7 +312,7 @@ export async function executeNode(workspaceId: string, planId: string, nodeId: s
     fields: entry.fields.map((field) => {
       const next = updates[field.key]
       if (!next) return field
-      const confirm = field.key === 'cardBrand' || field.key === 'cardLast4' || field.key === 'billingZip'
+      const confirm = field.key === 'cardBrand' || field.key === 'cardLast4' || field.key === 'billingZip' || field.key === 'bankLast4' || field.key === 'bankName' || field.key === 'ein' || field.key === 'bankApiNeeded'
       return { ...field, value: next, ...(confirm ? { confirmed: true } : {}) }
     }),
   })

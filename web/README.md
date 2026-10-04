@@ -35,8 +35,9 @@ Cloudflare invocation logging is enabled for the app. Nothing in monitoring
 depends on a local log tail remaining open.
 
 Server secrets for the app: `XAI_API_KEY`, `DATABASE_URL`, `JOBS_URL`,
-`JOBS_SECRET`, and for live company formation `NORTHWEST_ACCESS_TOKEN`
-(optional `NORTHWEST_MCP_URL`, `MERCURY_API_TOKEN`). The worker needs
+`JOBS_SECRET`, and for live company formation optional `NORTHWEST_ACCESS_TOKEN`
+(plus `NORTHWEST_MCP_URL`, `MERCURY_API_TOKEN` when those providers are used).
+Northwest is the default filing provider, not required. The worker needs
 `XAI_API_KEY`, `DATABASE_URL`, `JOBS_SECRET`, `EXECUTOR_MCP_URL`,
 `EXECUTOR_API_KEY`, and optionally `COSMOS_TOKEN`.
 Keep values in ignored `.env.local` during development and the hosting secret

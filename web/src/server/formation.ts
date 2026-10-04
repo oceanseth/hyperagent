@@ -1,3 +1,4 @@
+import { bankProfile, lastFour } from '#/lib/bank-profile'
 import type { Plan, PlanDocument, PlanNode } from '#/lib/plan'
 import { listOperatingAccounts, mercuryConfigured } from './mercury'
 import {
@@ -34,9 +35,13 @@ function value(plans: Plan[], key: string, fallback = '') {
   return fields(plans).find((field) => field.key === key && field.value?.trim())?.value?.trim() || fallback
 }
 
+function usesNorthwest(plans: Plan[]) {
+  return /northwest/i.test(value(plans, 'formationProvider', 'Northwest'))
+}
+
 function requireNorthwest() {
   if (!northwestConfigured()) {
-    throw new Error('Northwest is not connected. Set NORTHWEST_ACCESS_TOKEN on the Cloudflare worker before running a live filing.')
+    throw new Error('Northwest is not connected. Set NORTHWEST_ACCESS_TOKEN on the Cloudflare worker, or change Filing provider and finish the filing yourself.')
   }
 }
 
@@ -80,7 +85,14 @@ export async function runFormation(hint: string, context: FormationContext) {
   }
 
   if (hint === 'save-card') {
-    requireNorthwest()
+    if (!usesNorthwest(plans) || !northwestConfigured()) {
+      const last4 = lastFour(card?.last4 || value(plans, 'cardLast4'))
+      if (!last4) throw new Error('Enter the last four of the card you will use to pay filing fees.')
+      fieldUpdates.cardBrand = card?.brand || value(plans, 'cardBrand', 'Card')
+      fieldUpdates.cardLast4 = last4
+      produced.push(document('receipt', `${fieldUpdates.cardBrand} •••• ${last4} noted`, `# Payment method\n\nNo filing portal is connected. **${fieldUpdates.cardBrand} •••• ${last4}** is the card you will charge on ${value(plans, 'formationProvider', 'the filing site')} yourself. The PAN never touched this app.`))
+      return { produced, fieldUpdates }
+    }
     const methods = await listPaymentMethods()
     const match = methods.find((method) => method.last4 === card?.last4) ?? methods[0]
     if (!match) throw new Error('Save a card in the Northwest portal first, then run this state.')
@@ -92,6 +104,10 @@ export async function runFormation(hint: string, context: FormationContext) {
   }
 
   if (hint === 'prepare-packet') {
+    if (!usesNorthwest(plans) || !northwestConfigured()) {
+      produced.push(document('articles', `Formation packet — ${companyName}`, `# Formation packet\n\n**Company:** ${companyName}\n**Provider:** ${value(plans, 'formationProvider', 'self-file')}\n**Jurisdiction:** ${value(plans, 'state', 'Wyoming')}\n**Organizer:** ${value(plans, 'organizer') || 'confirmed'}\n**Members:** ${value(plans, 'members') || 'confirmed'}\n**Principal address:** ${value(plans, 'principalAddress') || 'on file'}\n**Registered agent:** ${value(plans, 'registeredAgent') || 'required — Wyoming needs an in-state RA'}\n\nNorthwest is not in this path. File on wyobiz or the RA you chose, then confirm the filing id on Submit to state.\n\nWyoming e-file: https://wyobiz.wyo.gov`))
+      return { produced, fieldUpdates }
+    }
     const company = await companyFromPlans(plans)
     fieldUpdates.northwestCompanyId = company.id
     const address = value(plans, 'principalAddress')
@@ -110,6 +126,10 @@ export async function runFormation(hint: string, context: FormationContext) {
   }
 
   if (hint === 'pay-fee') {
+    if (!usesNorthwest(plans) || !northwestConfigured()) {
+      produced.push(document('receipt', `${companyName} filing fee`, `# Filing fee\n\n**Provider:** ${value(plans, 'formationProvider', 'self-file')}\n**Card noted:** ${value(plans, 'cardBrand', 'Card')} •••• ${value(plans, 'cardLast4', '????')}\n\nNorthwest checkout was skipped. Confirm you paid the Secretary of State or other RA, then submit.`))
+      return { produced, fieldUpdates }
+    }
     if (!card) throw new Error('Bind a Northwest card before paying the filing fee.')
     const company = await companyFromPlans(plans)
     const method = await methodFromCard(card)
@@ -132,6 +152,14 @@ export async function runFormation(hint: string, context: FormationContext) {
       produced.push(document('articles', `${companyName} articles gate`, `# File articles\n\nInner filing machine is complete. Stamped documents are in the child vault.`))
       return { produced, fieldUpdates }
     }
+    if (!usesNorthwest(plans) || !northwestConfigured()) {
+      const confirmation = value(plans, 'filingConfirmation')
+      if (!confirmation) {
+        throw new Error('Northwest is not in this path. Finish the filing on wyobiz or another RA, then paste the real filing confirmation / id into this state.')
+      }
+      produced.push(document('articles', `${companyName} filing confirmation`, `# Submit to state\n\n**Company:** ${companyName}\n**Provider:** ${value(plans, 'formationProvider', 'self-file')}\n**Confirmation:** ${confirmation}\n\nRecorded from the human-completed filing. Nothing was invented.`))
+      return { produced, fieldUpdates }
+    }
     const company = await companyFromPlans(plans)
     const status = await filingStatus(company.id)
     produced.push(document('articles', `${companyName} filing status`, `# Submit to state\n\n**Company:** ${companyName}\n**Northwest id:** \`${company.id}\`\n**Status:** ${status.status}\n\n${status.summary}`))
@@ -142,6 +170,14 @@ export async function runFormation(hint: string, context: FormationContext) {
   }
 
   if (hint === 'store-articles') {
+    if (!usesNorthwest(plans) || !northwestConfigured()) {
+      const confirmation = value(plans, 'filingConfirmation')
+      if (!confirmation) {
+        throw new Error('No stamped copy yet. Paste the filing confirmation / id after the Secretary of State or RA finishes.')
+      }
+      produced.push(document('articles', `${companyName} stamped articles`, `# Stamped copy\n\n**Company:** ${companyName}\n**Provider:** ${value(plans, 'formationProvider', 'self-file')}\n**Confirmation:** ${confirmation}\n\nVaulted from the completed filing. Later states (EIN, bank) can reuse this.`))
+      return { produced, fieldUpdates }
+    }
     const company = await companyFromPlans(plans)
     const status = await filingStatus(company.id)
     if (!status.complete) {
@@ -156,6 +192,15 @@ export async function runFormation(hint: string, context: FormationContext) {
   }
 
   if (hint === 'request-ein') {
+    const existingEin = value(plans, 'ein')
+    if ((!usesNorthwest(plans) || !northwestConfigured()) && existingEin) {
+      fieldUpdates.ein = existingEin
+      produced.push(document('ein', `EIN confirmation — ${companyName}`, `# EIN Assignment\n\n**Legal name:** ${companyName}\n**EIN:** ${existingEin}\n**Responsible party:** ${value(plans, 'responsibleParty', value(plans, 'organizer'))}\n\nConfirmed by the human. Northwest was not used for this EIN.`))
+      return { produced, fieldUpdates }
+    }
+    if (!usesNorthwest(plans) || !northwestConfigured()) {
+      throw new Error('Northwest is not in this path. File the EIN with the IRS, then confirm the EIN field on this state and run it again.')
+    }
     const company = await companyFromPlans(plans)
     const current = await companyEin(company.id)
     if (!current.ein) {
@@ -173,25 +218,87 @@ export async function runFormation(hint: string, context: FormationContext) {
     return { produced, fieldUpdates, northwestCompanyId: company.id }
   }
 
+  if (hint === 'choose-bank') {
+    const profile = bankProfile(value(plans, 'bankName'))
+    if (profile.key === 'other' && !value(plans, 'bankName')) {
+      throw new Error('Name the bank first — Novo, Mercury, or another.')
+    }
+    fieldUpdates.bankName = profile.name
+    fieldUpdates.bankApiNeeded = profile.canListViaApi
+      ? `${profile.apiTokenEnv} after the account exists (lists last four; cannot open)`
+      : 'None. This bank has no public open/list API.'
+    produced.push(document('bank', `${companyName} → ${profile.name}`, `# ${profile.name}\n\n**Can the agent open an account via API?** No.\n**Can the agent list an existing account?** ${profile.canListViaApi ? `Yes, with \`${profile.apiTokenEnv}\`` : 'No.'}\n**Apply:** ${profile.applyUrl || 'ask the human for this bank\'s signup URL'}\n\n## What ${profile.name} will ask\n\n${profile.needs.map((item) => `- ${item}`).join('\n')}`))
+    return { produced, fieldUpdates }
+  }
+
+  if (hint === 'collect-bank-needs') {
+    const profile = bankProfile(value(plans, 'bankName'))
+    const have = /^(y|yes|true|already)/i.test(value(plans, 'alreadyHaveAccount', 'no'))
+    const missing = [
+      !value(plans, 'ein') && 'EIN is not in the vault yet',
+      !plans.some((plan) => plan.states.some((entry) => entry.documents.some((doc) => doc.kind === 'articles'))) && 'Stamped articles are not in the vault yet',
+      !value(plans, 'organizer') && 'Organizer / control person is unconfirmed',
+      !value(plans, 'principalAddress') && 'Business address is unconfirmed',
+    ].filter(Boolean)
+    produced.push(document('bank', `${profile.name} KYC packet — ${companyName}`, `# ${profile.name} application packet\n\n**Company:** ${companyName}\n**EIN:** ${value(plans, 'ein') || 'missing'}\n**State:** ${value(plans, 'state', 'Wyoming')}\n**Organizer:** ${value(plans, 'organizer') || 'missing'}\n**Members:** ${value(plans, 'members') || 'missing'}\n**Address:** ${value(plans, 'principalAddress') || 'missing'}\n**Already have an account?** ${have ? 'Yes — next we bind last four' : 'No — next we apply'}\n**API:** ${value(plans, 'bankApiNeeded') || (profile.canListViaApi ? profile.apiTokenEnv : 'none')}\n\n## Bank checklist\n\n${profile.needs.map((item) => `- ${item}`).join('\n')}\n\n${missing.length ? `## Still blocking\n\n${missing.map((item) => `- ${item}`).join('\n')}` : 'Packet has the fields this canvas can collect. Identity (SSN/ID) stays in the bank portal.'}`))
+    return { produced, fieldUpdates }
+  }
+
   if (hint === 'open-bank') {
+    if (node.childPlanId) {
+      const child = plans.find((plan) => plan.id === node.childPlanId)
+      if (!child || child.states.some((state) => state.status !== 'done')) {
+        throw new Error('Open the inner bank machine and finish choose → needs → apply → bind first.')
+      }
+      produced.push(document('bank', `${companyName} bank gate`, `# Bank account\n\nInner bank machine is complete. Last four is in the child vault.`))
+      return { produced, fieldUpdates }
+    }
+    const profile = bankProfile(value(plans, 'bankName'))
+    const have = /^(y|yes|true|already)/i.test(value(plans, 'alreadyHaveAccount', 'no'))
+    const bound = lastFour(value(plans, 'bankLast4'))
     const packet = [
       `**Company:** ${companyName}`,
+      `**Bank:** ${profile.name}`,
       `**EIN:** ${value(plans, 'ein') || 'not in vault yet'}`,
       `**State:** ${value(plans, 'state', 'Wyoming')}`,
       `**Organizer:** ${value(plans, 'organizer')}`,
       `**Address:** ${value(plans, 'principalAddress')}`,
     ].join('\n')
-    produced.push(document('bank', `${companyName} Mercury application packet`, `# Mercury application packet\n\n${packet}\n\nMercury's public API lists existing accounts; it cannot open a new one ([docs](https://docs.mercury.com/docs/welcome)). Apply at https://mercury.com, then bind \`MERCURY_API_TOKEN\` and run this state again.`))
-    if (!mercuryConfigured()) {
-      return { produced, fieldUpdates, blocked: 'Application packet is in the vault. Mercury cannot open an account through their public API. Finish KYC at https://mercury.com, add MERCURY_API_TOKEN, then run this state again.' }
+    produced.push(document('bank', `${companyName} ${profile.name} application packet`, `# ${profile.name} application packet\n\n${packet}\n\nNo US bank lets this agent open an account through an API. ${profile.applyUrl ? `Apply at ${profile.applyUrl}.` : 'Use this bank\'s own signup.'}`))
+    if (have && bound) {
+      fieldUpdates.bankLast4 = bound
+      fieldUpdates.bankName = profile.name
+      produced.push(document('bank', `${profile.name} •••• ${bound}`, `# Operating account\n\n**Company:** ${companyName}\n**Bank:** ${profile.name}\n**Account:** •••• ${bound}\n\nBound from a confirmed last four. Full account and routing numbers stay at the bank.`))
+      return { produced, fieldUpdates }
     }
-    const accounts = await listOperatingAccounts(companyName)
-    const account = accounts[0]
-    if (!account) {
-      return { produced, fieldUpdates, blocked: 'Mercury is connected but has no operating account yet. Finish KYC, then run this state again.' }
+    if (profile.key === 'mercury' && mercuryConfigured()) {
+      const accounts = await listOperatingAccounts(companyName)
+      const account = accounts[0]
+      if (account) {
+        fieldUpdates.bankLast4 = account.last4
+        fieldUpdates.bankName = 'Mercury'
+        produced.push(document('bank', `${account.name} •••• ${account.last4}`, `# Operating account\n\n**Company:** ${companyName}\n**Bank:** Mercury\n**Account:** •••• ${account.last4}\n${account.routingLast4 ? `**Routing last four:** ${account.routingLast4}\n` : ''}\nPulled live from Mercury. Full account and routing numbers stay at the bank.`))
+        return { produced, fieldUpdates }
+      }
     }
-    fieldUpdates.bankLast4 = account.last4
-    produced.push(document('bank', `${account.name} •••• ${account.last4}`, `# Operating account\n\n**Company:** ${companyName}\n**Bank:** Mercury\n**Account:** •••• ${account.last4}\n${account.routingLast4 ? `**Routing last four:** ${account.routingLast4}\n` : ''}\nPulled live from Mercury. Full account and routing numbers stay at the bank.`))
+    if (have && !bound) {
+      return { produced, fieldUpdates, blocked: `You said the ${profile.name} account already exists. Confirm the last four (or add MERCURY_API_TOKEN if this is Mercury), then run this state again.` }
+    }
+    produced.push(document('bank', `Apply at ${profile.name}`, `# Next step\n\n${profile.name} cannot open an account through an API. Finish KYC at ${profile.applyUrl || 'this bank\'s signup'}, then confirm the last four on Bind last four.`))
+    return { produced, fieldUpdates }
+  }
+
+  if (hint === 'bind-bank') {
+    const profile = bankProfile(value(plans, 'bankName'))
+    let bound = lastFour(value(plans, 'bankLast4'))
+    if (!bound && profile.key === 'mercury' && mercuryConfigured()) {
+      const account = (await listOperatingAccounts(companyName))[0]
+      if (account) bound = account.last4
+    }
+    if (!bound) throw new Error(`Confirm the last four of the ${profile.name} account. Do not paste the full number.`)
+    fieldUpdates.bankLast4 = bound
+    fieldUpdates.bankName = profile.name
+    produced.push(document('bank', `${profile.name} •••• ${bound}`, `# Operating account\n\n**Company:** ${companyName}\n**Bank:** ${profile.name}\n**Account:** •••• ${bound}\n\nBound. Full account and routing numbers stay at the bank.`))
     return { produced, fieldUpdates }
   }
 

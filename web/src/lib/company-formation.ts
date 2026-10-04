@@ -1,3 +1,4 @@
+import { bankProfile } from './bank-profile'
 import { refreshPlanStatuses, type Plan, type PlanField, type PlanNode, type PlanQuestion } from './plan'
 
 type Guess = { key: string; value: string }
@@ -34,15 +35,22 @@ function stamp(plan: Omit<Plan, 'createdAt' | 'updatedAt' | 'states' | 'edges'> 
   return refreshPlanStatuses({ ...plan, createdAt: now, updatedAt: now })
 }
 
+function guessed(guesses: Guess[], key: string, fallback: string) {
+  return guesses.find((entry) => entry.key === key)?.value ?? fallback
+}
+
 export function companyFormationPlan(name: string, guesses: Guess[] = []): { plans: Plan[] } {
+  const bank = bankProfile(guessed(guesses, 'bankName', ''))
+
   const people = node(
     'People & addresses',
     `## People & addresses
-Identify organizers, members, and a registered agent. Confirm every address before anything is filed.`,
+Identify organizers, members, and a registered agent. Confirm every address before anything is filed.
+Wyoming still needs a physical in-state registered agent even if you skip Northwest.`,
     [
       field('organizer', 'Organizer / founder', guesses),
       field('members', 'Members / ownership', guesses),
-      field('registeredAgent', 'Registered agent', guesses, { value: guesses.find((g) => g.key === 'registeredAgent')?.value ?? 'Northwest Registered Agent', guessed: true }),
+      field('registeredAgent', 'Registered agent', guesses, { value: guessed(guesses, 'registeredAgent', 'Northwest Registered Agent'), guessed: true }),
       field('principalAddress', 'Principal address', guesses),
     ],
     [question('Who should be listed as the organizer on the articles?'), question('What is the principal business address?')],
@@ -51,7 +59,8 @@ Identify organizers, members, and a registered agent. Confirm every address befo
   const payment = node(
     'Payment method',
     `## Payment method
-Checkout charges a card already saved in the Northwest portal. This app stores last four and a payable id — never the PAN.`,
+If the filing provider is Northwest, checkout charges a card already saved in that portal (last four + payable id only).
+If you self-file on wyobiz or another RA, bind the last four of the card you will use there. This app never stores a PAN.`,
     [
       field('cardBrand', 'Card brand', guesses, { secret: true }),
       field('cardLast4', 'Card last four', guesses, { secret: true }),
@@ -64,7 +73,8 @@ Checkout charges a card already saved in the Northwest portal. This app stores l
   const packet = node(
     'Prepare packet',
     `## Prepare packet
-Assemble the articles of organization from confirmed name, members, agent, and addresses.`,
+Assemble the articles of organization from confirmed name, members, agent, and addresses.
+Northwest is used when connected; otherwise this writes a local packet you can file on wyobiz or another RA.`,
     [field('packetReady', 'Packet reviewed', guesses, { required: false, confirmed: false })],
     [question('Does the packet match the confirmed company details?')],
     'prepare-packet',
@@ -72,24 +82,27 @@ Assemble the articles of organization from confirmed name, members, agent, and a
   const payFee = node(
     'Pay filing fee',
     `## Pay filing fee
-Charge the Northwest card for the real formation package. Blocked until the card is bound.`,
+Charge the bound card through Northwest when that provider is connected. Otherwise confirm you paid the Secretary of State or other RA yourself.`,
     [field('feeAmount', 'Filing fee', guesses, { required: false })],
-    [question('Confirm Northwest may charge the bound card for the quoted formation fee.')],
+    [question('Confirm the filing fee may be charged (Northwest checkout) or that you paid it yourself.')],
     'pay-fee',
   )
   const submit = node(
     'Submit to state',
     `## Submit to state
-Submit the paid Northwest order and track the Secretary of State filing.`,
-    [field('jurisdiction', 'Filing jurisdiction', guesses, { value: guesses.find((g) => g.key === 'state')?.value ?? 'Wyoming', guessed: true })],
-    [question('File with this jurisdiction now?')],
+Submit through Northwest when connected. Self-file path: finish wyobiz (or the other RA) and paste the real filing confirmation.`,
+    [
+      field('jurisdiction', 'Filing jurisdiction', guesses, { value: guessed(guesses, 'state', 'Wyoming'), guessed: true }),
+      field('filingConfirmation', 'Filing confirmation / id', guesses, { required: false }),
+    ],
+    [question('File with this jurisdiction now, or paste the confirmation if you already filed?')],
     'file-articles',
   )
   const stamped = node(
     'Receive stamped copy',
     `## Receive stamped copy
-Pull the stamped articles from Northwest into the company vault. Refuses until the filing is complete.`,
-    [],
+Pull stamped articles from Northwest when connected. Otherwise paste the stamped confirmation so later states (EIN, bank) can reuse it.`,
+    [field('filingConfirmation', 'Filing confirmation / id', guesses, { required: false })],
     [],
     'store-articles',
   )
@@ -103,17 +116,70 @@ Pull the stamped articles from Northwest into the company vault. Refuses until t
     edges: chain(filingStates),
   })
 
+  const chooseBank = node(
+    'Choose bank',
+    `## Choose bank
+Ask which bank should hold the operating account. Novo, Mercury, and any other name are valid.
+No US bank lets this agent open an account through an API. The next states collect what that bank needs, then open or bind.`,
+    [field('bankName', 'Bank', guesses, { value: guessed(guesses, 'bankName', bank.name === 'unspecified bank' ? '' : bank.name) || undefined })],
+    [question('Which bank should hold the operating account — Novo, Mercury, or another?')],
+    'choose-bank',
+  )
+  const bankNeeds = node(
+    'What the bank needs',
+    `## What the bank needs
+The agent asks for everything this bank requires before an application can start: EIN, stamped articles, owners, and whether an API token is useful after the account exists.
+Do not type SSN, full account numbers, or routing numbers onto a shareable canvas.`,
+    [
+      field('alreadyHaveAccount', 'Already have this account?', guesses, { value: guessed(guesses, 'alreadyHaveAccount', 'no'), guessed: true }),
+      field('bankApiNeeded', 'API needed after the account exists', guesses, { required: false }),
+    ],
+    [
+      question('Do you already have this business account, or should we open one during the demo?'),
+      question('Who are the beneficial owners and control person the bank will ask for?'),
+    ],
+    'collect-bank-needs',
+  )
+  const openBank = node(
+    'Open or apply',
+    `## Open or apply
+Prepare the application packet from the vault. If the bank has a list API and a token is on the worker, pull the real last four after KYC.
+Otherwise walk the human through that bank's signup and wait — never invent account numbers.`,
+    [],
+    [question('Ready to apply / open at this bank with the packet we assembled?')],
+    'open-bank',
+  )
+  const bindBank = node(
+    'Bind last four',
+    `## Bind last four
+After the account exists, store last four only. Full account and routing numbers stay at the bank.`,
+    [field('bankLast4', 'Account last four', guesses, { required: false, secret: true })],
+    [question('Confirm the last four of the operating account. Do not paste the full number.')],
+    'bind-bank',
+  )
+  const bankStates = [chooseBank, bankNeeds, openBank, bindBank]
+  const banking = stamp({
+    id: crypto.randomUUID(),
+    name: 'Bank account',
+    description: 'Ask which bank, collect what it needs, then open or bind a real operating account.',
+    template: 'open-bank',
+    states: bankStates,
+    edges: chain(bankStates),
+  })
+
   const identity = node(
     'Name & structure',
     `## Name & structure
-Guessed from the conversation. Confirm the legal name and entity type before any filing.`,
+Guessed from the conversation. Confirm the legal name, entity type, and who files.
+Northwest is the default filing provider because it can file + RA + EIN from the canvas. It is not required — self-file or another RA works if you confirm the stamped result.`,
     [
       field('companyName', 'Company name', guesses),
-      field('entityType', 'Entity type', guesses, { value: guesses.find((g) => g.key === 'entityType')?.value ?? 'LLC', guessed: true }),
-      field('state', 'Home state', guesses, { value: guesses.find((g) => g.key === 'state')?.value ?? 'Wyoming', guessed: true }),
+      field('entityType', 'Entity type', guesses, { value: guessed(guesses, 'entityType', 'LLC'), guessed: true }),
+      field('state', 'Home state', guesses, { value: guessed(guesses, 'state', 'Wyoming'), guessed: true }),
+      field('formationProvider', 'Filing provider', guesses, { value: guessed(guesses, 'formationProvider', 'Northwest Registered Agent'), guessed: true }),
       field('northwestCompanyId', 'Northwest company id', guesses, { required: false, secret: true }),
     ],
-    [question('Is this the exact legal name you want reserved and filed?')],
+    [question('Is this the exact legal name you want reserved and filed?'), question('Who files — Northwest, wyobiz self-file, or another RA?')],
   )
 
   const fileArticles = node(
@@ -129,26 +195,32 @@ Outer gate for the nested filing machine. Opens the inner packet → pay → sub
   const ein = node(
     'EIN',
     `## EIN
-Order the EIN through Northwest after articles are on file. Refuses until Northwest has a real EIN.`,
+Order the EIN through Northwest after articles are on file when that provider is connected.
+Otherwise confirm the EIN you received from the IRS and store it in the vault.`,
     [field('responsibleParty', 'Responsible party', guesses), field('ein', 'EIN', guesses, { required: false })],
     [question('Who is the responsible party on the EIN application?')],
     'request-ein',
   )
-  const bank = node(
+  const bankNode = node(
     'Bank account',
     `## Bank account
-Build the Mercury application packet from vault documents. Pull a real account only after Mercury KYC exists — never invent numbers.`,
-    [field('bankName', 'Bank', guesses, { value: guesses.find((g) => g.key === 'bankName')?.value ?? 'Mercury', guessed: true }), field('bankLast4', 'Account last four', guesses, { required: false, secret: true })],
+Outer gate for the nested bank machine: choose bank → what it needs → open or apply → bind last four.`,
+    [
+      field('bankName', 'Bank', guesses, { value: guessed(guesses, 'bankName', '') || undefined, required: false }),
+      field('bankLast4', 'Account last four', guesses, { required: false, secret: true }),
+    ],
     [question('Open the operating account at this bank?')],
     'open-bank',
   )
+  bankNode.childPlanId = banking.id
+
   const safe = node(
     'SAFE / investor docs',
     `## SAFE
 Draft a post-money SAFE so a future investor conversation can reuse the same terms.`,
     [
-      field('valuationCap', 'Valuation cap', guesses, { value: guesses.find((g) => g.key === 'valuationCap')?.value ?? '$10,000,000', guessed: true }),
-      field('discount', 'Discount', guesses, { value: guesses.find((g) => g.key === 'discount')?.value ?? '20%', guessed: true }),
+      field('valuationCap', 'Valuation cap', guesses, { value: guessed(guesses, 'valuationCap', '$10,000,000'), guessed: true }),
+      field('discount', 'Discount', guesses, { value: guessed(guesses, 'discount', '20%'), guessed: true }),
     ],
     [question('Are the cap and discount right for the first SAFE?')],
     'draft-safe',
@@ -162,7 +234,7 @@ Every produced document lands here. Later conversations can reference and revise
     'open-vault',
   )
 
-  const rootStates = [identity, people, payment, fileArticles, ein, bank, safe, vault]
+  const rootStates = [identity, people, payment, fileArticles, ein, bankNode, safe, vault]
   const root = stamp({
     id: crypto.randomUUID(),
     name,
@@ -174,18 +246,20 @@ Every produced document lands here. Later conversations can reference and revise
       { from: people.id, to: payment.id },
       { from: payment.id, to: fileArticles.id },
       { from: fileArticles.id, to: ein.id },
-      { from: ein.id, to: bank.id },
-      { from: bank.id, to: safe.id },
+      { from: ein.id, to: bankNode.id },
+      { from: bankNode.id, to: safe.id },
       { from: safe.id, to: vault.id },
     ],
   })
   filing.parentId = root.id
   filing.parentNodeId = fileArticles.id
-  return { plans: [root, filing] }
+  banking.parentId = root.id
+  banking.parentNodeId = bankNode.id
+  return { plans: [root, filing, banking] }
 }
 
 export const guessKeys = [
-  'companyName', 'entityType', 'state', 'organizer', 'members', 'registeredAgent',
+  'companyName', 'entityType', 'state', 'formationProvider', 'organizer', 'members', 'registeredAgent',
   'principalAddress', 'cardBrand', 'cardLast4', 'billingZip', 'feeAmount',
-  'responsibleParty', 'bankName', 'valuationCap', 'discount',
+  'responsibleParty', 'bankName', 'alreadyHaveAccount', 'bankApiNeeded', 'valuationCap', 'discount',
 ] as const
