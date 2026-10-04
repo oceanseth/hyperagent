@@ -19,4 +19,4 @@ Icon?
 # cosmos/tools bundle cache
 /cosmos/tools/.cache/
 /cosmos/tools/node_modules/
-/cosmos/tools/package-lock.json
+/cosmos/probe-data.json
