@@ -1,3 +1,4 @@
+import { HTreeMark } from '#/components/brand/htree-mark'
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
@@ -55,9 +56,9 @@ function Boards() {
   }
 
   return (
-    <main style={{ minHeight: '100dvh', background: '#1b1b1b', color: '#f2f2ed', fontFamily: "'Geist Variable', sans-serif", padding: '56px 24px 80px' }}>
+    <main style={{ minHeight: '100dvh', background: '#1b1b1b', color: '#f2f2ed', fontFamily: "'Satoshi', sans-serif", padding: '56px 24px 80px' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        <a href="/" style={{ color: '#f2f2ed', textDecoration: 'none', fontSize: 22, fontWeight: 650, letterSpacing: '-1px' }}>phab</a>
+        <a href="/" style={{ color: '#f2f2ed', textDecoration: 'none', fontSize: 22, fontWeight: 650, letterSpacing: '-1px', display: 'inline-flex', alignItems: 'center', gap: 8 }}><HTreeMark size={24} />hyperagent</a>
         <h1 style={{ fontSize: 40, letterSpacing: '-1.4px', margin: '28px 0 8px' }}>Your boards</h1>
         <p style={{ color: '#b7b7b0', marginTop: 0 }}>Each link opens that shared canvas. The title is what social apps show when the link is pasted.</p>
         {error === 'config' && <p style={{ color: '#e7c27a' }}>Auth0 is not configured on this server yet. It needs AUTH0_DOMAIN, AUTH0_CLIENT_ID, and AUTH0_SECRET or AUTH0_CLIENT_SECRET. The callback URL is /api/auth/callback.</p>}

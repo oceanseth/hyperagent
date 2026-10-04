@@ -1,4 +1,5 @@
 import { deflateSync } from 'node:zlib'
+import { BRAND_BLUE, hexToRgb, htreeRects } from '#/lib/htree'
 
 // 5x7 glyphs, bit 4 is the leftmost pixel. The card renders the title in
 // capitals so a share link unfurls without a native font dependency.
@@ -96,10 +97,9 @@ export function renderOgCard(title: string) {
   const rgb = Buffer.alloc(WIDTH * HEIGHT * 3)
   const bg = Buffer.alloc(WIDTH * 3)
   for (let x = 0; x < WIDTH; x++) {
-    const accent = x < 18
-    bg[x * 3] = accent ? 180 : 27
-    bg[x * 3 + 1] = accent ? 196 : 27
-    bg[x * 3 + 2] = accent ? 161 : 27
+    bg[x * 3] = 27
+    bg[x * 3 + 1] = 27
+    bg[x * 3 + 2] = 27
   }
   for (let y = 0; y < HEIGHT; y++) bg.copy(rgb, y * WIDTH * 3)
 
@@ -131,19 +131,26 @@ export function renderOgCard(title: string) {
   }
   const widthOf = (text: string, scale: number) => Math.max(0, text.length * 6 * scale - scale)
 
-  const lines = wrap(poster(title), 18)
+  const [br, bgc, bb] = hexToRgb(BRAND_BLUE)
+  const blue = { r: br, g: bgc, b: bb }
+  const markSize = 520
+  for (const r of htreeRects(5, markSize)) fill(Math.round(r.x) + 40, Math.round(r.y) + 55, Math.round(r.w), Math.round(r.h), blue)
+  const left = 560
+  const region = WIDTH - left - 40
+
+  const lines = wrap(poster(title), 14)
   const longest = Math.max(1, ...lines.map((line) => line.length))
-  const scale = Math.max(7, Math.min(13, Math.floor(1040 / (longest * 6))))
+  const scale = Math.max(6, Math.min(11, Math.floor(region / (longest * 6))))
   const lineGap = 10 * scale
   const block = lines.length * 7 * scale + (lines.length - 1) * (lineGap - 7 * scale)
   let y = Math.round((HEIGHT - block) / 2) - 10
-  draw('PHAB', Math.round((WIDTH - widthOf('PHAB', 4)) / 2), y - 52, 4, mute)
+  draw('HYPERAGENT', left + Math.round((region - widthOf('HYPERAGENT', 4)) / 2), y - 52, 4, blue)
   for (const line of lines) {
-    draw(line, Math.round((WIDTH - widthOf(line, scale)) / 2), y, scale, ink)
+    draw(line, left + Math.round((region - widthOf(line, scale)) / 2), y, scale, ink)
     y += lineGap
   }
   const foot = 'HYPERAGENT.LOL'
-  draw(foot, Math.round((WIDTH - widthOf(foot, 4)) / 2), HEIGHT - 78, 4, mute)
+  draw(foot, left + Math.round((region - widthOf(foot, 4)) / 2), HEIGHT - 78, 4, mute)
 
   const stride = WIDTH * 3
   const raw = Buffer.alloc((stride + 1) * HEIGHT)

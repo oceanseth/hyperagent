@@ -59,7 +59,7 @@ export function ChatHistoryPanel({ onClose }: { onClose: () => void }) {
         )}
         {error && <div className="canvas-history-note">{error}</div>}
         {messages?.length === 0 && (
-          <div className="canvas-history-note">No saved conversations yet. Chat or call Phab and every turn is kept here.</div>
+          <div className="canvas-history-note">No saved conversations yet. Chat or call Hyperagent and every turn is kept here.</div>
         )}
         {messages?.map((message) => (
           <div key={message.id} className="canvas-message" data-role={message.role}>

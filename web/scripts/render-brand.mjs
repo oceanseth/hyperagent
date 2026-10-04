@@ -41,6 +41,8 @@ const circle = (fn, pad = 0.02) => (u, v) => (Math.hypot(u - 0.5, v - 0.5) > 0.5
 const W = 1024;
 dither({ w: W, h: W, field: sphere, back: '#0A0A0A', front: '#FFCC00', name: 'dither-sphere-yellow.png' });
 dither({ w: W, h: W, field: sphere, back: '#0A0A0A', front: '#FFFFFF', name: 'dither-sphere-white.png' });
+dither({ w: W, h: W, field: sphere, back: '#0A0A0A', front: '#1A4FD6', name: 'dither-sphere-blue.png' });
+dither({ w: W, h: W, field: circle(julia), back: '#FFFFFF', front: '#1A4FD6', alphaBack: 0, name: 'dither-julia-blue.png' });
 dither({ w: W, h: W, field: ripple, back: '#0A0A0A', front: '#FFCC00', name: 'dither-ripple-yellow.png' });
 dither({ w: W, h: W, field: circle(julia), back: '#0A0A0A', front: '#FFCC00', alphaBack: 0, name: 'dither-julia-yellow.png' });
 dither({ w: W, h: W, field: circle(julia), back: '#FFFFFF', front: '#0A0A0A', alphaBack: 0, name: 'dither-julia-ink.png' });
@@ -65,7 +67,7 @@ function hsvg(depth, stroke, strokeWidth, size = 1000) {
   const d = htree(depth, size).map(([a, b, c, e]) => `M${a.toFixed(1)} ${b.toFixed(1)}L${c.toFixed(1)} ${e.toFixed(1)}`).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" fill="none"><path d="${d}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="square"/></svg>`;
 }
-for (const [depth, sw] of [[2, 44], [3, 34], [4, 22], [5, 12]]) {
+for (const [depth, sw] of []) {
   writeFileSync(OUT + `htree-${depth}-ink.svg`, hsvg(depth, '#0A0A0A', sw));
   writeFileSync(OUT + `htree-${depth}-paper.svg`, hsvg(depth, '#FFFFFF', sw));
   writeFileSync(OUT + `htree-${depth}-yellow.svg`, hsvg(depth, '#FFCC00', sw));

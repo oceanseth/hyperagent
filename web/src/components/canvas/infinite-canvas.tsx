@@ -7,6 +7,7 @@ import { cn } from '#/lib/utils'
 import { BrowserCard } from './browser-card'
 import { ResearchCard } from './research-cards'
 import { MonitorWidget } from './monitor-widget'
+import { HTreeMark } from '#/components/brand/htree-mark'
 import { SettingsDialog } from './settings-dialog'
 import { refreshCanvas } from '#/lib/canvas-workspace'
 import { PlanCard, PlanInspector } from './plan-graph'
@@ -21,12 +22,9 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
 
       <header className="phab-canvas-toolbar" data-canvas-overlay>
         <div className="phab-canvas-toolbar-left">
-          <a className="phab-wordmark" href="/" aria-label="phab home">
-            <svg width="20" height="22" viewBox="0 0 20 22" fill="none" aria-hidden="true">
-              <path d="M3 20V7.5A5.5 5.5 0 0 1 14 7.5V9a5.5 5.5 0 0 1-11 0" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-              <path d="M10 14.5h7" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-            </svg>
-            <span>phab</span>
+          <a className="phab-wordmark" href="/" aria-label="hyperagent home">
+            <HTreeMark size={24} />
+            <span>hyperagent</span>
           </a>
           <span className="phab-toolbar-divider" />
           <button className="phab-icon-button" {...canvas.spaceButtonProps}><PanelLeft size={17} strokeWidth={1.5} /></button>
