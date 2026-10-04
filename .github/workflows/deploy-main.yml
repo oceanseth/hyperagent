@@ -1,0 +1,44 @@
+name: Deploy main to Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', '.github/workflows/deploy-main.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build:cloudflare
+      - name: Deploy production
+        uses: cloudflare/wrangler-action@v4
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: web
+          secrets: |
+            XAI_API_KEY
+          command: deploy --config .output/server/wrangler.json --name phab

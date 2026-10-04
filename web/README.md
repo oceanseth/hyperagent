@@ -1,5 +1,24 @@
 Welcome to your new TanStack Start app!
 
+## Cloudflare deployments
+
+GitHub Actions deploys `main` to the `phab` Worker and `dev` to `phab-dev`.
+Each branch has its own workflow in `.github/workflows`, triggered by changes
+to `web/` or its workflow, and can also be deployed with `workflow_dispatch`.
+
+Repository secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and
+`XAI_API_KEY`. The xAI key is installed as a Worker secret during deployment;
+keep all secret values out of committed files.
+
+From `web/`, run `npm ci`, `npm run typecheck`, and `npm run build:cloudflare`.
+Nitro generates `.output/server/wrangler.json` with the server and static assets.
+Preview it with `npx wrangler dev --config .output/server/wrangler.json`.
+For a manual deployment, run `npm run deploy -- --name phab-dev` (development)
+or `npm run deploy -- --name phab` (production), with Cloudflare credentials set.
+
+The Workers build enables Node compatibility and browser export fallback for
+Web Crypto dependencies. Server dependencies are bundled into the Worker.
+
 # Getting Started
 
 To run this application:
