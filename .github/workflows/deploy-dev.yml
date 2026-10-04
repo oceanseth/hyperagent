@@ -39,6 +39,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: web
-          secrets: |
-            XAI_API_KEY
           command: deploy --config .output/server/wrangler.json --name phab-dev
+          postCommands: |
+            printf '%s' "$XAI_API_KEY" | npx wrangler secret put XAI_API_KEY --config .output/server/wrangler.json --name phab-dev
