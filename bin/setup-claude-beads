@@ -16,11 +16,20 @@ with tempfile.TemporaryDirectory(prefix="hackalon-claude-beads-") as scratch:
 path = root / ".claude/settings.json"
 settings = json.loads(path.read_text()) if path.exists() else {}
 hooks = settings.setdefault("hooks", {})
+# Call the Hermit-pinned bd by path so hooks work even if the shell that
+# launched Claude never activated the environment.
+pinned = '"$CLAUDE_PROJECT_DIR"/bin/bd '
 for event, entries in generated.get("hooks", {}).items():
     current = hooks.setdefault(event, [])
     for entry in entries:
+        for hook in entry.get("hooks", []):
+            if hook.get("command", "").startswith("bd "):
+                hook["command"] = pinned + hook["command"][3:]
         if entry not in current:
             current.append(entry)
+    # Drop stale entries that call a bare `bd` from PATH.
+    hooks[event] = [e for e in current if not any(
+        h.get("command", "").startswith("bd ") for h in e.get("hooks", []))]
 path.parent.mkdir(exist_ok=True)
 path.write_text(json.dumps(settings, indent=2) + "\n")
 assert not (root / "CLAUDE.md").exists(), "Use shared AGENTS.md only"

@@ -25,10 +25,19 @@ We are building for a hackathon. Speed beats everything.
 
 ## Environment
 
-- Run `bin/setup-beads` once, then `direnv allow`.
-- Use `bin/with-env <command>` when the shell has not loaded
-  `.envrc`. This loads `.env`, selects the pinned `bin/bd`, and sets `BEADS_DIR`.
-- Launch independent clients with `bin/with-env codex` or `bin/with-env claude`.
+Tooling is pinned with [Hermit](https://cashapp.github.io/hermit/): `bd`
+(Beads 1.3.0) and `dolt` (2.4.0) live in `bin/` and download themselves on
+first use. Nothing to install globally; ignore any `bd` from Homebrew.
+
+- New clone: run `bin/setup-beads` once. It installs the Beads git, Codex and
+  Claude hooks, pulls the shared issues and prints `bd ready`.
+- Activate the environment with `. bin/activate-hermit` (or `direnv allow`, or
+  `hermit shell-hooks` for auto-activation). That puts the pinned tools on
+  `PATH` and sets `BEADS_DIR`.
+- Without activating, prefix commands with `bin/with-env`, which also loads
+  `.env`. Launch agents with `bin/with-env codex` or `bin/with-env claude`.
+- Add a tool with `. bin/activate-hermit && hermit install <pkg>`; commit the
+  new `bin/` symlinks.
 - Never print or commit `.env` values or credentials in local MCP configuration.
 - There is no application build or test command yet.
 

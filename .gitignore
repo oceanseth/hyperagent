@@ -3,7 +3,6 @@
 !/.env.example
 /.direnv/
 /node_modules/
-/bin/bd
 /.codex/config.toml
 /.mcp.json
 /.claude/settings.local.json
