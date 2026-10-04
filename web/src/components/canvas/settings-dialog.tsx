@@ -14,7 +14,6 @@ type MaskedSetting = { key: string; set: boolean; hint: string }
 
 const LABELS: Record<string, { label: string; placeholder: string; note?: string }> = {
   agentmail: { label: 'AgentMail API key', placeholder: 'am_…', note: 'Agents get a real inbox per company for formation mail.' },
-  xai: { label: 'xAI API key', placeholder: 'xai-…' },
   northwest: { label: 'Northwest access token', placeholder: 'Bearer token' },
   mercury: { label: 'Mercury API token', placeholder: 'secret-token:…' },
 }

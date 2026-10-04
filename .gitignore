@@ -20,3 +20,6 @@ Icon?
 /cosmos/tools/.cache/
 /cosmos/tools/node_modules/
 /cosmos/probe-data.json
+
+# local build logs
+web/.build*.log

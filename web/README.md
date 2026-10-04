@@ -1,7 +1,11 @@
 # Phab
 
-The Cloudflare app runs Assistant UI and the conversational Grok/Mastra agent.
-Research runs separately on a Fly.io worker. Both use the `phab` Neon project.
+The app runs Assistant UI and the conversational Mastra agent, with all model
+inference served by the Neon AI Gateway. It deploys as a Node server container
+on AWS App Runner behind the hyperagent.lol CloudFront distribution.
+Research runs separately on a Fly.io worker. Both use the same Neon project.
+Web search and connected services (Exa, Neon API/MCP, AgentMail) come through
+the Executor MCP; voice calls use browser speech APIs plus `/api/voice` turns.
 
 ## Background research and context stacks
 
@@ -30,45 +34,38 @@ Open **Activity** on the canvas or `/monitor` for job history, worker location,
 15-second heartbeats, step/tool timings, failures, and saved event traces.
 **Copy debug report** exports a bounded, credential-redacted report suitable for
 pasting into a debugging conversation. Older jobs predate detailed tracing.
-Fly also receives structured JSON logs keyed by job and worker ID, while
-Cloudflare invocation logging is enabled for the app. Nothing in monitoring
-depends on a local log tail remaining open.
+Fly also receives structured JSON logs keyed by job and worker ID. Nothing in
+monitoring depends on a local log tail remaining open.
 
-Server secrets for the app: `XAI_API_KEY`, `DATABASE_URL`, `JOBS_URL`,
+Server secrets for the app: `NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`,
+`EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`, `DATABASE_URL`, `JOBS_URL`,
 `JOBS_SECRET`, and for live company formation optional `NORTHWEST_ACCESS_TOKEN`
 (plus `NORTHWEST_MCP_URL`, `MERCURY_API_TOKEN` when those providers are used).
 Northwest is the default filing provider, not required. The worker needs
-`XAI_API_KEY`, `DATABASE_URL`, `JOBS_SECRET`, `EXECUTOR_MCP_URL`,
-`EXECUTOR_API_KEY`, and optionally `COSMOS_TOKEN`.
+`NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`, `DATABASE_URL`,
+`JOBS_SECRET`, `EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`, and optionally
+`COSMOS_TOKEN`. Optional model overrides: `NEON_MODEL_ASSISTANT` (default
+claude-sonnet-5) and `NEON_MODEL_RESEARCH` (default gpt-5-5).
+Values are mirrored in AWS SSM under `/hyperagent/*`.
 Keep values in ignored `.env.local` during development and the hosting secret
 stores in production. Never send integration keys to the browser.
 
 Deploy the research worker from `web/` with `fly deploy --remote-only --ha=false`.
-Its `fly.toml` keeps one machine running to process the queue. GitHub Actions
-uses an app-scoped `FLY_API_TOKEN` for subsequent worker deployments. The frontend
-retains its Cloudflare deployment at https://phab.oxwilde.workers.dev/.
+Its `fly.toml` keeps one machine running to process the queue.
 
 This repository deliberately runs no tests or typechecking gates in hackathon
 mode. Production builds are part of deployment.
 
-## Cloudflare deployments
+## AWS deployments
 
-GitHub Actions deploys `main` to the `phab` Worker and `dev` to `phab-dev`.
-Each branch has its own workflow in `.github/workflows`, triggered by changes
-to `web/` or its workflow, and can also be deployed with `workflow_dispatch`.
+GitHub Actions (`.github/workflows/deploy-main.yml`) builds `web/Dockerfile.app`
+on every push to `main`, pushes the image to ECR (`hyperagent-app`), and App
+Runner auto-deploys it. CloudFront serves https://hyperagent.lol/ in front of
+the App Runner service. Auth uses the OIDC role in the `AWS_DEPLOY_ROLE_ARN`
+repository variable; there are no long-lived AWS keys in GitHub.
 
-Repository secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and
-`XAI_API_KEY`. The xAI key is installed as a Worker secret during deployment;
-keep all secret values out of committed files.
-
-From `web/`, run `npm ci` and `npm run build:cloudflare`.
-Nitro generates `.output/server/wrangler.json` with the server and static assets.
-Preview it with `npx wrangler dev --config .output/server/wrangler.json`.
-For a manual deployment, run `npm run deploy -- --name phab-dev` (development)
-or `npm run deploy -- --name phab` (production), with Cloudflare credentials set.
-
-The Workers build enables Node compatibility and browser export fallback for
-Web Crypto dependencies. Server dependencies are bundled into the Worker.
+For a local production build: `NITRO_PRESET=node_server npm run build`, then
+`node .output/server/index.mjs` with the env above.
 
 # Getting Started
 

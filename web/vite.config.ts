@@ -7,19 +7,14 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 
+// Deploys as a plain Node server (NITRO_PRESET=node_server) in a container on
+// AWS App Runner behind the hyperagent.lol CloudFront distribution.
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
   plugins: [
     devtools(),
     nitro({
       compatibilityDate: '2026-10-04',
-      // The browser export of pkce-challenge uses Workers' Web Crypto API.
-      exportConditions: ['browser'],
-      cloudflare: {
-        deployConfig: true,
-        nodeCompat: true,
-        wrangler: { name: 'phab', workers_dev: true, observability: { enabled: true } },
-      },
     }),
     tailwindcss(),
     tanstackStart(),

@@ -1,6 +1,6 @@
 import { useCallback, useId, useState, type FormEvent } from 'react'
 import { useAuiState } from '@assistant-ui/react'
-import { useXaiVoice } from '#/hooks/use-xai-voice'
+import { useVoice } from '#/hooks/use-voice'
 
 export function useCanvasComposer() {
   const panelId = useId()
@@ -11,7 +11,7 @@ export function useCanvasComposer() {
 
   const openConversation = useCallback(() => setIsDismissed(false), [])
   const closeConversation = useCallback(() => setIsDismissed(true), [])
-  const voice = useXaiVoice()
+  const voice = useVoice()
   const onSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       if (voice.isActive) {

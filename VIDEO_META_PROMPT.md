@@ -106,7 +106,7 @@ execution path supports it and current evidence establishes it.
 - Keep narration within a realistic word budget, allowing time to see results.
   Label sped-up or time-skipped waits instead of implying artificial latency.
 - Mention technologies only when they clarify the product or satisfy current
-  submission requirements. Assistant UI, xAI/Grok, Mastra, Executor, Neon,
+  submission requirements. Assistant UI, Neon AI Gateway, Mastra, Executor, Neon,
   Cloudflare, Cosmos, and Fly.io are investigation leads, not guaranteed credits.
   Verify each one's actual role; configuration or an installed package alone
   does not prove it powers the deployed demo.

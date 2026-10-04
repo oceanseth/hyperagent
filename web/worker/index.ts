@@ -4,8 +4,8 @@ import { pendingJobs } from '../src/server/canvas-db'
 import { runResearchJob } from '../src/server/research'
 
 const secret = process.env.JOBS_SECRET
-if (!secret || !process.env.DATABASE_URL || !process.env.XAI_API_KEY) {
-  throw new Error('Worker requires JOBS_SECRET, DATABASE_URL, and XAI_API_KEY.')
+if (!secret || !process.env.DATABASE_URL || !process.env.NEON_AI_GATEWAY_BASE_URL || !process.env.NEON_AI_GATEWAY_TOKEN) {
+  throw new Error('Worker requires JOBS_SECRET, DATABASE_URL, NEON_AI_GATEWAY_BASE_URL, and NEON_AI_GATEWAY_TOKEN.')
 }
 const running = new Map<string, Promise<void>>()
 let scanning = false

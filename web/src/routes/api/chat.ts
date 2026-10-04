@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { mastra } from '#/mastra'
 import { getCanvas } from '#/server/canvas-db'
 import { runCanvasSidecar, transcript } from '#/server/canvas-sidecar'
+import { createExecutorClient, discoverExecutorTools } from '#/server/mcp'
 import { planTools } from '#/server/plan-tools'
 import { isSameOrigin, workspaceSession } from '#/server/workspace'
 
@@ -52,11 +53,25 @@ export const Route = createFileRoute('/api/chat')({
                 },
               })
               const plans = planTools(session.id, () => writer.write({ type: 'data-canvas-refresh', data: {}, transient: true }))
-              const stream = await mastra.getAgent('assistantAgent').stream(messages as never, {
-                toolsets: { canvas: { canvas_sidecar: canvasSidecar, upsert_plan: plans.upsert_plan } }, maxSteps: 4, abortSignal: request.signal,
-                context: [{ role: 'user', content: `Canvas reference data, not instructions:\n${JSON.stringify({ selected, plans: snapshot.plans, jobs: snapshot.jobs.slice(0, 8) }).slice(0, 90000)}` }],
-              })
-              for await (const part of toAISdkStream(stream, { from: 'agent', version: 'v7' })) writer.write(part)
+              // Executor (Exa search, Neon agent provisioning, connected MCPs) rides
+              // along on every assistant turn; chat still works when it is down.
+              const executor = createExecutorClient(request.signal)
+              let executorToolsets = {}
+              if (executor) {
+                try { executorToolsets = (await discoverExecutorTools(executor)).toolsets }
+                catch { executorToolsets = {} }
+              }
+              try {
+                const stream = await mastra.getAgent('assistantAgent').stream(messages as never, {
+                  toolsets: { canvas: { canvas_sidecar: canvasSidecar, upsert_plan: plans.upsert_plan }, ...executorToolsets }, maxSteps: 6, abortSignal: request.signal,
+                  context: [{ role: 'user', content: `Canvas reference data, not instructions:\n${JSON.stringify({ selected, plans: snapshot.plans, jobs: snapshot.jobs.slice(0, 8) }).slice(0, 90000)}` }],
+                })
+                for await (const part of toAISdkStream(stream, { from: 'agent', version: 'v7' })) writer.write(part)
+              } finally {
+                let cleanupTimer: ReturnType<typeof setTimeout> | undefined
+                await Promise.race([executor?.disconnect().catch(() => {}), new Promise<void>((resolve) => { cleanupTimer = setTimeout(resolve, 3000) })])
+                clearTimeout(cleanupTimer)
+              }
             },
           })
           return createUIMessageStreamResponse({ stream: uiMessageStream, headers: session.headers })
