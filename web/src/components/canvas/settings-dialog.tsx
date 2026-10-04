@@ -16,6 +16,9 @@ const LABELS: Record<string, { label: string; placeholder: string; note?: string
   agentmail: { label: 'AgentMail API key', placeholder: 'am_…', note: 'Agents get a real inbox per company for formation mail.' },
   northwest: { label: 'Northwest access token', placeholder: 'Bearer token' },
   mercury: { label: 'Mercury API token', placeholder: 'secret-token:…' },
+  stripe: { label: 'Stripe / Atlas key', placeholder: 'sk_… or Atlas token', note: 'Stored for this workspace. Atlas has no public form-an-LLC API — KERNEL drives the Atlas site after you confirm.' },
+  mastra: { label: 'Mastra Memory Gateway', placeholder: 'msk_…', note: 'Orchestrates company-formation memory across talk and chat. Neon still does inference.' },
+  kernel: { label: 'KERNEL API key', placeholder: 'KERNEL key', note: 'Cloud browsers for Atlas, wyobiz, and any filing site without an API.' },
 }
 
 export function SettingsDialog() {

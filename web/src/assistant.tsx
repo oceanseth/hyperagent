@@ -2,7 +2,7 @@ import { AssistantRuntimeProvider } from '@assistant-ui/react'
 import { AssistantChatTransport, useChatRuntime } from '@assistant-ui/ai-sdk'
 import { useMemo } from 'react'
 import type { CanvasJob } from '#/lib/canvas'
-import { refreshCanvas, receiveCanvasJob, selectedContextIds } from '#/lib/canvas-workspace'
+import { refreshCanvas, receiveCanvasJob, requestCanvasFocus, selectedContextIds } from '#/lib/canvas-workspace'
 import { InfiniteCanvas } from '#/components/canvas/infinite-canvas'
 import { CanvasComposer } from '#/components/canvas/canvas-composer'
 import { TooltipProvider } from '#/components/ui/tooltip'
@@ -29,6 +29,13 @@ function useCanvasAssistant() {
     onData: (part) => {
       if (part.type === 'data-canvas-job') receiveCanvasJob(part.data as CanvasJob)
       if (part.type === 'data-canvas-refresh') void refreshCanvas()
+      if (part.type === 'data-canvas-focus') {
+        const id = (part.data as { id?: string } | undefined)?.id
+        if (id) {
+          requestCanvasFocus(id)
+          void refreshCanvas()
+        }
+      }
     },
   })
 }

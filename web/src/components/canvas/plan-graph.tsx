@@ -112,7 +112,21 @@ function NodeEditor({ plan, node }: { plan: Plan; node: PlanNode }) {
             <div key={field.key} className="phab-plan-field">
               <div>
                 <strong>{field.label}</strong>
-                <span>{field.value || 'empty'}{field.guessed && !field.confirmed ? ' · guessed' : ''}{field.secret ? ' · stored token only' : ''}</span>
+                <span>{field.secret && field.value ? 'stored token only' : (field.value || 'empty')}{field.guessed && !field.confirmed ? ' · guessed' : ''}</span>
+                {!field.confirmed && (
+                  <input
+                    type={field.secret ? 'password' : 'text'}
+                    defaultValue={field.secret ? '' : (field.value ?? '')}
+                    placeholder={field.secret ? 'Paste key — stored server-side' : 'Type to fill this field'}
+                    onPointerDown={stop}
+                    onBlur={(event) => {
+                      const value = event.target.value.trim()
+                      if (!value || value === field.value) return
+                      void planRequest({ action: 'patch', planId: plan.id, nodeId: node.id, fieldKey: field.key, fieldValue: value })
+                        .catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not save the field.'))
+                    }}
+                  />
+                )}
               </div>
               <button type="button" disabled={field.confirmed || !field.value} onPointerDown={stop} onClick={() => void confirm(field.key)}>
                 {field.confirmed ? <Check size={12} /> : null}{field.confirmed ? 'Confirmed' : 'Confirm'}

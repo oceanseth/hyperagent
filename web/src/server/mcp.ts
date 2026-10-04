@@ -69,7 +69,7 @@ export function createExecutorClient(signal?: AbortSignal) {
 
 export function redactResearchSecrets(text: string): string {
   let result = text
-  for (const name of ['EXECUTOR_API_KEY', 'NEON_AI_GATEWAY_TOKEN', 'COSMOS_TOKEN', 'DATABASE_URL', 'JOBS_SECRET', 'NORTHWEST_ACCESS_TOKEN', 'MERCURY_API_TOKEN']) {
+  for (const name of ['EXECUTOR_API_KEY', 'NEON_AI_GATEWAY_TOKEN', 'COSMOS_TOKEN', 'DATABASE_URL', 'JOBS_SECRET', 'NORTHWEST_ACCESS_TOKEN', 'MERCURY_API_TOKEN', 'KERNEL_API_KEY', 'MASTRA_MEMORY_GATEWAY_KEY', 'STRIPE_SECRET_KEY']) {
     const value = process.env[name]?.trim()
     if (!value) continue
     for (const secret of [value, value.replace(/^Bearer\s+/i, '')]) {
@@ -107,7 +107,7 @@ function safeErrorDetail(value: unknown): string {
       try { const url = new URL(value); return `${url.origin}${url.pathname}` }
       catch { return '[URL omitted]' }
     })
-    .replace(/\b(?:sk-|xai-)[A-Za-z0-9_-]{12,}/g, '[redacted]')
+    .replace(/\b(?:sk-|xai-|msk_|nt_live_)[A-Za-z0-9_-]{12,}/g, '[redacted]')
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[redacted]')
     .replace(/(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key|api[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|password|secret|credential|headers|request|response)\s*["']?\s*[:=][^\n]*/gi, '[sensitive details omitted]')
   return detail.split(/[\r\n]/, 1)[0].trim().slice(0, 400) || 'Executor tool failed.'

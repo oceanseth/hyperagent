@@ -80,11 +80,28 @@ export function useInfiniteCanvas() {
       const scale = Math.max(.35, Math.min(1, (node.clientWidth - 80) / Math.max(right - left, 400), (node.clientHeight - 240) / Math.max(bottom - top, 240)))
       setCamera({ scale, x: node.clientWidth / 2 - (left + right) / 2 * scale, y: (node.clientHeight - 90) / 2 - (top + bottom) / 2 * scale })
     }
+    const showNode = (nodeId: string) => {
+      const cards = planArtifacts(canvasWorkspace.getState())
+      const card = cards.find((item) => item.id === nodeId)
+      if (!card) {
+        const plan = cards.find((item) => item.plan.states.some((state) => state.id === nodeId))
+        if (plan) showPlan(plan.plan.id)
+        return
+      }
+      const scale = 1
+      setCamera({
+        scale,
+        x: node.clientWidth / 2 - card.x * scale,
+        y: (node.clientHeight - 90) * 0.38 - card.y * scale,
+      })
+      setSelectedId(nodeId)
+    }
     const unsubscribe = canvasWorkspace.subscribe((state, previous) => {
       const newest = [...state.stacks].reverse().find((stack) => !previous.stacks.some((entry) => entry.id === stack.id))
       if (newest) showStack(newest.id)
       const newestPlan = [...state.plans].reverse().find((plan) => !previous.plans.some((entry) => entry.id === plan.id))
       if (newestPlan) showPlan(newestPlan.id)
+      if (state.focus && state.focus.at !== previous.focus?.at) showNode(state.focus.id)
     })
     const lastStack = canvasWorkspace.getState().stacks.at(-1)
     if (lastStack) showStack(lastStack.id)

@@ -171,15 +171,16 @@ After the account exists, store last four only. Full account and routing numbers
     'Name & structure',
     `## Name & structure
 Guessed from the conversation. Confirm the legal name, entity type, and who files.
-Northwest is the default filing provider because it can file + RA + EIN from the canvas. It is not required — self-file or another RA works if you confirm the stamped result.`,
+Northwest is the default filing provider because it can file + RA + EIN from the canvas. Stripe Atlas is a Delaware website with no public formation API — store the Atlas/Stripe key here, then KERNEL opens the Atlas portal after you confirm. wyobiz or another RA works if you confirm the stamped result.`,
     [
       field('companyName', 'Company name', guesses),
       field('entityType', 'Entity type', guesses, { value: guessed(guesses, 'entityType', 'LLC'), guessed: true }),
       field('state', 'Home state', guesses, { value: guessed(guesses, 'state', 'Wyoming'), guessed: true }),
       field('formationProvider', 'Filing provider', guesses, { value: guessed(guesses, 'formationProvider', 'Northwest Registered Agent'), guessed: true }),
       field('northwestCompanyId', 'Northwest company id', guesses, { required: false, secret: true }),
+      field('stripeAtlasKey', 'Stripe / Atlas key', guesses, { required: false, secret: true, setting: 'stripe' }),
     ],
-    [question('Is this the exact legal name you want reserved and filed?'), question('Who files — Northwest, wyobiz self-file, or another RA?')],
+    [question('Is this the exact legal name you want reserved and filed?'), question('Who files — Northwest, Stripe Atlas, wyobiz self-file, or another RA?')],
   )
 
   const fileArticles = node(
@@ -260,6 +261,6 @@ Every produced document lands here. Later conversations can reference and revise
 
 export const guessKeys = [
   'companyName', 'entityType', 'state', 'formationProvider', 'organizer', 'members', 'registeredAgent',
-  'principalAddress', 'cardBrand', 'cardLast4', 'billingZip', 'feeAmount',
+  'principalAddress', 'cardBrand', 'cardLast4', 'billingZip', 'feeAmount', 'stripeAtlasKey',
   'responsibleParty', 'bankName', 'alreadyHaveAccount', 'bankApiNeeded', 'valuationCap', 'discount',
 ] as const
