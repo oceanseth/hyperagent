@@ -41,7 +41,7 @@ export type JobEvent = {
 export type CanvasJob = {
   id: string
   title: string
-  status: 'queued' | 'running' | 'completed' | 'failed'
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
   progress: string
   createdAt: string
   updatedAt: string

@@ -18,7 +18,7 @@ export function JobMonitor() {
         <span className="phab-monitor-eyebrow"><Activity size={15} /> WORKSPACE ACTIVITY</span>
         <h1>Follow the work.</h1>
         <p>Live research progress, worker health, and the steps behind every result.</p>
-        <div className="phab-monitor-stats"><span><strong>{monitor.counts.active}</strong> active</span><span><strong>{monitor.counts.completed}</strong> completed</span><span><strong>{monitor.counts.failed}</strong> failed</span></div>
+        <div className="phab-monitor-stats"><span><strong>{monitor.counts.active}</strong> active</span><span><strong>{monitor.counts.completed}</strong> completed</span><span><strong>{monitor.counts.failed}</strong> failed</span><span><strong>{monitor.counts.cancelled}</strong> cancelled</span></div>
       </section>
       {monitor.error && <div className="phab-monitor-alert" role="status"><CircleAlert size={17} />{monitor.error} Showing the last received status.</div>}
       {report.status && <p className="phab-monitor-copy-status" role="status">{report.status}</p>}

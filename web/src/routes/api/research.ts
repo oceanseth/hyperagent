@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
-import { getCanvas, insertJob } from '#/server/canvas-db'
-import { dispatchResearch } from '#/server/dispatch'
+import { getCanvas } from '#/server/canvas-db'
+import { runCanvasSidecar } from '#/server/canvas-sidecar'
 import { isSameOrigin, workspaceSession } from '#/server/workspace'
 
 const bodySchema = z.object({
@@ -27,11 +27,10 @@ export const Route = createFileRoute('/api/research')({
           const { title, task, contextStackIds } = parsed.data
           const snapshot = await getCanvas(session.id)
           const selected = snapshot.stacks.filter((stack) => contextStackIds.includes(stack.id))
-          const job = await insertJob(session.id, title, task, selected)
-          // The database is the durable queue. The worker also polls it, so a
-          // failed wake-up must not fail a job it may already be processing.
-          await dispatchResearch(session.id, job.id).catch(() => {})
-          return Response.json({ job }, { status: 202, headers: session.headers })
+          // The sidecar decides whether this is new research, a refinement that
+          // replaces earlier cards, or a removal, then queues the hosted job.
+          const result = await runCanvasSidecar({ workspaceId: session.id, request: `${title}\n${task}`, selected, signal: AbortSignal.timeout(20_000) })
+          return Response.json({ job: result.jobs[0], jobs: [...result.jobs, ...result.cancelled], summary: result.summary, removedStacks: result.removedStackIds.length }, { status: 202, headers: session.headers })
         } catch {
           return Response.json({ error: 'Could not confirm the research request. Check your canvas before retrying.' }, { status: 503, headers: session.headers })
         }

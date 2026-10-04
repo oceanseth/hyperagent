@@ -26,7 +26,9 @@ After publishing, finish with a short sentence. The conversational assistant con
 export async function runResearchJob(workspaceId: string, jobId: string) {
   const job = await claimJob(workspaceId, jobId)
   if (!job) return
-  const abort = AbortSignal.timeout(8 * 60_000)
+  const deadline = AbortSignal.timeout(8 * 60_000)
+  const cancellation = new AbortController()
+  const abort = AbortSignal.any([deadline, cancellation.signal])
   const client = createExecutorClient(abort)
   const began = Date.now()
   const sourceIds = new Map<string, string>()
@@ -70,20 +72,22 @@ export async function runResearchJob(workspaceId: string, jobId: string) {
       if (published || abort.aborted) return
       const available = [...collected.values()]
       if (!available.length && !markdown) return
-      await upsertPartialStack(workspaceId, jobId, {
+      const saved = await upsertPartialStack(workspaceId, jobId, {
         id: jobId, createdAt: new Date(began).toISOString(), title: draftTitle ?? String(job.title),
         status: 'working', statusText: 'Sources are arriving. Research and summary are still in progress.',
         markdown: draftMarkdown ?? `*Research is still in progress. These sources are preliminary; the summary will follow.*\n\n${available.map((source) => `- [${source.title}](${source.url})`).join('\n')}`,
         sources: available.map(identify),
       })
-      await emit({ type: 'canvas.partial', message: 'Partial results added to the canvas.', details: { sourceCount: available.length } })
+      if (saved) await emit({ type: 'canvas.partial', message: 'Partial results added to the canvas.', details: { sourceCount: available.length } })
     })
     return writeQueue
   }
   const heartbeat = setInterval(() => {
     if (heartbeatPending || published || abort.aborted) return
     heartbeatPending = true
-    void heartbeatJob(workspaceId, jobId).catch(() => {}).finally(() => { heartbeatPending = false })
+    void heartbeatJob(workspaceId, jobId).then((active) => {
+      if (!active && !published && !finalizing) cancellation.abort()
+    }).catch(() => {}).finally(() => { heartbeatPending = false })
   }, 15000)
   try {
     await emit({ type: 'worker.started', message: 'Worker started research.', details: { model: 'grok-4.7', deadlineMs: 480000, contextStackCount: job.context.length } })
@@ -123,7 +127,8 @@ export async function runResearchJob(workspaceId: string, jobId: string) {
             ...safeInput, id: jobId, createdAt: new Date(began).toISOString(), status: 'complete',
             sources: safeInput.sources.map(identify),
           }
-          await completeJob(workspaceId, jobId, stack)
+          const saved = await completeJob(workspaceId, jobId, stack)
+          if (!saved) { cancellation.abort(); throw new Error('This research was cancelled or replaced.') }
           published = true
           await emit({ type: 'completed', message: 'Source cards and summary are complete.', durationMs: Date.now() - began, details: { sourceCount: stack.sources.length, stepCount } })
           return { status: 'published', stackId: stack.id, sourceCount: stack.sources.length }
@@ -212,8 +217,8 @@ export async function runResearchJob(workspaceId: string, jobId: string) {
       await markPartialStackFailed(workspaceId, jobId, failureMessage || 'Research stopped before the summary was complete. Sources collected so far are available.')
     }
   } catch (error) {
-    await emit({ type: 'error', message: abort.aborted ? 'Research deadline reached.' : 'Research stopped with an error.', durationMs: Date.now() - began, details: { error: redactResearchSecrets(error instanceof Error ? error.message : 'Unknown worker error').split('\n')[0].slice(0, 500) } })
-    if (!published) await updateJob(workspaceId, jobId, 'failed', abort.aborted
+    await emit({ type: cancellation.signal.aborted ? 'cancelled' : 'error', message: cancellation.signal.aborted ? 'Research was cancelled or replaced.' : deadline.aborted ? 'Research deadline reached.' : 'Research stopped with an error.', durationMs: Date.now() - began, details: { error: redactResearchSecrets(error instanceof Error ? error.message : 'Unknown worker error').split('\n')[0].slice(0, 500) } })
+    if (!published && !cancellation.signal.aborted) await updateJob(workspaceId, jobId, 'failed', deadline.aborted
       ? 'Research took too long. Try a smaller request.'
       : 'Research could not finish. Check the connected sources and try again.')
     if (!published) await markPartialStackFailed(workspaceId, jobId, abort.aborted ? 'Timed out. These are the sources collected so far.' : 'Research stopped. These are the sources collected so far.')

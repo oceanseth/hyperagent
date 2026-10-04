@@ -29,6 +29,7 @@
 .phab-monitor-status[data-status='running'] { color: #b3cfeb; background: #81b9eb15; }
 .phab-monitor-status[data-status='completed'] { color: #bed4a7; background: #a7cb7615; }
 .phab-monitor-status[data-status='failed'] { color: #e2aaa0; background: #ee8b7615; }
+.phab-monitor-status[data-status='cancelled'] { color: #b8beb1; background: #b8beb115; }
 .phab-monitor-summary-meta { display: flex; align-items: center; gap: 14px; flex-shrink: 0; color: #a8af9e; font-size: 11px; font-variant-numeric: tabular-nums; }
 .phab-monitor-summary-meta > span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .phab-monitor-chevron { transition: transform .15s; }

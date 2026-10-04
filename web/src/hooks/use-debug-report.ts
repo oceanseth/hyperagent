@@ -16,7 +16,7 @@ function safeText(value: string, limit = 500) {
 function debugReport(jobId?: string) {
   const state = canvasWorkspace.getState()
   const active = state.jobs.filter((job) => job.status === 'running' || job.status === 'queued')
-  const recent = state.jobs.filter((job) => job.status === 'completed' || job.status === 'failed').slice(0, 5)
+  const recent = state.jobs.filter((job) => job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled').slice(0, 5)
   const jobs = jobId ? state.jobs.filter((job) => job.id === jobId) : [...active, ...recent]
   return JSON.stringify({
     report: 'phab-research-debug-v1',

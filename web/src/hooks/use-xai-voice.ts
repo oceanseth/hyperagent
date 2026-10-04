@@ -12,6 +12,9 @@ const INSTRUCTIONS = `You are Phab, a personal agent talking with the user on a 
 Keep replies short and conversational, like a phone call. Ask a follow-up when it helps.
 When the user asks you to research, find sources, documents or images, or create research cards,
 call queue_research with a short title and a self-contained task including the user's requirements.
+A canvas sidecar handles the request: if it refines earlier research (e.g. "office buildings" then
+"in San Francisco"), include the original topic in the task and it replaces the earlier cards.
+It can also remove cards when asked.
 The worker automatically receives the user's selected canvas context. Queue an actionable request
 without asking for confirmation. Once the tool confirms it is queued, briefly say the research is
 queued and cards will appear on the canvas. Keep talking with the user while the worker runs.
@@ -61,14 +64,15 @@ async function queueVoiceResearch(event: VoiceEvent) {
       body: JSON.stringify({ title: args.title, task: args.task, contextStackIds: selectedContextIds() }),
       signal: AbortSignal.timeout(25_000),
     })
-    const result = await response.json() as { job?: CanvasJob; error?: string }
-    if (!response.ok || !result.job) {
+    const result = await response.json() as { job?: CanvasJob; jobs?: CanvasJob[]; summary?: string; removedStacks?: number; error?: string }
+    if (!response.ok || (!result.job && !result.removedStacks)) {
       const status = response.status >= 500 || response.ok ? 'unknown' : 'failed'
       if (status === 'unknown') void refreshCanvas()
       return { status, error: result.error ?? 'Could not confirm the research request. Check the canvas before retrying.' }
     }
-    receiveCanvasJob(result.job)
-    return { status: 'queued', jobId: result.job.id, title: result.job.title, message: 'Saved to the background research queue. Cards will appear on the canvas. Keep talking with the user.' }
+    result.jobs?.forEach(receiveCanvasJob)
+    if (!result.job) { void refreshCanvas(); return { status: 'done', message: result.summary } }
+    return { status: 'queued', jobId: result.job.id, title: result.job.title, summary: result.summary, message: 'Saved to the background research queue. Cards will appear on the canvas. Keep talking with the user.' }
   } catch {
     void refreshCanvas()
     return { status: 'unknown', error: 'Could not confirm whether research was queued. Check the canvas before retrying; do not submit a duplicate request.' }

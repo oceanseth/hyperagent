@@ -26,7 +26,8 @@ async function ready() {
       ADD COLUMN IF NOT EXISTS worker_id text,
       ADD COLUMN IF NOT EXISTS worker_region text,
       ADD COLUMN IF NOT EXISTS started_at timestamptz,
-      ADD COLUMN IF NOT EXISTS heartbeat_at timestamptz`
+      ADD COLUMN IF NOT EXISTS heartbeat_at timestamptz,
+      ADD COLUMN IF NOT EXISTS replaces jsonb NOT NULL DEFAULT '[]'`
     await sql`CREATE TABLE IF NOT EXISTS phab_job_events (
       workspace_id uuid NOT NULL, job_id uuid NOT NULL,
       id bigserial PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now(),
@@ -79,16 +80,57 @@ export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
   return { stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob) }
 }
 
-export async function insertJob(workspaceId: string, title: string, task: string, context: CanvasStack[]) {
+export async function insertJob(workspaceId: string, title: string, task: string, context: CanvasStack[], replaces: string[] = []) {
   const sql = await ready()
   const id = crypto.randomUUID()
-  const rows = await sql`INSERT INTO phab_canvas_jobs (workspace_id, id, title, task, context)
-    VALUES (${workspaceId}, ${id}, ${title}, ${task}, ${JSON.stringify(context)}::jsonb) RETURNING *`
+  const rows = await sql`INSERT INTO phab_canvas_jobs (workspace_id, id, title, task, context, replaces)
+    VALUES (${workspaceId}, ${id}, ${title}, ${task}, ${JSON.stringify(context)}::jsonb, ${JSON.stringify(replaces)}::jsonb) RETURNING *`
   const job = publicJob(rows[0])
   // A telemetry failure must not undo or block durable job lifecycle changes.
   const queued = await recordJobEvent(workspaceId, id, { type: 'queued', message: 'Research request saved to the queue.' }).catch(() => undefined)
   if (queued) job.events.push(queued)
-  return job
+  // A replaced job that is still in flight is superseded now; its stack (if
+  // any) stays visible until the replacement publishes into the same slot.
+  const cancelled = replaces.length ? await cancelJobs(workspaceId, replaces, `Replaced by “${title}”`) : []
+  return { job, cancelled }
+}
+
+async function cancelJobs(workspaceId: string, ids: string[], progress: string) {
+  const sql = await ready()
+  const rows = await sql`UPDATE phab_canvas_jobs SET status = 'cancelled', progress = ${progress}, updated_at = now()
+    WHERE workspace_id = ${workspaceId} AND (id::text = ANY(${ids}) OR stack_id::text = ANY(${ids}))
+      AND status IN ('queued', 'running') RETURNING *`
+  return await Promise.all(rows.map(async (row) => {
+    const job = publicJob(row)
+    const event = await recordJobEvent(workspaceId, job.id, { type: 'cancelled', message: progress }).catch(() => undefined)
+    if (event) job.events.push(event)
+    return job
+  }))
+}
+
+/** Removes stacks from the canvas and stops any in-flight jobs with those IDs. */
+export async function removeFromCanvas(workspaceId: string, ids: string[]) {
+  const sql = await ready()
+  // Stop writers before deleting their partial stacks, so they cannot reappear.
+  const cancelled = await cancelJobs(workspaceId, ids, 'Removed from the canvas')
+  const removed = await sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}
+    AND (id::text = ANY(${ids}) OR id IN (
+      SELECT stack_id FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId} AND id::text = ANY(${ids})
+    )) RETURNING id`
+  return { removedStackIds: removed.map((row) => String(row.id)), cancelled }
+}
+
+/** Compact canvas inventory for the sidecar agent: what is on the canvas and what is still coming. */
+export async function canvasInventory(workspaceId: string) {
+  const sql = await ready()
+  const [stacks, jobs] = await Promise.all([
+    sql`SELECT id, data->>'title' AS title, jsonb_array_length(data->'sources') AS source_count,
+      (SELECT jsonb_agg(s->>'title') FROM (SELECT jsonb_array_elements(data->'sources') s LIMIT 4) t) AS sample_sources, created_at
+      FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT 40`,
+    sql`SELECT id, title, left(task, 400) AS task, status, created_at FROM phab_canvas_jobs
+      WHERE workspace_id = ${workspaceId} AND status IN ('queued', 'running', 'completed') ORDER BY created_at DESC LIMIT 15`,
+  ])
+  return { stacks, jobs }
 }
 
 export async function claimJob(workspaceId: string, id: string) {
@@ -118,9 +160,9 @@ export async function pendingJobs() {
 
 export async function updateJob(workspaceId: string, id: string, status: CanvasJob['status'], progress: string) {
   const sql = await ready()
-  await sql`UPDATE phab_canvas_jobs SET status = ${status}, progress = ${progress}, updated_at = now()
-    WHERE workspace_id = ${workspaceId} AND id = ${id}`
-  if (status === 'failed') {
+  const rows = await sql`UPDATE phab_canvas_jobs SET status = ${status}, progress = ${progress}, updated_at = now()
+    WHERE workspace_id = ${workspaceId} AND id = ${id} AND status <> 'cancelled' RETURNING id`
+  if (status === 'failed' && rows.length) {
     await recordJobEvent(workspaceId, id, { type: 'failed', message: progress }).catch(() => undefined)
   }
 }
@@ -137,8 +179,9 @@ export async function recordJobEvent(workspaceId: string, jobId: string, event: 
 
 export async function heartbeatJob(workspaceId: string, jobId: string) {
   const sql = await ready()
-  await sql`UPDATE phab_canvas_jobs SET heartbeat_at = now(), updated_at = now()
-    WHERE workspace_id = ${workspaceId} AND id = ${jobId} AND status = 'running'`
+  const rows = await sql`UPDATE phab_canvas_jobs SET heartbeat_at = now(), updated_at = now()
+    WHERE workspace_id = ${workspaceId} AND id = ${jobId} AND status = 'running' RETURNING id`
+  return rows.length > 0
 }
 
 export async function upsertPartialStack(workspaceId: string, jobId: string, stack: CanvasStack) {
@@ -166,7 +209,7 @@ export async function markPartialStackFailed(workspaceId: string, jobId: string,
     FROM phab_canvas_jobs AS jobs
     WHERE jobs.workspace_id = ${workspaceId} AND jobs.id = ${jobId}
       AND stacks.workspace_id = jobs.workspace_id AND stacks.id = jobs.stack_id
-      AND jobs.status <> 'completed' AND stacks.data->>'status' IS DISTINCT FROM 'complete'`
+      AND jobs.status NOT IN ('completed', 'cancelled') AND stacks.data->>'status' IS DISTINCT FROM 'complete'`
 }
 
 export async function completeJob(workspaceId: string, id: string, stack: CanvasStack) {
@@ -175,10 +218,30 @@ export async function completeJob(workspaceId: string, id: string, stack: Canvas
     ...stack, status: 'complete',
     statusText: ((stack.status === 'complete' ? stack.statusText : undefined) ?? 'Research complete.').slice(0, 500),
   }
-  await sql.transaction([
+  // Lock the job before touching stacks, matching progressive writes. A
+  // cancellation wins if it committed first; otherwise publication is atomic.
+  const [published] = await sql.transaction([
     sql`UPDATE phab_canvas_jobs SET status = 'completed', progress = 'Added to your canvas', stack_id = ${stack.id}, updated_at = now()
-      WHERE workspace_id = ${workspaceId} AND id = ${id}`,
-    sql`INSERT INTO phab_canvas_stacks (workspace_id, id, data) VALUES (${workspaceId}, ${stack.id}, ${JSON.stringify(completed)}::jsonb)
-      ON CONFLICT (workspace_id, id) DO UPDATE SET data = EXCLUDED.data`,
+      WHERE workspace_id = ${workspaceId} AND id = ${id} AND status <> 'cancelled' RETURNING id`,
+    sql`INSERT INTO phab_canvas_stacks (workspace_id, id, data, created_at)
+      SELECT ${workspaceId}, ${stack.id}, ${JSON.stringify(completed)}::jsonb, COALESCE((
+        SELECT min(old.created_at) FROM phab_canvas_stacks old
+        WHERE old.workspace_id = ${workspaceId} AND (
+          old.id::text IN (SELECT jsonb_array_elements_text(job.replaces)) OR old.id IN (
+            SELECT stack_id FROM phab_canvas_jobs prior WHERE prior.workspace_id = ${workspaceId}
+              AND prior.id::text IN (SELECT jsonb_array_elements_text(job.replaces))
+          )
+        )
+      ), (SELECT created_at FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} AND id = ${stack.id}), now())
+      FROM phab_canvas_jobs job WHERE job.workspace_id = ${workspaceId} AND job.id = ${id} AND job.status = 'completed'
+      ON CONFLICT (workspace_id, id) DO UPDATE SET data = EXCLUDED.data, created_at = EXCLUDED.created_at`,
+    sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} AND id <> ${stack.id} AND id::text IN (
+      SELECT jsonb_array_elements_text(replaces) FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId} AND id = ${id} AND status = 'completed'
+      UNION
+      SELECT prior.stack_id::text FROM phab_canvas_jobs prior, phab_canvas_jobs job
+        WHERE prior.workspace_id = ${workspaceId} AND job.workspace_id = ${workspaceId} AND job.id = ${id} AND job.status = 'completed'
+          AND prior.id::text IN (SELECT jsonb_array_elements_text(job.replaces))
+    )`,
   ])
+  return published.length > 0
 }

@@ -49,7 +49,7 @@ export function describeJob(job: CanvasJob, now: number) {
   return {
     ...job, active, stale, waiting, events,
     monitorHref: `/monitor?job=${encodeURIComponent(job.id)}`,
-    statusLabel: { queued: 'Queued', running: 'Running', completed: 'Completed', failed: 'Failed' }[job.status],
+    statusLabel: { queued: 'Queued', running: 'Running', completed: 'Completed', failed: 'Failed', cancelled: 'Cancelled' }[job.status],
     elapsedLabel: duration(end - Date.parse(job.startedAt ?? job.createdAt)),
     elapsedTitle: job.status === 'queued' ? 'Waiting' : job.startedAt ? 'Execution time' : 'Time since queued',
     createdLabel: timestamp(job.createdAt),
@@ -66,7 +66,7 @@ export function describeJob(job: CanvasJob, now: number) {
   }
 }
 
-type JobFilter = 'all' | 'active' | 'completed' | 'failed'
+type JobFilter = 'all' | 'active' | 'completed' | 'failed' | 'cancelled'
 export function useJobMonitor() {
   const state = useSyncExternalStore(subscribeCanvas, canvasWorkspace.getState, canvasWorkspace.getInitialState)
   const now = useSyncExternalStore(subscribeClock, () => clockTime, () => clockTime)
@@ -85,6 +85,7 @@ export function useJobMonitor() {
     active: jobs.filter((job) => job.active).length,
     completed: jobs.filter((job) => job.status === 'completed').length,
     failed: jobs.filter((job) => job.status === 'failed').length,
+    cancelled: jobs.filter((job) => job.status === 'cancelled').length,
   }
   const visibleJobs = jobs.filter((job) => filter === 'all' || (filter === 'active' ? job.active : job.status === filter))
     .sort((a, b) => Number(b.active) - Number(a.active) || Date.parse(b.createdAt) - Date.parse(a.createdAt))
@@ -103,7 +104,7 @@ export function useJobMonitor() {
     syncLabel: state.syncedAt ? `Updated ${duration(now - state.syncedAt)} ago` : 'Connecting to your workspace…',
     refreshLabel: refreshing ? 'Refreshing…' : 'Refresh',
     refreshProps: { type: 'button' as const, onClick: refresh, disabled: refreshing, 'aria-label': 'Refresh research jobs' },
-    filters: ([['all', 'All jobs'], ['active', 'Active'], ['completed', 'Completed'], ['failed', 'Failed']] as const).map(([value, label]) => ({
+    filters: ([['all', 'All jobs'], ['active', 'Active'], ['completed', 'Completed'], ['failed', 'Failed'], ['cancelled', 'Cancelled']] as const).map(([value, label]) => ({
       id: value, label, count: counts[value],
       props: { type: 'button' as const, 'aria-pressed': filter === value, onClick: () => setFilter(value) },
     })),

@@ -26,7 +26,10 @@ function useCanvasAssistant() {
   }), [])
   return useChatRuntime({
     transport,
-    onData: (part) => { if (part.type === 'data-canvas-job') receiveCanvasJob(part.data as CanvasJob) },
+    onData: (part) => {
+      if (part.type === 'data-canvas-job') receiveCanvasJob(part.data as CanvasJob)
+      if (part.type === 'data-canvas-refresh') void refreshCanvas()
+    },
   })
 }
 
