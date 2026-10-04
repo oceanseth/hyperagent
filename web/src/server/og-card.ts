@@ -1,5 +1,5 @@
 import { deflateSync } from 'node:zlib'
-import { BRAND_BLUE, hexToRgb, htreeRects } from '#/lib/htree'
+import { BRAND_BLUE, hexToRgb, htreeRects, MARK_DEPTH } from '#/lib/htree'
 
 // 5x7 glyphs, bit 4 is the leftmost pixel. The card renders the title in
 // capitals so a share link unfurls without a native font dependency.
@@ -134,7 +134,7 @@ export function renderOgCard(title: string) {
   const [br, bgc, bb] = hexToRgb(BRAND_BLUE)
   const blue = { r: br, g: bgc, b: bb }
   const markSize = 520
-  for (const r of htreeRects(5, markSize)) fill(Math.round(r.x) + 40, Math.round(r.y) + 55, Math.round(r.w), Math.round(r.h), blue)
+  for (const r of htreeRects(MARK_DEPTH, markSize)) fill(Math.round(r.x) + 40, Math.round(r.y) + 55, Math.round(r.w), Math.round(r.h), blue)
   const left = 560
   const region = WIDTH - left - 40
 

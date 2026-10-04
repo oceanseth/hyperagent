@@ -23,7 +23,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
       <header className="phab-canvas-toolbar" data-canvas-overlay>
         <div className="phab-canvas-toolbar-left">
           <a className="phab-wordmark" href="/" aria-label="hyperagent home">
-            <HTreeMark size={24} />
+            <HTreeMark size={24} dither />
             <span>hyperagent</span>
           </a>
           <span className="phab-toolbar-divider" />

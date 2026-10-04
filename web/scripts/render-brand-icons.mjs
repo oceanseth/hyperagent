@@ -1,7 +1,7 @@
 // Favicon, touch icon, OG default and SVG marks for the H-tree logo.
 import { writeFileSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
-import { BRAND_BLUE, depthForSize, htreeRaster, htreeSvg } from '../src/lib/htree.ts'
+import { BRAND_BLUE, MARK_DEPTH, htreeRaster, htreeSvg } from '../src/lib/htree.ts'
 import { renderOgCard } from '../src/server/og-card.ts'
 
 const OUT = new URL('../public/', import.meta.url).pathname
@@ -17,7 +17,7 @@ function png(w, h, rgba) {
 // Composite the mark over a solid tile (for touch icons, which get no alpha).
 function tile(size, bg, markScale = 0.74, color = '#FFFFFF') {
   const inner = Math.round(size * markScale)
-  const mark = htreeRaster(inner, depthForSize(inner), color)
+  const mark = htreeRaster(inner, MARK_DEPTH, color)
   const [r, g, b] = [parseInt(bg.slice(1, 3), 16), parseInt(bg.slice(3, 5), 16), parseInt(bg.slice(5, 7), 16)]
   const out = new Uint8Array(size * size * 4)
   for (let i = 0; i < size * size; i++) { out[i * 4] = r; out[i * 4 + 1] = g; out[i * 4 + 2] = b; out[i * 4 + 3] = 255 }
@@ -31,13 +31,13 @@ function tile(size, bg, markScale = 0.74, color = '#FFFFFF') {
   }
   return out
 }
-writeFileSync(OUT + 'favicon.svg', htreeSvg({ size: 32, depth: 3 }))
-writeFileSync(OUT + 'favicon-16.png', png(16, 16, htreeRaster(16, 2)))
-writeFileSync(OUT + 'favicon-32.png', png(32, 32, htreeRaster(32, 3)))
+writeFileSync(OUT + 'favicon.svg', htreeSvg({ size: 32 }))
+writeFileSync(OUT + 'favicon-16.png', png(16, 16, htreeRaster(16)))
+writeFileSync(OUT + 'favicon-32.png', png(32, 32, htreeRaster(32)))
 writeFileSync(OUT + 'apple-touch-icon.png', png(180, 180, tile(180, BRAND_BLUE)))
 writeFileSync(OUT + 'icon-512.png', png(512, 512, tile(512, BRAND_BLUE)))
 writeFileSync(OUT + 'og.png', renderOgCard('A little space for everything'))
-for (const d of [2, 3, 4, 5]) {
+for (const d of [1, 2, 3, 4, 5]) {
   writeFileSync(OUT + `brand/htree-${d}-blue.svg`, htreeSvg({ size: 1000, depth: d }))
   writeFileSync(OUT + `brand/htree-${d}-paper.svg`, htreeSvg({ size: 1000, depth: d, color: '#FFFFFF' }))
   writeFileSync(OUT + `brand/htree-${d}-ink.svg`, htreeSvg({ size: 1000, depth: d, color: '#0A0A0A' }))
