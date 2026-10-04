@@ -22,6 +22,8 @@ async function ready() {
       stack_id uuid, created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (workspace_id, id)
     )`
+    // Stack/job IDs this job supersedes; they are swapped out when it publishes.
+    await sql`ALTER TABLE phab_canvas_jobs ADD COLUMN IF NOT EXISTS replaces jsonb NOT NULL DEFAULT '[]'`
   })().catch((error) => { schemaReady = undefined; throw error })
   await schemaReady
   return sql
@@ -42,12 +44,43 @@ export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
   return { stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob) }
 }
 
-export async function insertJob(workspaceId: string, title: string, task: string, context: CanvasStack[]) {
+export async function insertJob(workspaceId: string, title: string, task: string, context: CanvasStack[], replaces: string[] = []) {
   const sql = await ready()
   const id = crypto.randomUUID()
-  const rows = await sql`INSERT INTO phab_canvas_jobs (workspace_id, id, title, task, context)
-    VALUES (${workspaceId}, ${id}, ${title}, ${task}, ${JSON.stringify(context)}::jsonb) RETURNING *`
-  return publicJob(rows[0])
+  const rows = await sql`INSERT INTO phab_canvas_jobs (workspace_id, id, title, task, context, replaces)
+    VALUES (${workspaceId}, ${id}, ${title}, ${task}, ${JSON.stringify(context)}::jsonb, ${JSON.stringify(replaces)}::jsonb) RETURNING *`
+  // A replaced job that is still in flight is superseded now; its stack (if
+  // any) stays visible until the replacement publishes into the same slot.
+  const cancelled = replaces.length ? await cancelJobs(workspaceId, replaces, `Replaced by “${title}”`) : []
+  return { job: publicJob(rows[0]), cancelled }
+}
+
+async function cancelJobs(workspaceId: string, ids: string[], progress: string) {
+  const sql = await ready()
+  const rows = await sql`UPDATE phab_canvas_jobs SET status = 'cancelled', progress = ${progress}, updated_at = now()
+    WHERE workspace_id = ${workspaceId} AND id::text = ANY(${ids}) AND status IN ('queued', 'running') RETURNING *`
+  return rows.map(publicJob)
+}
+
+/** Removes stacks from the canvas and stops any in-flight jobs with those IDs. */
+export async function removeFromCanvas(workspaceId: string, ids: string[]) {
+  const sql = await ready()
+  const removed = await sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} AND id::text = ANY(${ids}) RETURNING id`
+  const cancelled = await cancelJobs(workspaceId, ids, 'Removed from the canvas')
+  return { removedStackIds: removed.map((row) => String(row.id)), cancelled }
+}
+
+/** Compact canvas inventory for the sidecar agent: what is on the canvas and what is still coming. */
+export async function canvasInventory(workspaceId: string) {
+  const sql = await ready()
+  const [stacks, jobs] = await Promise.all([
+    sql`SELECT id, data->>'title' AS title, jsonb_array_length(data->'sources') AS source_count,
+      (SELECT jsonb_agg(s->>'title') FROM (SELECT jsonb_array_elements(data->'sources') s LIMIT 4) t) AS sample_sources, created_at
+      FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT 40`,
+    sql`SELECT id, title, left(task, 400) AS task, status, created_at FROM phab_canvas_jobs
+      WHERE workspace_id = ${workspaceId} AND status IN ('queued', 'running', 'completed') ORDER BY created_at DESC LIMIT 15`,
+  ])
+  return { stacks, jobs }
 }
 
 export async function claimJob(workspaceId: string, id: string) {
@@ -69,15 +102,24 @@ export async function pendingJobs() {
 export async function updateJob(workspaceId: string, id: string, status: CanvasJob['status'], progress: string) {
   const sql = await ready()
   await sql`UPDATE phab_canvas_jobs SET status = ${status}, progress = ${progress}, updated_at = now()
-    WHERE workspace_id = ${workspaceId} AND id = ${id}`
+    WHERE workspace_id = ${workspaceId} AND id = ${id} AND status <> 'cancelled'`
 }
 
 export async function completeJob(workspaceId: string, id: string, stack: CanvasStack) {
   const sql = await ready()
+  // A cancelled job never publishes. A replacement takes the earliest slot of
+  // the stacks it replaces, so it lands where the old cards were.
   await sql.transaction([
-    sql`INSERT INTO phab_canvas_stacks (workspace_id, id, data) VALUES (${workspaceId}, ${stack.id}, ${JSON.stringify(stack)}::jsonb)
+    sql`INSERT INTO phab_canvas_stacks (workspace_id, id, data, created_at)
+      SELECT ${workspaceId}, ${stack.id}, ${JSON.stringify(stack)}::jsonb, COALESCE((
+        SELECT min(old.created_at) FROM phab_canvas_stacks old
+        WHERE old.workspace_id = ${workspaceId} AND old.id::text IN (SELECT jsonb_array_elements_text(job.replaces))
+      ), now())
+      FROM phab_canvas_jobs job WHERE job.workspace_id = ${workspaceId} AND job.id = ${id} AND job.status <> 'cancelled'
       ON CONFLICT (workspace_id, id) DO UPDATE SET data = EXCLUDED.data`,
+    sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} AND id <> ${stack.id} AND id::text IN (
+      SELECT jsonb_array_elements_text(replaces) FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId} AND id = ${id} AND status <> 'cancelled')`,
     sql`UPDATE phab_canvas_jobs SET status = 'completed', progress = 'Added to your canvas', stack_id = ${stack.id}, updated_at = now()
-      WHERE workspace_id = ${workspaceId} AND id = ${id}`,
+      WHERE workspace_id = ${workspaceId} AND id = ${id} AND status <> 'cancelled'`,
   ])
 }
