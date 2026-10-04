@@ -1,6 +1,7 @@
 import { TextMessagePartProvider } from '@assistant-ui/react'
 import type { ComponentProps } from 'react'
-import { ArrowUpRight, FileText, Layers, Link2, Check } from 'lucide-react'
+import { ArrowUpRight, FileText, Layers, Link2, Check, X } from 'lucide-react'
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '#/components/ui/dialog'
 import { Image } from '#/components/assistant-ui/elements/image'
 import { MarkdownText } from '#/components/assistant-ui/elements/markdown-text'
 import { useResearchCard } from '#/hooks/use-canvas-workspace'
@@ -33,12 +34,24 @@ export function ResearchCard({ item }: { item: CanvasArtifact }) {
           <Image.Preview src={card.source.imageUrl} alt={item.label} ratio="4:3" fit="cover" loading="lazy" draggable={false} />
         </Image.Root>
       ) : card.pdfPreview ? (
-        <div className="phab-research-pdf" {...card.previewProps}><iframe src={card.pdfPreview} title={item.label} loading="lazy" referrerPolicy="no-referrer" /></div>
+        <div className="phab-research-pdf" {...card.previewProps}><iframe src={card.pdfPreview} title={item.label} loading="lazy" referrerPolicy="no-referrer" tabIndex={-1} /></div>
       ) : (
         <div className="phab-research-excerpt"><FileText size={22} /><p>{item.text || 'Open this source to read the original.'}</p></div>
       )}
       <div className="phab-research-source-title"><h3>{item.label}</h3><a {...card.openProps}><ArrowUpRight size={17} /></a></div>
       <div className="phab-research-source-footer"><span>{card.hostname}</span><a {...card.openProps}>{card.openLabel} <ArrowUpRight size={12} /></a></div>
+      {card.pdfUrl && (
+        <div className="contents" {...card.viewerScopeProps}><Dialog {...card.viewerProps}>
+          <DialogContent className="phab-pdf-viewer" showCloseButton={false}>
+            <header>
+              <DialogTitle>{item.label}</DialogTitle>
+              <a href={card.pdfUrl} target="_blank" rel="noopener noreferrer">New tab <ArrowUpRight size={12} /></a>
+              <DialogClose aria-label="Close PDF"><X size={16} /></DialogClose>
+            </header>
+            <iframe src={card.pdfUrl} title={item.label} referrerPolicy="no-referrer" />
+          </DialogContent>
+        </Dialog></div>
+      )}
     </article>
   )
 }

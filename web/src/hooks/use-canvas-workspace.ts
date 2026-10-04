@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from 'react'
-import type { PointerEvent } from 'react'
+import { useState, useSyncExternalStore } from 'react'
+import type { MouseEvent, PointerEvent, WheelEvent } from 'react'
 import { canvasArtifacts, canvasWorkspace, contextIds, selectedContextIds, subscribeCanvas, toggleContextStack, type CanvasArtifact } from '#/lib/canvas-workspace'
 
 export function useCanvasWorkspace() {
@@ -22,22 +22,31 @@ export function useCanvasWorkspace() {
 
 export function useResearchCard(item: CanvasArtifact) {
   const included = useSyncExternalStore(canvasWorkspace.subscribe, () => selectedContextIds().includes(item.stack.id), () => false)
+  const [viewerOpen, setViewerOpen] = useState(false)
   const source = item.source
-  const url = source?.pdfUrl ?? source?.url
+  const pdfUrl = source?.pdfUrl ?? (source && /\.pdf$/i.test(new URL(source.url).pathname) ? source.url : undefined)
+  const url = pdfUrl ?? source?.url
   const hostname = source ? new URL(source.url).hostname.replace(/^www\./, '') : ''
   const stopPointer = (event: PointerEvent<HTMLElement>) => event.stopPropagation()
-  const pdfPreview = source?.pdfUrl ? new URL(source.pdfUrl) : undefined
+  const pdfPreview = pdfUrl ? new URL(pdfUrl) : undefined
   if (pdfPreview) pdfPreview.hash = 'toolbar=0&navpanes=0&view=FitH'
+  const openViewer = () => setViewerOpen(true)
   return {
-    included, source, hostname,
+    included, source, hostname, pdfUrl,
     pdfPreview: pdfPreview?.href,
-    openLabel: source?.pdfUrl ? 'Open PDF' : 'View source',
+    openLabel: pdfUrl ? 'Open PDF' : 'View source',
     contextLabel: included ? 'In context' : 'Use as context',
-    sourceLabel: source?.pdfUrl ? 'PDF DOCUMENT' : source?.imageUrl ? 'VISUAL REFERENCE' : 'SOURCE',
+    sourceLabel: pdfUrl ? 'PDF DOCUMENT' : source?.imageUrl ? 'VISUAL REFERENCE' : 'SOURCE',
     sourceCountLabel: `${item.stack.sources.length} ${item.stack.sources.length === 1 ? 'source' : 'sources'}`,
     summaryProps: { 'data-canvas-content': true, onPointerDown: stopPointer },
-    previewProps: { 'data-canvas-content': true, onPointerDown: stopPointer },
-    openProps: { href: url, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `Open ${item.label}`, onPointerDown: stopPointer },
+    previewProps: pdfUrl
+      ? { 'data-canvas-content': true, role: 'button', tabIndex: 0, 'aria-label': `View ${item.label}`, onPointerDown: stopPointer, onClick: openViewer }
+      : { 'data-canvas-content': true, onPointerDown: stopPointer },
+    openProps: pdfUrl
+      ? { href: url, 'aria-label': `View ${item.label}`, onPointerDown: stopPointer, onClick: (event: MouseEvent) => { event.preventDefault(); openViewer() } }
+      : { href: url, target: '_blank', rel: 'noopener noreferrer', 'aria-label': `Open ${item.label}`, onPointerDown: stopPointer },
+    viewerProps: { open: viewerOpen, onOpenChange: setViewerOpen },
+    viewerScopeProps: { onPointerDown: stopPointer, onWheel: (event: WheelEvent<HTMLElement>) => event.stopPropagation() },
     contextProps: {
       type: 'button' as const, 'aria-pressed': included, 'aria-label': `${included ? 'Remove' : 'Include'} ${item.stack.title} ${included ? 'from' : 'in'} context`,
       onPointerDown: stopPointer, onClick: () => toggleContextStack(item.stack.id),
