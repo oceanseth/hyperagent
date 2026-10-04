@@ -150,7 +150,7 @@ export async function upsertCustomPlan(workspaceId: string, input: {
     const id = state.id ?? prior?.id ?? crypto.randomUUID()
     let childPlanId = prior?.childPlanId
     if (state.child) {
-      const childStates = state.child.states.map((child, childIndex) => ({
+      const childStates = state.child.states.map((child) => ({
         id: crypto.randomUUID(),
         name: child.name,
         context: child.context,
@@ -172,7 +172,7 @@ export async function upsertCustomPlan(workspaceId: string, input: {
         parentId: existing?.id ?? crypto.randomUUID(),
         parentNodeId: id,
         states: childStates,
-        edges: childStates.slice(1).map((node, childIndex) => ({ from: childStates[childIndex].id, to: node.id })),
+        edges: childStates.slice(1).map((node, edgeIndex) => ({ from: childStates[edgeIndex].id, to: node.id })),
         createdAt: now,
         updatedAt: now,
       })
@@ -195,7 +195,7 @@ export async function upsertCustomPlan(workspaceId: string, input: {
       questions: (state.questions ?? prior?.questions ?? []).map((question) => ({
         id: 'id' in question && typeof question.id === 'string' ? question.id : crypto.randomUUID(),
         text: question.text,
-        answer: 'answer' in question ? question.answer : undefined,
+        answer: 'answer' in question && typeof question.answer === 'string' ? question.answer : undefined,
         blocking: question.blocking ?? true,
       })),
     }

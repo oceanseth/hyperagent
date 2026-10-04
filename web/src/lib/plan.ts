@@ -85,7 +85,7 @@ export function refreshPlanStatuses(plan: Plan): Plan {
     if (nodeBlocked(node)) return { ...node, status: 'blocked' as const }
     const parents = incoming.get(node.id) ?? []
     const parentsReady = parents.every((id) => byId.get(id)?.status === 'done')
-    return { ...node, status: parentsReady ? 'ready' : 'pending' }
+    return { ...node, status: parentsReady ? 'ready' as const : 'pending' as const }
   })
   return { ...plan, states }
 }

@@ -104,7 +104,7 @@ export async function runResearchJob(workspaceId: string, jobId: string) {
           if (event.type === 'tool.started') await phase(`Using ${event.tool ?? 'Executor'}`)
         })
         toolsets = discovered.toolsets
-        await emit({ type: 'discovery.completed', message: discovered.available ? 'Executor tools are available.' : 'No Executor tools were available; using direct search.', durationMs: Date.now() - began, details: { toolCount: Object.values(toolsets).reduce((count, set) => count + Object.keys(set as object).length, 0) } })
+        await emit({ type: 'discovery.completed', message: discovered.available ? 'Executor tools are available.' : 'No Executor tools were available; using direct search.', durationMs: Date.now() - began, details: { toolCount: Object.values(toolsets).reduce<number>((count, set) => count + Object.keys(set as object).length, 0) } })
         if (!discovered.available) connectionNote = '\nExecutor currently exposes no usable tools. Use search_web for general research.'
       }
       catch { connectionNote = '\nThe Executor connection could not be opened. Report that if it prevents this task.'; await emit({ type: 'discovery.failed', message: 'Executor connection failed; direct search is still available.' }) }
