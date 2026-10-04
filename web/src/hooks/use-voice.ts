@@ -164,7 +164,7 @@ export function useVoice() {
           body: JSON.stringify({ messages: session.conversation.slice(-40), contextStackIds: selectedContextIds() }),
           signal: AbortSignal.timeout(75_000),
         })
-        const result = await response.json() as { text?: string; jobs?: CanvasJob[]; focus?: { id?: string }; error?: string }
+        const result = await response.json() as { text?: string; jobs?: CanvasJob[]; focus?: { id?: string }; refresh?: boolean; error?: string }
         if (!isCurrent()) return
         if (!response.ok || !result.text) {
           const message = result.error ?? 'Phab could not answer. Try again.'
@@ -174,7 +174,7 @@ export function useVoice() {
         }
         if (result.jobs?.length) result.jobs.forEach(receiveCanvasJob)
         if (result.focus?.id) requestCanvasFocus(result.focus.id)
-        if (result.jobs?.length || result.focus?.id) void refreshCanvas()
+        if (result.jobs?.length || result.focus?.id || result.refresh) void refreshCanvas()
         session.conversation.push({ role: 'assistant', text: result.text })
         caption('assistant', result.text)
         await speak(result.text)

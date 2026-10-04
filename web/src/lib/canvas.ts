@@ -65,9 +65,23 @@ export const canvasNoteSchema = z.object({
 })
 export type CanvasNote = z.infer<typeof canvasNoteSchema>
 
+export const canvasBrowserSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().max(200),
+  url: z.string().max(4096).optional(),
+  status: z.enum(['starting', 'ready', 'failed']),
+  statusText: z.string().max(500).optional(),
+  liveViewUrl: publicUrl.optional(),
+  sessionId: z.string().max(200).optional(),
+  provider: z.enum(['executor', 'kernel']).optional(),
+  createdAt: z.string(),
+})
+export type CanvasBrowser = z.infer<typeof canvasBrowserSchema>
+
 export type CanvasSnapshot = {
   stacks: CanvasStack[]; jobs: CanvasJob[]; plans: Plan[]
   notes?: CanvasNote[]
+  browsers?: CanvasBrowser[]
   positions?: Record<string, { x: number; y: number }>
   shared?: boolean
   boardTitle?: string

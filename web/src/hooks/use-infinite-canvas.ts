@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, KeyboardEvent, PointerEvent } from 'react'
 import { useCanvasWorkspace } from './use-canvas-workspace'
-import { canvasArtifacts, canvasWorkspace, commitNote, createNote, deleteNote, moveCanvasArtifact, moveNote, planArtifacts, saveCanvasLayout, setCanvasDragging, updateNoteText, type CanvasArtifact, type NoteArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
+import { browserArtifacts, canvasArtifacts, canvasWorkspace, commitNote, createNote, deleteNote, moveCanvasArtifact, moveNote, planArtifacts, saveCanvasLayout, setCanvasDragging, updateNoteText, type BrowserArtifact, type CanvasArtifact, type NoteArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
 
 type Camera = { x: number; y: number; scale: number }
-type CanvasItem = NoteArtifact | CanvasArtifact | PlanArtifact
+type CanvasItem = NoteArtifact | CanvasArtifact | PlanArtifact | BrowserArtifact
 type Drag = {
   pointerId: number
   element: HTMLElement
@@ -26,7 +26,7 @@ export function useInfiniteCanvas() {
   const [camera, setCamera] = useState(INITIAL_CAMERA)
   const [viewport, setViewport] = useState({ width: 1440, height: 900 })
   const workspace = useCanvasWorkspace()
-  const items: CanvasItem[] = [...workspace.noteItems, ...workspace.artifacts, ...workspace.plans]
+  const items: CanvasItem[] = [...workspace.noteItems, ...workspace.artifacts, ...workspace.plans, ...workspace.browserItems]
   const [panel, setPanel] = useState<'space' | 'search' | 'overview' | null>(null)
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -63,7 +63,17 @@ export function useInfiniteCanvas() {
       const scale = Math.max(.35, Math.min(1, (node.clientWidth - 80) / Math.max(right - left, 400), (node.clientHeight - 240) / Math.max(bottom - top, 240)))
       setCamera({ scale, x: node.clientWidth / 2 - (left + right) / 2 * scale, y: (node.clientHeight - 90) / 2 - (top + bottom) / 2 * scale })
     }
+    // Fit a live browser card (about 1000×700) into the viewport.
+    const showBrowser = (browserId: string) => {
+      const card = browserArtifacts(canvasWorkspace.getState()).find((item) => item.id === browserId)
+      if (!card) return false
+      const scale = Math.max(.35, Math.min(1, (node.clientWidth - 80) / 1040, (node.clientHeight - 240) / 740))
+      setCamera({ scale, x: node.clientWidth / 2 - card.x * scale, y: (node.clientHeight - 90) / 2 - card.y * scale })
+      setSelectedId(browserId)
+      return true
+    }
     const showNode = (nodeId: string) => {
+      if (showBrowser(nodeId)) return
       const cards = planArtifacts(canvasWorkspace.getState())
       const card = cards.find((item) => item.id === nodeId)
       if (!card) {
@@ -84,6 +94,8 @@ export function useInfiniteCanvas() {
       if (newest) showStack(newest.id)
       const newestPlan = [...state.plans].reverse().find((plan) => !previous.plans.some((entry) => entry.id === plan.id))
       if (newestPlan) showPlan(newestPlan.id)
+      const newestBrowser = [...state.browsers].reverse().find((browser) => !previous.browsers.some((entry) => entry.id === browser.id))
+      if (newestBrowser && previous.loaded) showBrowser(newestBrowser.id)
       if (state.focus && state.focus.at !== previous.focus?.at) showNode(state.focus.id)
     })
     const lastStack = canvasWorkspace.getState().stacks.at(-1)

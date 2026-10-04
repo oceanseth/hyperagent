@@ -4,6 +4,7 @@ import type { CanvasJob, CanvasSnapshot } from '#/lib/canvas'
 import { runCanvasSidecar, transcript } from './canvas-sidecar'
 import { createKernelClient } from './kernel'
 import { createExecutorClient, discoverExecutorTools } from './mcp'
+import { browserTools } from './browser-tools'
 import { planTools } from './plan-tools'
 
 export type AssistantToolEvents = {
@@ -40,6 +41,7 @@ export async function loadAssistantTools(options: {
     },
   })
   const plans = planTools(workspaceId, events?.onRefresh, events?.onFocus)
+  const browsers = browserTools(workspaceId, events?.onRefresh, events?.onFocus)
   const executor = createExecutorClient(signal)
   const kernel = await createKernelClient(workspaceId, signal)
   let executorToolsets = {}
@@ -54,7 +56,7 @@ export async function loadAssistantTools(options: {
   }
   return {
     toolsets: {
-      canvas: { canvas_sidecar: canvasSidecar, upsert_plan: plans.upsert_plan, capture_secret: plans.capture_secret },
+      canvas: { canvas_sidecar: canvasSidecar, upsert_plan: plans.upsert_plan, capture_secret: plans.capture_secret, ...browsers },
       ...executorToolsets,
       ...kernelToolsets,
     },

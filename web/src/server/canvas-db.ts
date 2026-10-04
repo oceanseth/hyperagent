@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless'
-import type { CanvasJob, CanvasNote, CanvasStack, CanvasSnapshot, JobEvent } from '#/lib/canvas'
+import type { CanvasBrowser, CanvasJob, CanvasNote, CanvasStack, CanvasSnapshot, JobEvent } from '#/lib/canvas'
 import { listPlans } from './plans'
 
 let schemaReady: Promise<void> | undefined
@@ -72,6 +72,11 @@ async function ready() {
       sub text NOT NULL, code text NOT NULL, role text NOT NULL DEFAULT 'member',
       created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (sub, code)
     )`
+    await sql`CREATE TABLE IF NOT EXISTS phab_canvas_browsers (
+      workspace_id uuid NOT NULL, id uuid NOT NULL, data jsonb NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (workspace_id, id)
+    )`
   })().catch((error) => { schemaReady = undefined; throw error })
   await schemaReady
   return sql
@@ -100,7 +105,7 @@ const publicJob = (row: Record<string, unknown>): CanvasJob => ({
 
 export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
   const sql = await ready()
-  const [stacks, jobs, plans, notes, layout, shared] = await Promise.all([
+  const [stacks, jobs, plans, notes, layout, shared, browsers] = await Promise.all([
     sql`SELECT data FROM (SELECT data, created_at FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT 100) latest ORDER BY created_at ASC`,
     sql`SELECT jobs.*, history.events FROM (
       SELECT workspace_id, id, title, status, progress, stack_id, created_at, updated_at,
@@ -116,9 +121,10 @@ export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
     listNotes(workspaceId).catch(() => []),
     sql`SELECT positions FROM phab_canvas_layout WHERE workspace_id = ${workspaceId}`,
     sql`SELECT title FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`,
+    listBrowsers(workspaceId).catch(() => []),
   ])
   return {
-    stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob), plans, notes,
+    stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob), plans, notes, browsers,
     positions: (layout[0]?.positions ?? {}) as Record<string, { x: number; y: number }>,
     shared: shared.length > 0,
     boardTitle: shared[0]?.title ? String(shared[0].title) : '',
@@ -150,6 +156,41 @@ export async function upsertNote(workspaceId: string, note: { id: string; label:
 export async function removeNote(workspaceId: string, id: string) {
   const sql = await ready()
   await sql`DELETE FROM phab_canvas_notes WHERE workspace_id = ${workspaceId} AND id = ${id}`
+}
+
+export async function listBrowsers(workspaceId: string): Promise<CanvasBrowser[]> {
+  const sql = await ready()
+  const rows = await sql`SELECT data FROM phab_canvas_browsers WHERE workspace_id = ${workspaceId} ORDER BY created_at ASC LIMIT 20`
+  return rows.map((row) => row.data as CanvasBrowser)
+}
+
+export async function getBrowser(workspaceId: string, id: string): Promise<CanvasBrowser | undefined> {
+  const sql = await ready()
+  const rows = await sql`SELECT data FROM phab_canvas_browsers WHERE workspace_id = ${workspaceId} AND id = ${id}`
+  return rows[0]?.data as CanvasBrowser | undefined
+}
+
+export async function saveBrowser(workspaceId: string, browser: CanvasBrowser) {
+  const sql = await ready()
+  await sql`INSERT INTO phab_canvas_browsers (workspace_id, id, data)
+    VALUES (${workspaceId}, ${browser.id}, ${JSON.stringify(browser)}::jsonb)
+    ON CONFLICT (workspace_id, id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`
+}
+
+/** Updates a browser only while it is still on the canvas, so a close wins over a late launch. */
+export async function patchBrowser(workspaceId: string, id: string, patch: Partial<CanvasBrowser>) {
+  const sql = await ready()
+  // Keys set to undefined are cleared, e.g. a stale loading message.
+  const cleared = Object.entries(patch).filter(([, value]) => value === undefined).map(([key]) => key)
+  const rows = await sql`UPDATE phab_canvas_browsers SET data = (data - ${cleared}::text[]) || ${JSON.stringify(patch)}::jsonb, updated_at = now()
+    WHERE workspace_id = ${workspaceId} AND id = ${id} RETURNING data`
+  return rows[0]?.data as CanvasBrowser | undefined
+}
+
+export async function removeBrowser(workspaceId: string, id: string) {
+  const sql = await ready()
+  const rows = await sql`DELETE FROM phab_canvas_browsers WHERE workspace_id = ${workspaceId} AND id = ${id} RETURNING data`
+  return rows[0]?.data as CanvasBrowser | undefined
 }
 
 export async function saveLayout(workspaceId: string, positions: Record<string, { x: number; y: number }>) {

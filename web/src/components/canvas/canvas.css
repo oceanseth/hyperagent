@@ -45,6 +45,7 @@
 .phab-panel-list > button:hover { color: #ecece7; background: #ffffff08; }
 .phab-item-dot, .phab-mini-map-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #eee; }
 .phab-item-dot[data-kind='note'], .phab-mini-map-dot[data-kind='note'] { background: #ddd3a0; border-radius: 1px; }
+.phab-item-dot[data-kind='browser'], .phab-mini-map-dot[data-kind='browser'] { background: #8fa6c4; }
 .phab-item-arrow { color: #626262; margin-left: auto; }
 .phab-panel-footnote { border-top: 1px solid #ffffff09; margin-top: 13px; padding-top: 15px; font-size: 10px; color: #747471; }
 .phab-search-panel { right: 26px; width: 340px; padding: 12px 18px; }

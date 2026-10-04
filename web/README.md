@@ -59,6 +59,23 @@ Its `fly.toml` keeps one machine running to process the queue.
 This repository deliberately runs no tests or typechecking gates in hackathon
 mode. Production builds are part of deployment.
 
+## Live browsers on the canvas
+
+The assistant (chat and voice) can put KERNEL cloud browsers on the shared
+canvas with `open_browser`, `navigate_browser`, `list_browsers`, and
+`close_browser`. Each browser is a card holding the session's live view in an
+iframe; everyone on a shared board sees and can drive it. Cards are stored in
+Neon (`phab_canvas_browsers`) and positions sync through the shared layout.
+Closing a card (or `close_browser`) removes it and deletes the KERNEL session;
+idle sessions end on their own about 10 minutes after the last viewer leaves.
+
+KERNEL is reached through the Executor MCP first: the app `search`es Executor
+for the connected KERNEL tools (`manage_browsers`, `execute_playwright_code`,
+or per-operation browser tools) and calls them with `invoke`, so the KERNEL key
+stays in Executor. If Executor has no KERNEL connection, the app falls back to
+the KERNEL API with the workspace KERNEL key from Settings or `KERNEL_API_KEY`.
+At most four browsers can be open per board.
+
 ## AWS deployments
 
 GitHub Actions (`.github/workflows/deploy-main.yml`) builds `web/Dockerfile.app`

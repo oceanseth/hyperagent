@@ -1,10 +1,11 @@
 import { createStore } from 'zustand/vanilla'
-import { canvasNoteSchema, canvasStackSchema, type CanvasJob, type CanvasNote, type CanvasSnapshot, type CanvasStack } from './canvas'
+import { canvasBrowserSchema, canvasNoteSchema, canvasStackSchema, type CanvasBrowser, type CanvasJob, type CanvasNote, type CanvasSnapshot, type CanvasStack } from './canvas'
 import { planSchema, rootPlans, type Plan, type PlanNode } from './plan'
 
 type Point = { x: number; y: number }
 export type WorkspaceState = CanvasSnapshot & {
   notes: CanvasNote[]
+  browsers: CanvasBrowser[]
   shared: boolean
   positions: Record<string, Point>
   excludedIds: string[]
@@ -14,7 +15,7 @@ export type WorkspaceState = CanvasSnapshot & {
   loaded: boolean
   syncedAt: number | null
 }
-const initial: WorkspaceState = { stacks: [], jobs: [], plans: [], notes: [], shared: false, boardTitle: '', positions: {}, excludedIds: [], openPlanIds: [], focus: null, error: null, loaded: false, syncedAt: null }
+const initial: WorkspaceState = { stacks: [], jobs: [], plans: [], notes: [], browsers: [], shared: false, boardTitle: '', positions: {}, excludedIds: [], openPlanIds: [], focus: null, error: null, loaded: false, syncedAt: null }
 export const canvasWorkspace = createStore<WorkspaceState>(() => initial)
 let pending: Promise<void> | undefined
 let subscriptions = 0
@@ -74,6 +75,10 @@ export function refreshCanvas() {
         const parsed = canvasNoteSchema.safeParse(note)
         return parsed.success ? [parsed.data] : []
       })
+      const browsers = (snapshot.browsers ?? []).flatMap((browser) => {
+        const parsed = canvasBrowserSchema.safeParse(browser)
+        return parsed.success ? [parsed.data] : []
+      })
       canvasWorkspace.setState((current) => ({
         stacks, jobs, plans,
         shared: snapshot.shared ?? current.shared,
@@ -81,7 +86,7 @@ export function refreshCanvas() {
         // Server layout wins so shared boards converge; local wins briefly
         // around a drag or edit so your own hand never fights the poll.
         ...(holdLocal() ? {} : {
-          notes,
+          notes, browsers,
           positions: { ...current.positions, ...(snapshot.positions ?? {}) },
         }),
         error: null, loaded: true, syncedAt: Date.now(),
@@ -98,6 +103,7 @@ function scheduleRefresh() {
   if (!subscriptions) return
   const state = canvasWorkspace.getState()
   const active = state.jobs.some((job) => job.status === 'queued' || job.status === 'running')
+    || state.browsers.some((browser) => browser.status === 'starting')
   // A shared board polls fast enough that moves made by one person appear
   // for everyone within a few seconds.
   timer = setTimeout(async () => { await refreshCanvas(); scheduleRefresh() }, active ? 2500 : state.shared ? 3000 : 10000)
@@ -178,6 +184,29 @@ export function deleteNote(id: string) {
   noteTimers.delete(id)
   canvasWorkspace.setState((current) => ({ notes: current.notes.filter((note) => note.id !== id) }))
   postJson('/api/notes', { action: 'remove', id })
+}
+
+/** Removes the card for everyone; the server ends the KERNEL session. */
+export function closeBrowser(id: string) {
+  markLocalChange()
+  canvasWorkspace.setState((current) => ({ browsers: current.browsers.filter((browser) => browser.id !== id) }))
+  postJson('/api/browsers', { action: 'close', id })
+}
+
+export type BrowserArtifact = {
+  id: string; kind: 'browser'; label: string; text: string
+  anchorX: number; anchorY: number; x: number; y: number
+  browser: CanvasBrowser
+}
+
+// Browsers sit in a row above plans and research by default; once moved,
+// their position syncs through the shared layout like every other card.
+export function browserArtifacts(state: WorkspaceState): BrowserArtifact[] {
+  return state.browsers.map((browser, index) => ({
+    id: browser.id, kind: 'browser', label: browser.title, text: browser.url ?? '',
+    anchorX: 0, anchorY: 0, browser,
+    ...(state.positions[browser.id] ?? { x: 700 + index * 1060, y: -620 }),
+  }))
 }
 
 export type NoteArtifact = {

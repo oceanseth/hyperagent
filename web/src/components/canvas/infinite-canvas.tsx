@@ -4,6 +4,7 @@ import { ArtifactCard } from '#/components/assistant-ui/elements/artifact-card'
 import { field, paper } from '#/components/assistant-ui/elements/surfaces'
 import { useCanvasNote, useInfiniteCanvas } from '#/hooks/use-infinite-canvas'
 import { cn } from '#/lib/utils'
+import { BrowserCard } from './browser-card'
 import { ResearchCard } from './research-cards'
 import { MonitorWidget } from './monitor-widget'
 import { SettingsDialog } from './settings-dialog'
@@ -60,6 +61,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
             )}
             {(item.kind === 'source' || item.kind === 'summary') && <ResearchCard item={item} />}
             {(item.kind === 'plan-title' || item.kind === 'plan-node') && <PlanCard item={item} />}
+            {item.kind === 'browser' && <BrowserCard item={item} />}
           </div>
         ))}
       </div>
