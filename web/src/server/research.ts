@@ -6,6 +6,7 @@ import { claimJob, completeJob, updateJob, recordJobEvent, heartbeatJob, upsertP
 import { createExecutorClient, discoverExecutorTools, redactResearchSecrets, reportToolEvent, type ResearchToolEvent } from './mcp'
 import { searchCosmos } from './cosmos'
 import { searchWeb, WebSearchError } from './web-search'
+import { researchModel } from '#/mastra/gateway'
 
 const RESEARCH_INSTRUCTIONS = `You are Phab's background research worker. Complete the user's actual task using live sources.
 You have a general canvas publishing tool, live search_web, connected MCP tools, and (when configured) Cosmos search.
@@ -186,7 +187,7 @@ export async function runResearchJob(workspaceId: string, jobId: string) {
       },
     })
     const agent = new Agent({
-      id: `research-${jobId}`, name: 'Phab research', model: 'xai/grok-4.7',
+      id: `research-${jobId}`, name: 'Phab research', model: researchModel(),
       instructions: RESEARCH_INSTRUCTIONS + connectionNote,
       tools: { publish_canvas: publish, update_canvas: updateCanvas, search_web: web, ...(process.env.COSMOS_TOKEN ? { search_cosmos: cosmos } : {}) },
     })

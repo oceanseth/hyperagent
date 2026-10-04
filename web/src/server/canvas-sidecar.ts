@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { CanvasJob, CanvasStack } from '#/lib/canvas'
 import { canvasInventory, insertJob, removeFromCanvas } from './canvas-db'
 import { dispatchResearch } from './dispatch'
+import { assistantModel } from '#/mastra/gateway'
 
 // The sidecar is the conversational assistant's canvas manager. It runs inline
 // in the request (seconds, not minutes) and decides how a request changes the
@@ -72,7 +73,7 @@ export async function runCanvasSidecar(options: {
   })
 
   const agent = new Agent({
-    id: 'canvas-sidecar', name: 'Phab canvas sidecar', model: 'xai/grok-4.7',
+    id: 'canvas-sidecar', name: 'Phab canvas sidecar', model: assistantModel(),
     instructions: SIDECAR_INSTRUCTIONS,
     tools: { queue_research: queueResearch, remove_from_canvas: remove },
   })
