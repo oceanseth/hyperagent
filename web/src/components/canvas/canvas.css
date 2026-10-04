@@ -24,6 +24,15 @@
 .phab-wordmark { display: flex; align-items: center; gap: 7px; color: #f2f2ed; text-decoration: none; font-size: 21px; font-weight: 650; letter-spacing: -1.2px; line-height: 1; margin-right: 11px; cursor: pointer; }
 .phab-wordmark svg { flex: none; }
 .phab-board-title { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phab-board-title-input { width: 180px; padding: 6px 8px; border: 1px solid #ffffff24; border-radius: 7px; background: #252623; color: #f0f0ec; font: inherit; font-size: 11px; outline: none; }
+.phab-board-title-input:focus { border-color: #bbbda2; }
+.phab-share { position: relative; }
+.phab-share-toast { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; display: grid; gap: 8px; width: 280px; padding: 10px 12px; border: 1px solid #ffffff17; border-radius: 10px; background: #252623f2; box-shadow: 0 5px 22px #0003; color: #d8dfce; font-size: 11px; animation: phab-share-in .15s ease-out; }
+.phab-share-toast-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.phab-share-toast-head strong { color: #b4c4a1; font-weight: 600; }
+.phab-share-toast-head button { display: grid; place-items: center; padding: 2px; border: 0; background: transparent; color: #969696; cursor: pointer; }
+.phab-share-toast input { width: 100%; padding: 6px 8px; border: 1px solid #ffffff17; border-radius: 6px; background: #1b1b1b; color: #f0f0ec; font: inherit; font-size: 11px; outline: none; }
+@keyframes phab-share-in { from { opacity: 0; transform: translateY(-4px); } }
 .phab-toolbar-divider { height: 14px; width: 1px; background: #3b3b3b; margin-inline: 3px; flex: none; }
 .phab-icon-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; color: #969696; border: 0; border-radius: 7px; background: transparent; cursor: pointer; transition: color .15s, background .15s; }
 .phab-icon-button:hover, .phab-icon-button[aria-expanded='true'] { color: #f0f0ec; background: #ffffff0a; }

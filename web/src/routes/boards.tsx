@@ -1,5 +1,5 @@
 import { HTreeMark } from '#/components/brand/htree-mark'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
 type Board = { code: string; title: string; role: 'owner' | 'member' }
@@ -10,6 +10,8 @@ function Boards() {
   const [configured, setConfigured] = useState(true)
   const [boards, setBoards] = useState<Board[] | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
+  const renameCancelled = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -31,20 +33,19 @@ function Boards() {
   }, [])
 
   const createBoard = async () => {
-    const title = window.prompt('Name this board', 'Untitled board')
-    if (title === null) return
     const response = await fetch('/api/workspaces', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({}),
     })
     if (response.ok) location.href = '/'
     else setMessage('Could not make a board.')
   }
 
-  const rename = async (board: Board) => {
-    const title = window.prompt('Rename this board', board.title)
-    if (title === null) return
+  const rename = async (board: Board, value: string) => {
+    setEditing(null)
+    const title = value.trim()
+    if (renameCancelled.current || !title || title === board.title) return
     const response = await fetch('/api/share', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -85,10 +86,24 @@ function Boards() {
               {boards?.map((board) => (
                 <li key={board.code} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center', border: '1px solid #333', borderRadius: 12, padding: '14px 16px' }}>
                   <div>
-                    <a href={`/s/${board.code}`} style={{ color: '#f2f2ed', fontSize: 18, textDecoration: 'none' }}>{board.title}</a>
+                    {editing === board.code
+                      ? <input
+                          aria-label="Board name"
+                          defaultValue={board.title}
+                          maxLength={120}
+                          autoFocus
+                          onFocus={(event) => event.currentTarget.select()}
+                          onBlur={(event) => void rename(board, event.currentTarget.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') event.currentTarget.blur()
+                            if (event.key === 'Escape') { renameCancelled.current = true; event.currentTarget.blur() }
+                          }}
+                          style={{ color: '#f2f2ed', background: '#252623', border: '1px solid #444', borderRadius: 8, padding: '4px 8px', font: 'inherit', fontSize: 18, width: '100%' }}
+                        />
+                      : <a href={`/s/${board.code}`} style={{ color: '#f2f2ed', fontSize: 18, textDecoration: 'none' }}>{board.title}</a>}
                     <div style={{ color: '#8e8e86', fontSize: 13, marginTop: 4 }}>/s/{board.code}</div>
                   </div>
-                  {board.role === 'owner' && <button type="button" onClick={() => void rename(board)} style={{ color: '#d7d7d0', background: 'transparent', border: '1px solid #444', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>Rename</button>}
+                  {board.role === 'owner' && editing !== board.code && <button type="button" onClick={() => { renameCancelled.current = false; setEditing(board.code) }} style={{ color: '#d7d7d0', background: 'transparent', border: '1px solid #444', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>Rename</button>}
                 </li>
               ))}
             </ul>
