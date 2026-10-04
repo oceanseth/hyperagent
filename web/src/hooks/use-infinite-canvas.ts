@@ -4,17 +4,7 @@ import { useCanvasWorkspace } from './use-canvas-workspace'
 import { canvasArtifacts, canvasWorkspace, commitNote, createNote, deleteNote, moveCanvasArtifact, moveNote, planArtifacts, saveCanvasLayout, setCanvasDragging, updateNoteText, type CanvasArtifact, type NoteArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
 
 type Camera = { x: number; y: number; scale: number }
-type LocalCanvasItem = {
-  id: string
-  kind: 'clock'
-  label: string
-  anchorX: number
-  anchorY: number
-  x: number
-  y: number
-  text?: string
-}
-type CanvasItem = LocalCanvasItem | NoteArtifact | CanvasArtifact | PlanArtifact
+type CanvasItem = NoteArtifact | CanvasArtifact | PlanArtifact
 type Drag = {
   pointerId: number
   element: HTMLElement
@@ -28,9 +18,6 @@ type Drag = {
 }
 
 const INITIAL_CAMERA: Camera = { x: 0, y: 0, scale: 1 }
-const INITIAL_ITEMS: LocalCanvasItem[] = [
-  { id: 'clock', kind: 'clock', label: 'Local time', anchorX: 0.355, anchorY: 0.205, x: 0, y: 0 },
-]
 const clampScale = (scale: number) => Math.min(2, Math.max(0.35, scale))
 const isInteractive = (target: EventTarget | null) =>
   target instanceof Element && Boolean(target.closest('button, input, textarea, a, iframe, [data-canvas-content], [data-canvas-overlay]'))
@@ -38,10 +25,8 @@ const isInteractive = (target: EventTarget | null) =>
 export function useInfiniteCanvas() {
   const [camera, setCamera] = useState(INITIAL_CAMERA)
   const [viewport, setViewport] = useState({ width: 1440, height: 900 })
-  const [localItems, setItems] = useState(INITIAL_ITEMS)
   const workspace = useCanvasWorkspace()
-  const items: CanvasItem[] = [...localItems, ...workspace.noteItems, ...workspace.artifacts, ...workspace.plans]
-  const [now, setNow] = useState(() => new Date())
+  const items: CanvasItem[] = [...workspace.noteItems, ...workspace.artifacts, ...workspace.plans]
   const [panel, setPanel] = useState<'space' | 'search' | 'overview' | null>(null)
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -58,7 +43,6 @@ export function useInfiniteCanvas() {
     const observer = new ResizeObserver(measure)
     observer.observe(node)
     measure()
-    const timer = window.setInterval(() => setNow(new Date()), 1000)
     const showStack = (stackId: string) => {
       const cards = canvasArtifacts(canvasWorkspace.getState()).filter((item) => item.stack.id === stackId)
       if (!cards.length) return
@@ -123,7 +107,6 @@ export function useInfiniteCanvas() {
     node.addEventListener('wheel', onWheel, { passive: false })
     return () => {
       observer.disconnect()
-      window.clearInterval(timer)
       unsubscribe()
       node.removeEventListener('wheel', onWheel)
       viewportRef.current = null
@@ -169,10 +152,7 @@ export function useInfiniteCanvas() {
     if (current.itemId) {
       const point = { x: current.x + dx / current.scale, y: current.y + dy / current.scale }
       if (workspace.noteItems.some((item) => item.id === current.itemId)) moveNote(current.itemId, point)
-      else if (workspace.artifacts.some((item) => item.id === current.itemId) || workspace.plans.some((item) => item.id === current.itemId)) moveCanvasArtifact(current.itemId, point)
-      else setItems((previous) => previous.map((item) => item.id === current.itemId
-        ? { ...item, x: current.x + dx / current.scale, y: current.y + dy / current.scale }
-        : item))
+      else moveCanvasArtifact(current.itemId, point)
     } else {
       setCamera((previous) => ({ ...previous, x: current.x + dx, y: current.y + dy }))
     }
@@ -240,15 +220,9 @@ export function useInfiniteCanvas() {
       if (item.kind === 'note') {
         moveNote(item.id, { x: item.x + delta[0] * step, y: item.y + delta[1] * step })
         commitNote(item.id)
-      } else if (item.kind === 'source' || item.kind === 'summary' || item.kind === 'plan-node' || item.kind === 'plan-title') {
+      } else {
         moveCanvasArtifact(item.id, { x: item.x + delta[0] * step, y: item.y + delta[1] * step })
         saveCanvasLayout()
-      } else {
-        setItems((previous) => previous.map((entry) => (
-          entry.id === item.id
-            ? { ...entry, x: entry.x + delta[0] * step, y: entry.y + delta[1] * step }
-            : entry
-        )))
       }
     },
   })
@@ -281,7 +255,6 @@ export function useInfiniteCanvas() {
     } as CSSProperties,
   })
   const togglePanel = (next: 'space' | 'search' | 'overview') => setPanel((current) => current === next ? null : next)
-  const timeLabel = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return {
     workspace,
@@ -290,16 +263,6 @@ export function useInfiniteCanvas() {
     panel,
     isDragging,
     zoomLabel: `${Math.round(camera.scale * 100)}%`,
-    timeLabel,
-    clockTicks: Array.from({ length: 60 }, (_, index) => ({
-      id: index,
-      transform: `rotate(${index * 6} 60 60)`,
-      path: index % 5 === 0 ? 'M60 3V11' : 'M60 4V6',
-      opacity: index % 5 === 0 ? 1 : 0.45,
-    })),
-    hourStyle: { transform: `rotate(${(now.getHours() % 12) * 30 + now.getMinutes() * 0.5}deg)` },
-    minuteStyle: { transform: `rotate(${now.getMinutes() * 6 + now.getSeconds() * 0.1}deg)` },
-    secondStyle: { transform: `rotate(${now.getSeconds() * 6}deg)` },
     canvasProps: {
       ref: canvasRef,
       tabIndex: 0,
