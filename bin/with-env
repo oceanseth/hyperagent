@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Run a command inside the project's Hermit environment (pinned bd + dolt,
 # BEADS_DIR) with .env loaded. No direnv needed.
 set -eu

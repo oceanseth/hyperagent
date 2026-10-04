@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # One-time setup for a fresh clone. Hermit fetches the pinned bd and dolt on
 # first use, so nothing needs to be installed beforehand.
 set -eu
