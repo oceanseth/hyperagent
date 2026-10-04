@@ -25,10 +25,19 @@ We are building for a hackathon. Speed beats everything.
 
 ## Environment
 
-- Run `bin/setup-beads` once, then `direnv allow`.
-- Use `bin/with-env <command>` when the shell has not loaded
-  `.envrc`. This loads `.env`, selects the pinned `bin/bd`, and sets `BEADS_DIR`.
-- Launch independent clients with `bin/with-env codex` or `bin/with-env claude`.
+Tooling is pinned with [Hermit](https://cashapp.github.io/hermit/): `bd`
+(Beads 1.3.0) and `dolt` (2.4.0) live in `bin/` and download themselves on
+first use. Nothing to install globally; ignore any `bd` from Homebrew.
+
+- New clone: run `bin/setup-beads` once. It installs the Beads git, Codex and
+  Claude hooks, pulls the shared issues and prints `bd ready`.
+- Activate the environment with `. bin/activate-hermit` (or `direnv allow`, or
+  `hermit shell-hooks` for auto-activation). That puts the pinned tools on
+  `PATH` and sets `BEADS_DIR`.
+- Without activating, prefix commands with `bin/with-env`, which also loads
+  `.env`. Launch agents with `bin/with-env codex` or `bin/with-env claude`.
+- Add a tool with `. bin/activate-hermit && hermit install <pkg>`; commit the
+  new `bin/` symlinks.
 - Never print or commit `.env` values or credentials in local MCP configuration.
 - There is no application build or test command yet.
 
@@ -39,9 +48,14 @@ We are building for a hackathon. Speed beats everything.
   claimed by another session; do not reset, delete, or overwrite it.
 - Record decisions and handoff notes in the issue. Close completed work with
   `bd close <id> --reason "..."`; leave unfinished work with clear next steps.
-- Beads sync through GitHub (`refs/dolt/data` on `origin`). New clone:
+- Repos: `oxfern/phab` is the shared hub; code and Beads (`refs/dolt/data`)
+  are pushed there. `oceanseth/hyperagent` is a fork that receives changes by
+  PR. In clones that have both, `oxfern/phab` is the `upstream` remote and the
+  push default.
+- Beads sync through GitHub (`refs/dolt/data` on `oxfern/phab`). New clone:
   `bin/setup-beads`, then `bd dolt pull`. Run `bd dolt pull` before picking
-  work and `bd dolt push` after changing issues, every time you push code.
+  work and `bd dolt push` right after claiming or changing issues, so other
+  agents see your claims quickly.
 - After compaction, follow the Beads context injected by the lifecycle hooks.
 - At session end, report issue IDs and remaining work, then commit, push, and
   deploy (see below).

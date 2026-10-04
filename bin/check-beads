@@ -12,7 +12,7 @@ import uuid
 root = Path(__file__).resolve().parent.parent
 os.chdir(root)
 assert Path(os.environ.get("BEADS_DIR", "")).resolve() == root / ".beads", "Run bin/with-env bin/check-beads"
-assert Path(shutil.which("bd") or "").resolve() == root / "bin/bd", "Pinned bd is not on PATH"
+assert Path(shutil.which("bd") or "").absolute() == root / "bin/bd", "Hermit-pinned bd is not on PATH"
 assert not (root / "CLAUDE.md").exists(), "AGENTS.md is the shared instructions file"
 if (root / ".env").exists():
     names = re.findall(r"(?m)^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=", (root / ".env").read_text())

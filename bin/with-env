@@ -1,4 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# Run a command inside the project's Hermit environment (pinned bd + dolt,
+# BEADS_DIR) with .env loaded. No direnv needed.
 set -eu
 project_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-exec direnv exec "$project_dir" "$@"
+. "$project_dir/bin/activate-hermit" >/dev/null
+if [ -f "$project_dir/.env" ]; then set -a; . "$project_dir/.env"; set +a; fi
+exec "$@"
