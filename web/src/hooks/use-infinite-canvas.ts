@@ -21,6 +21,7 @@ type Drag = {
   y: number
   itemId?: string
   scale: number
+  startedOnCard: boolean
 }
 
 const INITIAL_CAMERA: Camera = { x: 0, y: 0, scale: 1 }
@@ -103,6 +104,7 @@ export function useInfiniteCanvas() {
       y: item?.y ?? camera.y,
       scale: camera.scale,
       itemId: item?.id,
+      startedOnCard: event.target instanceof Element && Boolean(event.target.closest('[data-slot="artifact-card"]')),
     }
     setSelectedId(item?.id ?? null)
     setIsDragging(true)
@@ -125,6 +127,10 @@ export function useInfiniteCanvas() {
     const current = drag.current
     if (!current || event.pointerId !== current.pointerId) return
     if (current.element.hasPointerCapture(event.pointerId)) current.element.releasePointerCapture(event.pointerId)
+    const moved = Math.hypot(event.clientX - current.startX, event.clientY - current.startY)
+    if (current.startedOnCard && moved < 4) {
+      current.element.querySelector('textarea')?.focus()
+    }
     drag.current = null
     setIsDragging(false)
   }

@@ -65,11 +65,7 @@
 .phab-mini-map-dot { position: absolute; transform: translate(-50%, -50%); border: 0; padding: 0; width: 9px; height: 9px; cursor: pointer; }
 .phab-mini-map-dot:hover { outline: 5px solid #ffffff12; }
 .phab-overview-panel p { font-size: 10px; }
-.phab-sticky-note { width: 208px; min-height: 173px; background: #dfd8ac; color: #4c4734; box-shadow: 0 5px 20px #0002; border-radius: 2px 2px 12px 2px; padding: 13px 15px 16px; transform: rotate(-2deg); }
-.phab-note-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; font-size: 9px; letter-spacing: .5px; color: #7c7557; }
-.phab-note-heading button { border: 0; padding: 2px; background: transparent; color: #7c7557; cursor: pointer; }
-.phab-sticky-note textarea { width: 100%; min-height: 115px; resize: vertical; border: 0; outline: none; background: transparent; color: #4c4734; font: inherit; font-size: 15px; line-height: 1.5; cursor: text; touch-action: auto; }
-.phab-sticky-note textarea::placeholder { color: #948b69; }
+
 .phab-canvas-hint { position: absolute; left: 28px; bottom: 25px; display: flex; align-items: center; gap: 7px; color: #5f5f5f; font-size: 10px; letter-spacing: .1px; cursor: default; }
 .phab-status-dot { width: 4px; height: 4px; border-radius: 50%; background: #828673; }
 .phab-canvas-zoom { position: absolute; z-index: 25; right: 25px; bottom: 19px; display: flex; align-items: center; gap: 1px; }

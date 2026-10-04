@@ -1,6 +1,9 @@
-import type { ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Crosshair, Grid2X2, Minus, PanelLeft, Plus, Search, StickyNote, X } from 'lucide-react'
+import { ArtifactCard } from '#/components/assistant-ui/elements/artifact-card'
+import { field, paper } from '#/components/assistant-ui/elements/surfaces'
 import { useInfiniteCanvas } from '#/hooks/use-infinite-canvas'
+import { cn } from '#/lib/utils'
 import './canvas.css'
 
 export function InfiniteCanvas({ children }: { children: ReactNode }) {
@@ -47,10 +50,12 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
               </div>
             )}
             {item.kind === 'note' && (
-              <div className="phab-sticky-note">
-                <div className="phab-note-heading"><span>{item.label}</span><button {...canvas.getRemoveNoteProps(item)}><X size={13} /></button></div>
-                <textarea {...canvas.getNoteProps(item)} />
-              </div>
+              <CanvasNote
+                label={item.label}
+                text={item.text ?? ''}
+                noteProps={canvas.getNoteProps(item)}
+                removeProps={canvas.getRemoveNoteProps(item)}
+              />
             )}
           </div>
         ))}
@@ -95,6 +100,58 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
         <button className="phab-icon-button" {...canvas.zoomInProps}><Plus size={14} /></button>
       </div>
       <div className="phab-canvas-overlays" data-canvas-overlay>{children}</div>
+    </div>
+  )
+}
+
+function noteWords(text: string) {
+  const trimmed = text.trim()
+  return trimmed ? trimmed.split(/\s+/).length : 0
+}
+
+function CanvasNote({
+  label,
+  text,
+  noteProps,
+  removeProps,
+}: {
+  label: string
+  text: string
+  noteProps: ReturnType<ReturnType<typeof useInfiniteCanvas>['getNoteProps']>
+  removeProps: ReturnType<ReturnType<typeof useInfiniteCanvas>['getRemoveNoteProps']>
+}) {
+  const [writing, setWriting] = useState(false)
+  const fieldRef = useRef<HTMLTextAreaElement>(null)
+  const words = noteWords(text)
+
+  return (
+    <div className="relative w-[280px]">
+      <ArtifactCard
+        title={label}
+        meta={words === 0 ? 'Empty note' : `${words} ${words === 1 ? 'word' : 'words'}`}
+        generating={writing}
+        words={words}
+        onClick={() => fieldRef.current?.focus()}
+      />
+      <textarea
+        ref={fieldRef}
+        className={cn(
+          paper,
+          field,
+          'mt-2 w-full resize-none rounded-[20px] px-3.5 py-3 text-[13.5px] leading-relaxed text-foreground outline-none',
+          writing ? 'min-h-28 cursor-text touch-auto' : 'sr-only',
+        )}
+        {...noteProps}
+        onFocus={() => setWriting(true)}
+        onBlur={() => setWriting(false)}
+      />
+      <button
+        type="button"
+        className="absolute -top-2 -right-2 grid size-6 place-items-center rounded-full border border-border/60 bg-popover text-foreground/55"
+        {...removeProps}
+      >
+        <X size={12} />
+      </button>
     </div>
   )
 }
