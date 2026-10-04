@@ -1,5 +1,30 @@
 import { MCPClient } from '@mastra/mcp'
 
+export type ResearchToolEvent = {
+  type: string
+  message: string
+  tool?: string
+  durationMs?: number
+  details?: Record<string, unknown>
+}
+export type ResearchToolEventHandler = (event: ResearchToolEvent) => Promise<void>
+
+// Observability must not turn a finished tool call into a failed or stuck job.
+export async function reportToolEvent(onEvent: ResearchToolEventHandler | undefined, event: ResearchToolEvent) {
+  if (!onEvent) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      onEvent(event),
+      new Promise<void>((resolve) => { timer = setTimeout(resolve, 2000) }),
+    ])
+  } catch {
+    // The worker owns telemetry persistence and recovery.
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 // Construct per job, not globally: Workers must not share another request's I/O.
 // Discovery happens for each job so new Executor connections need no redeploy.
 export function createExecutorClient(signal?: AbortSignal) {
@@ -44,7 +69,7 @@ export function createExecutorClient(signal?: AbortSignal) {
 
 export function redactResearchSecrets(text: string): string {
   let result = text
-  for (const name of ['EXECUTOR_API_KEY', 'XAI_API_KEY', 'COSMOS_TOKEN', 'DATABASE_URL']) {
+  for (const name of ['EXECUTOR_API_KEY', 'XAI_API_KEY', 'COSMOS_TOKEN', 'DATABASE_URL', 'JOBS_SECRET']) {
     const value = process.env[name]?.trim()
     if (!value) continue
     for (const secret of [value, value.replace(/^Bearer\s+/i, '')]) {
@@ -57,7 +82,38 @@ export function redactResearchSecrets(text: string): string {
   return result.replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
 }
 
-export async function discoverExecutorTools(client: MCPClient) {
+function errorText(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (!value || typeof value !== 'object') return undefined
+  const error = value as Record<string, unknown>
+  if (typeof error.message === 'string') return error.message
+  if (typeof error.error === 'string') return error.error
+  if (error.error && typeof error.error === 'object' && 'message' in error.error && typeof error.error.message === 'string') {
+    return error.error.message
+  }
+  if (Array.isArray(error.content)) {
+    for (const block of error.content) {
+      if (block && typeof block === 'object' && block.type === 'text' && typeof block.text === 'string') return block.text
+    }
+  }
+  return undefined
+}
+
+function safeErrorDetail(value: unknown): string {
+  let detail = redactResearchSecrets(errorText(value) ?? 'Executor returned an error without a message.')
+  // Keep only the error summary, never dumps of headers, requests or responses.
+  detail = detail
+    .replace(/https?:\/\/[^\s<>"']+/gi, (value) => {
+      try { const url = new URL(value); return `${url.origin}${url.pathname}` }
+      catch { return '[URL omitted]' }
+    })
+    .replace(/\b(?:sk-|xai-)[A-Za-z0-9_-]{12,}/g, '[redacted]')
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[redacted]')
+    .replace(/(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key|api[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|password|secret|credential|headers|request|response)\s*["']?\s*[:=][^\n]*/gi, '[sensitive details omitted]')
+  return detail.split(/[\r\n]/, 1)[0].trim().slice(0, 400) || 'Executor tool failed.'
+}
+
+export async function discoverExecutorTools(client: MCPClient, onEvent?: ResearchToolEventHandler) {
   const discovery = await client.listToolsetsWithErrors({ perServerTimeoutMs: 20_000 })
   for (const toolset of Object.values(discovery.toolsets)) {
     for (const tool of Object.values(toolset)) {
@@ -65,16 +121,31 @@ export async function discoverExecutorTools(client: MCPClient) {
       if (!execute) continue
       tool.description = redactResearchSecrets(tool.description)
       tool.execute = async (input, context) => {
+        const name = redactResearchSecrets(tool.id).slice(0, 160)
+        await reportToolEvent(onEvent, { type: 'tool.started', message: 'Executor tool started.', tool: name })
+        const startedAt = Date.now()
+        let failureDetail: string | undefined
         try {
           const result = await execute(input, context)
           if (result && typeof result === 'object' && 'isError' in result && result.isError) {
+            failureDetail = safeErrorDetail(result)
             throw new Error('Executor tool failed.')
           }
           // MCP results are JSON data. Redact even successful outputs before
           // passing them to the model, including nested Execute results.
           const serialized = JSON.stringify(result)
-          return serialized === undefined ? result : JSON.parse(redactResearchSecrets(serialized))
-        } catch {
+          const safeResult = serialized === undefined ? result : JSON.parse(redactResearchSecrets(serialized))
+          await reportToolEvent(onEvent, {
+            type: 'tool.completed', message: 'Executor tool completed.', tool: name,
+            durationMs: Date.now() - startedAt,
+          })
+          return safeResult
+        } catch (error) {
+          await reportToolEvent(onEvent, {
+            type: 'tool.failed', message: 'Executor tool failed.', tool: name,
+            durationMs: Date.now() - startedAt,
+            details: { error: failureDetail ?? safeErrorDetail(error) },
+          })
           throw new Error('Executor could not complete this tool request. Use another available source or report the limitation.')
         }
       }

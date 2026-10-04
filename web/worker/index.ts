@@ -10,6 +10,7 @@ if (!secret || !process.env.DATABASE_URL || !process.env.XAI_API_KEY) {
 const running = new Map<string, Promise<void>>()
 let scanning = false
 let draining = false
+const lifecycle = (event: string, details: Record<string, unknown> = {}) => console.info(JSON.stringify({ at: new Date().toISOString(), event, workerId: process.env.FLY_MACHINE_ID, region: process.env.FLY_REGION, activeJobs: running.size, ...details }))
 
 async function drain() {
   if (scanning || draining || running.size >= 2) return
@@ -18,13 +19,14 @@ async function drain() {
     for (const job of await pendingJobs()) {
       if (running.size >= 2) break
       if (running.has(job.id)) continue
+      lifecycle('queue.dispatch', { jobId: job.id })
       const work = runResearchJob(job.workspace_id, job.id)
-        .catch(() => console.error('Research job interrupted; its lease will be recovered.', job.id))
-        .finally(() => { running.delete(job.id); void drain() })
+        .catch(() => lifecycle('job.interrupted', { jobId: job.id }))
+        .finally(() => { running.delete(job.id); lifecycle('job.released', { jobId: job.id }); void drain() })
       running.set(job.id, work)
     }
   } catch {
-    console.error('Could not read the research queue; retrying shortly.')
+    lifecycle('queue.unavailable')
   } finally { scanning = false }
 }
 
@@ -52,13 +54,14 @@ const server = createServer(async (request, response) => {
 
 const timer = setInterval(() => { void drain() }, 10_000)
 server.listen(Number(process.env.PORT ?? 8080), '0.0.0.0', () => {
-  console.info('Phab research worker is ready.')
+  lifecycle('worker.ready', { concurrency: 2 })
   void drain()
 })
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.once(signal, () => {
     draining = true
+    lifecycle('worker.draining')
     clearInterval(timer)
     server.close()
     void Promise.allSettled([...running.values()]).finally(() => process.exit(0))

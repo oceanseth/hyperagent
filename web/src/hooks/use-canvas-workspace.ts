@@ -28,8 +28,14 @@ export function useResearchCard(item: CanvasArtifact) {
   const stopPointer = (event: PointerEvent<HTMLElement>) => event.stopPropagation()
   const pdfPreview = source?.pdfUrl ? new URL(source.pdfUrl) : undefined
   if (pdfPreview) pdfPreview.hash = 'toolbar=0&navpanes=0&view=FitH'
+  const status = item.stack.status ?? 'complete'
   return {
     included, source, hostname,
+    working: status === 'working',
+    failed: status === 'failed',
+    status,
+    statusLabel: status === 'working' ? 'Still working' : status === 'failed' ? 'Partial result' : 'Complete',
+    statusText: item.stack.statusText ?? (status === 'working' ? 'New sources and findings will appear as the work continues.' : status === 'failed' ? 'The worker stopped before finishing. Available findings are kept here.' : null),
     pdfPreview: pdfPreview?.href,
     openLabel: source?.pdfUrl ? 'Open PDF' : 'View source',
     contextLabel: included ? 'In context' : 'Use as context',

@@ -1,6 +1,6 @@
 import { TextMessagePartProvider } from '@assistant-ui/react'
 import type { ComponentProps } from 'react'
-import { ArrowUpRight, FileText, Layers, Link2, Check } from 'lucide-react'
+import { ArrowUpRight, CircleAlert, FileText, Layers, Link2, Check, LoaderCircle } from 'lucide-react'
 import { Image } from '#/components/assistant-ui/elements/image'
 import { MarkdownText } from '#/components/assistant-ui/elements/markdown-text'
 import { useResearchCard } from '#/hooks/use-canvas-workspace'
@@ -16,7 +16,9 @@ export function ResearchCard({ item }: { item: CanvasArtifact }) {
   return item.kind === 'summary' ? (
     <article className="phab-research-summary" data-in-context={card.included}>
       <header className="phab-research-heading"><span><Layers size={14} /> CONTEXT STACK</span><span>{card.sourceCountLabel}</span></header>
+      <div className="phab-research-state" data-status={card.status}>{card.working ? <LoaderCircle size={11} className="phab-research-state-spinner" /> : card.failed ? <CircleAlert size={11} /> : <Check size={11} />}{card.statusLabel}</div>
       <h2>{item.label}</h2>
+      {card.statusText && <p className="phab-research-status-text">{card.statusText}</p>}
       <div className="phab-research-markdown" {...card.summaryProps}>
         <TextMessagePartProvider text={item.text}><MarkdownText components={markdownComponents} /></TextMessagePartProvider>
       </div>
@@ -38,7 +40,7 @@ export function ResearchCard({ item }: { item: CanvasArtifact }) {
         <div className="phab-research-excerpt"><FileText size={22} /><p>{item.text || 'Open this source to read the original.'}</p></div>
       )}
       <div className="phab-research-source-title"><h3>{item.label}</h3><a {...card.openProps}><ArrowUpRight size={17} /></a></div>
-      <div className="phab-research-source-footer"><span>{card.hostname}</span><a {...card.openProps}>{card.openLabel} <ArrowUpRight size={12} /></a></div>
+      <div className="phab-research-source-footer"><span className="phab-research-state" data-status={card.status}>{card.working ? <LoaderCircle size={10} className="phab-research-state-spinner" /> : card.failed ? <CircleAlert size={10} /> : <Check size={10} />}{card.statusLabel}</span><a {...card.openProps}>{card.openLabel} <ArrowUpRight size={12} /></a></div>
     </article>
   )
 }

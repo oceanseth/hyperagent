@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { Crosshair, Grid2X2, Minus, PanelLeft, Plus, Search, StickyNote, X, LoaderCircle, CircleAlert } from 'lucide-react'
+import { Activity, Crosshair, Grid2X2, Minus, PanelLeft, Plus, Search, StickyNote, X } from 'lucide-react'
 import { ArtifactCard } from '#/components/assistant-ui/elements/artifact-card'
 import { field, paper } from '#/components/assistant-ui/elements/surfaces'
 import { useCanvasNote, useInfiniteCanvas } from '#/hooks/use-infinite-canvas'
 import { cn } from '#/lib/utils'
 import { ResearchCard } from './research-cards'
+import { MonitorWidget } from './monitor-widget'
 import './canvas.css'
 
 export function InfiniteCanvas({ children }: { children: ReactNode }) {
@@ -28,6 +29,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
           {canvas.workspace.contextCount > 0 && <span className="phab-context-badge">{canvas.workspace.contextCount} in context</span>}
         </div>
         <div className="phab-canvas-toolbar-right">
+          <a className="phab-monitor-link" href="/monitor" target="_blank" rel="noopener noreferrer"><Activity size={15} /><span>Activity</span></a>
           <button className="phab-icon-button" {...canvas.overviewButtonProps}><Grid2X2 size={17} strokeWidth={1.5} /></button>
           <button className="phab-icon-button" {...canvas.resetButtonProps}><Crosshair size={19} strokeWidth={1.5} /></button>
           <span className="phab-toolbar-divider" />
@@ -66,14 +68,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
       </div>
 
       {canvas.workspace.error && <div className="phab-sync-status" role="status">{canvas.workspace.error}</div>}
-      <aside className="phab-research-activity" data-canvas-overlay aria-label="Research jobs" aria-live="polite">
-        {canvas.workspace.visibleJobs.map((job) => (
-          <div className="phab-research-job" key={job.id} data-status={job.status}>
-            <div className="phab-research-job-title">{job.status === 'failed' ? <CircleAlert size={13} /> : <LoaderCircle className="canvas-chat-spinner" size={13} />}{job.title}</div>
-            <p>{job.progress}</p>
-          </div>
-        ))}
-      </aside>
+      <MonitorWidget />
 
       {canvas.panel === 'space' && (
         <aside className="phab-canvas-panel phab-space-panel" data-canvas-overlay>

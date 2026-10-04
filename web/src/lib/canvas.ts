@@ -22,11 +22,22 @@ export const stackInputSchema = z.object({
 export const canvasStackSchema = stackInputSchema.extend({
   id: z.string().uuid(),
   createdAt: z.string(),
+  status: z.enum(['working', 'complete', 'failed']).optional(),
+  statusText: z.string().max(500).optional(),
   sources: z.array(canvasSourceSchema.extend({ id: z.string().uuid() })).max(8),
 })
 
 export type CanvasSource = z.infer<typeof canvasStackSchema>['sources'][number]
 export type CanvasStack = z.infer<typeof canvasStackSchema>
+export type JobEvent = {
+  id: number
+  at: string
+  type: string
+  message: string
+  tool?: string
+  durationMs?: number
+  details?: Record<string, unknown>
+}
 export type CanvasJob = {
   id: string
   title: string
@@ -35,6 +46,11 @@ export type CanvasJob = {
   createdAt: string
   updatedAt: string
   stackId?: string
+  workerId?: string
+  workerRegion?: string
+  startedAt?: string
+  heartbeatAt?: string
+  events: JobEvent[]
 }
 
 export type CanvasSnapshot = { stacks: CanvasStack[]; jobs: CanvasJob[] }

@@ -7,8 +7,9 @@ export type WorkspaceState = CanvasSnapshot & {
   excludedIds: string[]
   error: string | null
   loaded: boolean
+  syncedAt: number | null
 }
-const initial: WorkspaceState = { stacks: [], jobs: [], positions: {}, excludedIds: [], error: null, loaded: false }
+const initial: WorkspaceState = { stacks: [], jobs: [], positions: {}, excludedIds: [], error: null, loaded: false, syncedAt: null }
 export const canvasWorkspace = createStore<WorkspaceState>(() => initial)
 let pending: Promise<void> | undefined
 let subscriptions = 0
@@ -37,7 +38,7 @@ export function refreshCanvas() {
         .slice(0, 30)
       canvasWorkspace.setState({
         stacks, jobs,
-        error: null, loaded: true,
+        error: null, loaded: true, syncedAt: Date.now(),
       })
     } catch {
       canvasWorkspace.setState({ error: 'Could not load saved context. Reconnecting…' })

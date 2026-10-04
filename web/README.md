@@ -21,6 +21,19 @@ no cross-device account sync yet. Card positions are browser preferences; source
 content and summaries are stored remotely. Toggle **In context** on a summary to
 choose which stacks subsequent prompts use (up to 20).
 
+Sources appear progressively while tools are still working. Native web-search
+citation events and Cosmos results create preliminary cards; the worker can add
+draft summaries with `update_canvas`, then finalize with `publish_canvas`.
+Cards retain their IDs and show working, complete, or partial-result status.
+
+Open **Activity** on the canvas or `/monitor` for job history, worker location,
+15-second heartbeats, step/tool timings, failures, and saved event traces.
+**Copy debug report** exports a bounded, credential-redacted report suitable for
+pasting into a debugging conversation. Older jobs predate detailed tracing.
+Fly also receives structured JSON logs keyed by job and worker ID, while
+Cloudflare invocation logging is enabled for the app. Nothing in monitoring
+depends on a local log tail remaining open.
+
 Server secrets for the app: `XAI_API_KEY`, `DATABASE_URL`, `JOBS_URL`, and
 `JOBS_SECRET`. The worker needs `XAI_API_KEY`, `DATABASE_URL`, `JOBS_SECRET`,
 `EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`, and optionally `COSMOS_TOKEN`.

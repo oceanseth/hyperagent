@@ -18,7 +18,7 @@ const config = defineConfig({
       cloudflare: {
         deployConfig: true,
         nodeCompat: true,
-        wrangler: { name: 'phab', workers_dev: true },
+        wrangler: { name: 'phab', workers_dev: true, observability: { enabled: true } },
       },
     }),
     tailwindcss(),

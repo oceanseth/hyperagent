@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as MonitorRouteImport } from './routes/monitor'
 import { Route as ApiCanvasRouteImport } from './routes/api/canvas'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiResearchRouteImport } from './routes/api/research'
@@ -18,6 +19,11 @@ import { Route as ApiVoiceRouteImport } from './routes/api/voice'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MonitorRoute = MonitorRouteImport.update({
+  id: '/monitor',
+  path: '/monitor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCanvasRoute = ApiCanvasRouteImport.update({
@@ -43,6 +49,7 @@ const ApiVoiceRoute = ApiVoiceRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/monitor': typeof MonitorRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/research': typeof ApiResearchRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/monitor': typeof MonitorRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/research': typeof ApiResearchRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/monitor': typeof MonitorRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
   '/api/research': typeof ApiResearchRoute
@@ -65,12 +74,25 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/canvas' | '/api/chat' | '/api/research' | '/api/voice'
+  fullPaths:
+    | '/'
+    | '/monitor'
+    | '/api/canvas'
+    | '/api/chat'
+    | '/api/research'
+    | '/api/voice'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/canvas' | '/api/chat' | '/api/research' | '/api/voice'
+  to:
+    | '/'
+    | '/monitor'
+    | '/api/canvas'
+    | '/api/chat'
+    | '/api/research'
+    | '/api/voice'
   id:
     | '__root__'
     | '/'
+    | '/monitor'
     | '/api/canvas'
     | '/api/chat'
     | '/api/research'
@@ -79,6 +101,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MonitorRoute: typeof MonitorRoute
   ApiCanvasRoute: typeof ApiCanvasRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiResearchRoute: typeof ApiResearchRoute
@@ -92,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/monitor': {
+      id: '/monitor'
+      path: '/monitor'
+      fullPath: '/monitor'
+      preLoaderRoute: typeof MonitorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/canvas': {
@@ -127,6 +157,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MonitorRoute: MonitorRoute,
   ApiCanvasRoute: ApiCanvasRoute,
   ApiChatRoute: ApiChatRoute,
   ApiResearchRoute: ApiResearchRoute,
