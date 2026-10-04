@@ -1,4 +1,5 @@
 import type { CanvasBrowser } from '#/lib/canvas'
+import { redactResearchSecrets } from './mcp'
 import { getSecret } from './settings-db'
 
 // KERNEL cloud browsers for the canvas. The Executor MCP proxy is preferred:
@@ -8,6 +9,23 @@ import { getSecret } from './settings-db'
 // Neither path ever returns credentials or raw provider errors to callers.
 
 export class KernelBrowserError extends Error {}
+
+// A short, credential-free reason from a failed Executor call, so a failed
+// card says why (wrong tool, bad arguments) without echoing raw responses.
+function safeDetail(text: string) {
+  const line = redactResearchSecrets(text)
+    .replace(/(?:wss?|https?):\/\/\S+/gi, '[URL]')
+    .replace(/(?:authorization|cookie|api[-_ ]?key|token|password|secret|credential)\s*["']?\s*[:=][^\n]*/gi, '[omitted]')
+    .split(/[\r\n]/).find((part) => part.trim()) ?? ''
+  return line.trim().slice(0, 200)
+}
+
+function resultShape(text: string) {
+  try {
+    const parsed = JSON.parse(text)
+    return parsed && typeof parsed === 'object' ? `keys ${Object.keys(parsed).slice(0, 8).join(', ')}` : typeof parsed
+  } catch { return 'non-JSON text' }
+}
 
 export type KernelSession = { sessionId: string; liveViewUrl: string; provider: CanvasBrowser['provider'] }
 type KernelRef = { sessionId: string; provider?: CanvasBrowser['provider'] }
@@ -130,6 +148,8 @@ export function pickKernelTools(items: unknown[]): KernelTools {
     const item = record(entry)
     if (typeof item.id !== 'string') continue
     const name = `${item.name ?? ''} ${item.id}`.toLowerCase()
+    // Pools, profiles and the like also mention browsers; they cannot launch one.
+    if (/pool|profile|extension|proxy|replay|telemetry/.test(name)) continue
     if (!/kernel|onkernel|browser/.test(`${name} ${String(item.description ?? '').toLowerCase()}`)) continue
     if (!tools.manage && /manage[_-]?browsers?\b/.test(name)) tools.manage = item.id
     else if (!tools.playwright && /playwright/.test(name)) tools.playwright = item.id
@@ -159,7 +179,10 @@ async function openExecutor(signal: AbortSignal) {
   if (!tools.manage && !tools.create) return null
   const invoke = async (tool: string, args: Record<string, unknown>) => {
     const result = toolText(await rpcCall(rpc, 'tools/call', { name: 'invoke', arguments: { tool, arguments: args } }))
-    if (result.isError) throw new KernelBrowserError('KERNEL (via Executor) could not complete the request.')
+    if (result.isError) {
+      const detail = safeDetail(result.text)
+      throw new KernelBrowserError(`KERNEL (via Executor ${tool}) failed${detail ? `: ${detail}` : '.'}`)
+    }
     return result.text
   }
   return { tools, invoke }
@@ -208,10 +231,11 @@ export async function kernelBrowserAvailable(workspaceId: string) {
 /** Launches a headful KERNEL browser and returns its live view. */
 export async function createKernelBrowser(workspaceId: string, startUrl?: string, parent?: AbortSignal): Promise<KernelSession> {
   const signal = timeoutSignal(parent, 90_000)
-  let executorFailed = false
+  let executorFailure: string | undefined
   try {
     const executor = await openExecutor(signal)
     if (executor) {
+      const tool = executor.tools.manage ?? executor.tools.create!
       const text = executor.tools.manage
         ? await executor.invoke(executor.tools.manage, {
           action: 'create', stealth: true, timeout_seconds: IDLE_TIMEOUT_SECONDS,
@@ -226,20 +250,19 @@ export async function createKernelBrowser(workspaceId: string, startUrl?: string
         }
         return { ...session, provider: 'executor' }
       }
-      executorFailed = true
+      executorFailure = `KERNEL (via Executor ${tool}) returned no live view (${resultShape(text)}).`
     }
   } catch (error) {
     if (signal.aborted) throw new KernelBrowserError('Starting the browser timed out.')
-    executorFailed = error instanceof KernelBrowserError || executorFailed
+    executorFailure = error instanceof KernelBrowserError ? error.message : 'The Executor connection failed.'
   }
   const created = await kernelApi(workspaceId, '/browsers', { method: 'POST', body: createArgs(startUrl), signal }).catch((error) => {
     if (signal.aborted) throw new KernelBrowserError('Starting the browser timed out.')
     throw error instanceof KernelBrowserError ? error : new KernelBrowserError('KERNEL could not start a browser.')
   })
   if (created === null) {
-    throw new KernelBrowserError(executorFailed
-      ? 'KERNEL (via Executor) could not start a browser, and no KERNEL key is set for a direct fallback.'
-      : 'KERNEL is not connected. Connect KERNEL in Executor or add a KERNEL key in Settings.')
+    throw new KernelBrowserError(executorFailure
+      ?? 'KERNEL is not connected. Connect KERNEL in Executor or add a KERNEL key in Settings.')
   }
   const session = sessionFromResult(created)
   if (!session) throw new KernelBrowserError('KERNEL started a browser without a live view.')
