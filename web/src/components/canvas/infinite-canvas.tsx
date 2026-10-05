@@ -25,6 +25,7 @@ function boardHref() {
 export function InfiniteCanvas({ children }: { children: ReactNode }) {
   const canvas = useInfiniteCanvas()
   const [scooterPlaying, setScooterPlaying] = useState(false)
+  const [scooterPlaybackId, setScooterPlaybackId] = useState(0)
 
   return (
     <div className="phab-canvas" data-dragging={canvas.isDragging} {...canvas.canvasProps}>
@@ -35,6 +36,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
           <a className="phab-wordmark" href={boardHref()} aria-label="hyperagent home" onClick={(event) => {
             if ((event.target as HTMLElement).closest('.htree-mark')) {
               event.preventDefault()
+              setScooterPlaybackId((id) => id + 1)
               setScooterPlaying(true)
             }
           }}>
@@ -88,7 +90,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
             <span>Scooter — Hyper Hyper</span>
             <button className="phab-icon-button" aria-label="Stop Hyper Hyper" onClick={() => setScooterPlaying(false)}><X size={15} /></button>
           </div>
-          <iframe title="Scooter — Hyper Hyper" width="100%" height="180" src="https://www.youtube.com/embed/F7aKqJsuPDg?autoplay=1" allow="autoplay; encrypted-media; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen style={{ display: 'block', border: 0, borderRadius: 8 }} />
+          <iframe key={scooterPlaybackId} title="Scooter — Hyper Hyper" width="100%" height="180" src="https://www.youtube.com/embed/F7aKqJsuPDg?autoplay=1" allow="autoplay; encrypted-media; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen style={{ display: 'block', border: 0, borderRadius: 8 }} />
         </div>
       )}
 
