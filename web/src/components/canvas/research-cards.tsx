@@ -31,9 +31,9 @@ export function ResearchCard({ item }: { item: CanvasArtifact }) {
   ) : (
     <article className="phab-research-source">
       <header className="phab-research-heading"><span><FileText size={13} />{card.sourceLabel}</span><span>{card.hostname}</span></header>
-      {card.source?.imageUrl ? (
+      {card.imageUrl ? (
         <Image.Root className="phab-research-image" variant="ghost" size="full">
-          <Image.Preview src={card.source.imageUrl} alt={item.label} ratio="4:3" fit="cover" loading="lazy" draggable={false} />
+          <Image.Preview src={card.imageUrl} alt={item.label} ratio="4:3" fit="cover" loading="lazy" draggable={false} />
         </Image.Root>
       ) : card.pdfPreview ? (
         <div className="phab-research-pdf" {...card.previewProps}><iframe src={card.pdfPreview} title={item.label} loading="lazy" referrerPolicy="no-referrer" tabIndex={-1} /></div>

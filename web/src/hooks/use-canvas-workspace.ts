@@ -30,6 +30,8 @@ export function useResearchCard(item: CanvasArtifact) {
   const [viewerOpen, setViewerOpen] = useState(false)
   const [embeddable, setEmbeddable] = useState<boolean | undefined>()
   const source = item.source
+  const videoThumbnail = source ? youtubeThumbnail(source.url) : undefined
+  const imageUrl = source?.imageUrl ?? videoThumbnail
   const pdfUrl = source?.pdfUrl ?? (source && /\.pdf$/i.test(new URL(source.url).pathname) ? source.url : undefined)
   const url = pdfUrl ?? source?.url
   const hostname = source ? new URL(source.url).hostname.replace(/^www\./, '') : ''
@@ -42,7 +44,7 @@ export function useResearchCard(item: CanvasArtifact) {
     if (pdfUrl && embeddable === undefined) checkEmbeddable(pdfUrl, setEmbeddable)
   }
   return {
-    included, source, hostname, pdfUrl,
+    included, source, imageUrl, hostname, pdfUrl,
     viewerState: embeddable === undefined ? 'checking' : embeddable ? 'ready' : 'blocked',
     working: status === 'working',
     failed: status === 'failed',
@@ -52,7 +54,7 @@ export function useResearchCard(item: CanvasArtifact) {
     pdfPreview: pdfPreview?.href,
     openLabel: pdfUrl ? 'Open PDF' : 'View source',
     contextLabel: included ? 'In context' : 'Use as context',
-    sourceLabel: pdfUrl ? 'PDF DOCUMENT' : source?.imageUrl ? 'VISUAL REFERENCE' : 'SOURCE',
+    sourceLabel: pdfUrl ? 'PDF DOCUMENT' : videoThumbnail ? 'VIDEO SOURCE' : imageUrl ? 'VISUAL REFERENCE' : 'SOURCE',
     sourceCountLabel: `${item.stack.sources.length} ${item.stack.sources.length === 1 ? 'source' : 'sources'}`,
     summaryProps: { 'data-canvas-content': true, onPointerDown: stopPointer },
     previewProps: pdfUrl
@@ -72,6 +74,18 @@ export function useResearchCard(item: CanvasArtifact) {
       onPointerDown: stopPointer, onClick: () => toggleContextStack(item.stack.id),
     },
   }
+}
+
+function youtubeThumbnail(value: string): string | undefined {
+  const url = new URL(value)
+  const host = url.hostname.toLowerCase().replace(/^www\./, '').replace(/^m\./, '')
+  const parts = url.pathname.split('/').filter(Boolean)
+  const id = host === 'youtu.be' ? parts[0]
+    : host === 'youtube.com' || host === 'youtube-nocookie.com'
+      ? parts[0] === 'watch' ? url.searchParams.get('v')
+        : ['shorts', 'embed', 'live', 'v'].includes(parts[0]) ? parts[1] : undefined
+      : undefined
+  return id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : undefined
 }
 
 function checkEmbeddable(url: string, done: Dispatch<SetStateAction<boolean | undefined>>) {
