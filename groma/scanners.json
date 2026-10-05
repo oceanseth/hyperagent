@@ -1,0 +1,64 @@
+{
+  "scanners": [
+    {
+      "id": "react",
+      "source": "@groma/scanner-react@0.2.1",
+      "include": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/tsconfig*.json",
+        "**/package.json",
+        "**/*.html",
+        "**/project.json",
+        "**/nx.json"
+      ],
+      "exclude": [
+        "*.test.ts",
+        "*.test.tsx",
+        "*.spec.ts",
+        "*.spec.tsx",
+        "/test/",
+        "node_modules/",
+        "dist/",
+        "build/",
+        "coverage/"
+      ]
+    },
+    {
+      "id": "typescript",
+      "source": "@groma/scanner-typescript@0.2.1",
+      "include": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/tsconfig*.json",
+        "**/package.json",
+        "**/*.html",
+        "**/angular.json",
+        "**/project.json",
+        "**/nx.json"
+      ],
+      "exclude": [
+        "*.test.ts",
+        "*.test.tsx",
+        "*.spec.ts",
+        "*.spec.tsx",
+        "/test/",
+        "node_modules/",
+        "dist/",
+        "build/",
+        "coverage/"
+      ]
+    }
+  ],
+  "exclude": [
+    "/cosmos/",
+    "/scripts/",
+    "/infra/",
+    "/web/scripts/",
+    "/web/vite.config.ts",
+    "/web/src/routeTree.gen.ts",
+    "/web/public/",
+    "/node_modules/",
+    "/web/node_modules/"
+  ]
+}

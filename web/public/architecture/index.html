@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inside Hyperagent — the architecture of a shared agent workspace</title>
+  <meta name="description" content="Explore how Assistant UI, Neon, Executor, AgentMail, Mastra, Exa, Fly.io and KERNEL come together inside Hyperagent. An interactive architecture atlas with real source code.">
+  <meta property="og:title" content="Inside Hyperagent — eight building blocks, one shared canvas">
+  <meta property="og:description" content="Follow a question through the agents, tools and infrastructure that turn it into a shared, living workspace.">
+  <meta property="og:image" content="https://hyperagent.lol/architecture/map/cover-dark.png">
+  <meta property="og:url" content="https://hyperagent.lol/architecture/index.html">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#151714">
+  <link rel="canonical" href="https://hyperagent.lol/architecture/index.html">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/satoshi/Satoshi-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./showcase.css">
+  <script type="module" src="./showcase.js"></script>
+</head>
+<body>
+  <a class="skip" href="#explore">Skip to architecture</a>
+  <header class="masthead wrap">
+    <a class="identity" href="/" aria-label="Hyperagent home"><img src="/brand/htree-3-paper.svg" alt="" width="30" height="30">hyperagent<span class="slash">/</span><span class="identity-sub">inside the build</span></a>
+    <nav aria-label="Main"><a href="#stack">The stack</a><a href="https://github.com/oceanseth/hyperagent" target="_blank" rel="noopener">Source ↗</a><a class="small-cta" href="/">Open the canvas ↗</a></nav>
+  </header>
+  <main>
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div>
+        <p class="eyebrow"><span class="spark" aria-hidden="true">✳</span> A field guide to Hyperagent</p>
+        <h1 id="hero-title">Good agents<br>work <em>together.</em></h1>
+        <p class="hero-copy">One conversation becomes a workspace.<br>Research, live browsers and plans—shared by people and the agents working alongside them.</p>
+        <a class="primary-cta" href="#explore">Walk through the architecture <span aria-hidden="true">↘</span></a>
+      </div>
+      <aside class="hero-note" aria-label="About the build">
+        <span class="mono">BUILD ATLAS / 001</span>
+        <p>Eight building blocks.<br><strong>One connected experience.</strong></p>
+        <p class="muted">Follow a question from the chat interface to the model, the tools and the worker. See where each sponsor makes the product possible.</p>
+        <div class="hero-numbers"><div><b>08</b><span>integrations</span></div><div><b>03</b><span>guided flows</span></div><div><b>01</b><span>shared canvas</span></div></div>
+      </aside>
+    </section>
+
+    <section id="stack" class="stack wrap" aria-labelledby="stack-title">
+      <div class="section-top"><h2 id="stack-title">Built with the sponsor stack</h2><p>Pick a logo. See its role in the system.</p></div>
+      <div class="sponsor-grid" aria-label="Explore an integration">
+        <button class="sponsor" data-partner="assistant" aria-pressed="false"><span class="logo-lockup"><img class="mark" src="./assets/assistant-ui.svg" alt=""><span>assistant-ui</span></span><span class="sponsor-role">The conversation</span></button>
+        <button class="sponsor" data-partner="neon" aria-pressed="false"><img class="wordmark neon" src="./assets/neon.svg" alt="Neon"><span class="sponsor-role">State + inference</span></button>
+        <button class="sponsor" data-partner="executor" aria-pressed="false"><span class="logo-lockup"><img class="mark" src="./assets/executor.png" alt=""><span>executor</span></span><span class="sponsor-role">Connected tools</span></button>
+        <button class="sponsor" data-partner="agentmail" aria-pressed="false"><img class="wordmark" src="./assets/agentmail.svg" alt="AgentMail"><span class="sponsor-role">Agent inboxes</span></button>
+        <button class="sponsor" data-partner="mastra" aria-pressed="false"><span class="logo-lockup"><img class="mark" src="./assets/mastra.svg" alt=""><span>mastra</span></span><span class="sponsor-role">Agent orchestration</span></button>
+        <button class="sponsor" data-partner="exa" aria-pressed="false"><img class="wordmark exa" src="./assets/exa.svg" alt="Exa"><span class="sponsor-role">Live web evidence</span></button>
+        <button class="sponsor" data-partner="fly" aria-pressed="false"><img class="wordmark" src="./assets/fly.svg" alt="Fly.io"><span class="sponsor-role">Background execution</span></button>
+        <button class="sponsor" data-partner="kernel" aria-pressed="false"><img class="wordmark" src="./assets/kernel.svg" alt="KERNEL"><span class="sponsor-role">A browser you share</span></button>
+      </div>
+    </section>
+
+    <section id="explore" class="explore wrap" aria-labelledby="explore-title">
+      <div class="section-top"><div><p class="eyebrow">01 / Explore the system</p><h2 id="explore-title">Every connection has a job.</h2></div><a class="text-link" id="full-map" href="./map/index.html?theme=dark" target="_blank" rel="noopener">Open full architecture ↗</a></div>
+      <div class="explorer">
+        <aside class="guide" aria-label="Architecture guide">
+          <div class="guide-switch" aria-label="Guided flows"><button data-tour="research" aria-pressed="true">Research</button><button data-tour="browser" aria-pressed="false">Browser</button><button data-tour="inference" aria-pressed="false">Inference</button></div>
+          <div class="guide-body" aria-live="polite" aria-atomic="true">
+            <p class="mono guide-kicker" id="guide-kicker">GUIDED FLOW / 01</p>
+            <h3 id="guide-title">From question<br>to cited canvas.</h3>
+            <p id="guide-description">Research keeps running while the conversation continues. Follow a request through the stack and back to the board.</p>
+            <div class="step-card" id="step-card"><span class="mono" id="step-number">STEP 01 / 14</span><p id="step-copy">Ask a research question on the shared board.</p></div>
+            <div class="step-controls" id="step-controls"><button id="previous" aria-label="Previous architecture step" disabled>←</button><span id="step-progress">Follow the request</span><button id="next" aria-label="Next architecture step">→</button></div>
+            <div class="guide-evidence"><span class="mono">SEE THE IMPLEMENTATION</span><div id="evidence-links"><a href="https://github.com/oceanseth/hyperagent/blob/main/web/src/server/research.ts" target="_blank" rel="noopener">Research worker ↗</a></div></div>
+            <a id="provider-link" class="provider-link" hidden></a>
+          </div>
+          <div class="guide-footer"><span class="tiny-dot" aria-hidden="true"></span> Source-based map · powered by <a href="https://groma.md" target="_blank" rel="noopener">Groma</a></div>
+        </aside>
+        <div class="map-stage">
+          <div class="map-label"><span class="mono">HYPERAGENT / ARCHITECTURE</span><span class="map-hint">Drag to pan · scroll to zoom</span></div>
+          <div class="map-scroll"><iframe id="architecture-map" src="./map/index.html?theme=dark&amp;hud=off&amp;flow=from-question-to-cited-canvas&amp;step=1" title="Interactive Hyperagent architecture map" loading="lazy"></iframe></div>
+          <div class="map-caption"><span id="map-status" role="status">Loading architecture…</span><a href="./map/index.html?theme=dark" target="_blank" rel="noopener">Inspect components &amp; source ↗</a></div>
+        </div>
+      </div>
+      <noscript><p>Open the <a href="./map/index.html">full architecture map</a> to explore the source. The guided controls require JavaScript.</p></noscript>
+    </section>
+
+    <section class="outcomes wrap" aria-labelledby="outcomes-title">
+      <div class="section-top"><div><p class="eyebrow">02 / What the stack makes possible</p><h2 id="outcomes-title">The integration is the experience.</h2></div></div>
+      <div class="outcome-grid">
+        <article><span class="mono">01 — RESEARCH</span><h3>Answers with<br>a place to live.</h3><p>Exa brings back live evidence. Mastra works through it. The Fly.io worker publishes into Neon, and Assistant UI makes the results readable on the shared canvas.</p><button class="inline-link" data-start-tour="research">Follow the research flow ↗</button></article>
+        <article><span class="mono">02 — ACTION</span><h3>Watch the work.<br>Keep the context.</h3><p>KERNEL puts a live browser on the board. Executor connects the tools. A background agent acts in that same session, so teammates can see the work as it happens.</p><button class="inline-link" data-start-tour="browser">Follow the browser flow ↗</button></article>
+        <article><span class="mono">03 — CONTINUITY</span><h3>Agents with<br>somewhere to return.</h3><p>Neon stores the shared workspace and routes inference. AgentMail gives configured agents their own inboxes. Optional Mastra memory brings earlier formation context into the next turn.</p><button class="inline-link" data-start-partner="agentmail">Explore agent inboxes ↗</button></article>
+      </div>
+    </section>
+
+    <section class="runtime wrap" aria-labelledby="runtime-title"><div><p class="eyebrow">03 / Runtime boundaries</p><h2 id="runtime-title">One board. Independent workers.</h2></div><div class="runtime-grid"><div><span class="mono">IN THE BROWSER</span><h3>Shared workspace</h3><p>React + Assistant UI<br>Conversation, context and live views</p></div><span class="runtime-arrow" aria-hidden="true">↔</span><div><span class="mono">AWS APP RUNNER</span><h3>Web application</h3><p>TanStack Start + Nitro<br>Routes, streaming and orchestration</p></div><span class="runtime-arrow" aria-hidden="true">↔</span><div><span class="mono">FLY.IO + NEON</span><h3>Work that persists</h3><p>Independent Node worker<br>Durable jobs, state and inference</p></div></div><p class="runtime-note">The map follows the checked-in implementation: a web application, an independently deployed Fly.io Machine, and shared Neon storage. Workspace connections enable each provider’s capabilities.</p></section>
+    <section class="closing wrap"><img src="/brand/htree-3-paper.svg" width="42" height="42" alt=""><h2>Less hidden work.<br>More shared understanding.</h2><a class="primary-cta" href="/">Try Hyperagent <span aria-hidden="true">↗</span></a></section>
+  </main>
+  <footer class="footer wrap"><span>hyperagent / built in the open</span><div><a href="https://github.com/oceanseth/hyperagent" target="_blank" rel="noopener">Project source ↗</a><a href="./assets/sources.json">Logo sources ↗</a><a href="https://groma.md" target="_blank" rel="noopener">Architecture by Groma ↗</a></div><p>Official brand assets identify the technologies used. All marks belong to their respective owners.</p></footer>
+</body>
+</html>

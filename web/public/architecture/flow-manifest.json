@@ -1,0 +1,195 @@
+{
+  "generatedAt": "2026-10-05T18:28:54.625Z",
+  "flows": {
+    "from-question-to-cited-canvas": {
+      "id": "from-question-to-cited-canvas",
+      "steps": [
+        {
+          "from": "collaborator",
+          "to": "canvas-composer",
+          "action": "Ask a research question on the shared board."
+        },
+        {
+          "from": "canvas-composer",
+          "to": "chat",
+          "action": "Send the question with selected context stacks."
+        },
+        {
+          "from": "chat",
+          "to": "assistant-tools",
+          "action": "Make local and connected tools available."
+        },
+        {
+          "from": "assistant-tools",
+          "to": "canvas-sidecar",
+          "action": "Delegate the research task."
+        },
+        {
+          "from": "canvas-sidecar",
+          "to": "canvas-db",
+          "action": "Persist a job in Neon before acknowledging it."
+        },
+        {
+          "from": "canvas-sidecar",
+          "to": "dispatch",
+          "action": "Wake the independent runner."
+        },
+        {
+          "from": "dispatch",
+          "to": "worker-index",
+          "action": "Notify the Fly.io worker."
+        },
+        {
+          "from": "worker-index",
+          "to": "server-research",
+          "action": "Run the background Mastra research agent."
+        },
+        {
+          "from": "server-research",
+          "to": "web-search",
+          "action": "Retrieve live evidence."
+        },
+        {
+          "from": "web-search",
+          "to": "executor",
+          "action": "Resolve and invoke the connected Exa search tool."
+        },
+        {
+          "from": "executor",
+          "to": "exa",
+          "action": "Return real result URLs and excerpts."
+        },
+        {
+          "from": "server-research",
+          "to": "canvas-db",
+          "action": "Publish preliminary sources and the final summary."
+        },
+        {
+          "from": "infinite-canvas",
+          "to": "api-canvas",
+          "action": "Poll the shared workspace for updates."
+        },
+        {
+          "from": "infinite-canvas",
+          "to": "research-cards",
+          "action": "Present cited sources as reusable context."
+        }
+      ]
+    },
+    "one-gateway-for-agent-inference": {
+      "id": "one-gateway-for-agent-inference",
+      "steps": [
+        {
+          "from": "collaborator",
+          "to": "canvas-composer",
+          "action": "Start a conversation."
+        },
+        {
+          "from": "canvas-composer",
+          "to": "chat",
+          "action": "Stream a contextual request."
+        },
+        {
+          "from": "chat",
+          "to": "agents-assistant",
+          "action": "Run the Mastra assistant."
+        },
+        {
+          "from": "agents-assistant",
+          "to": "gateway",
+          "action": "Resolve the server-side model configuration."
+        },
+        {
+          "from": "gateway",
+          "to": "neon-ai-gateway",
+          "action": "Send the model request through Neon AI Gateway."
+        },
+        {
+          "from": "canvas-composer",
+          "to": "thread-aui",
+          "action": "Present the streamed answer through Assistant UI."
+        }
+      ]
+    },
+    "watch-an-agent-use-the-browser": {
+      "id": "watch-an-agent-use-the-browser",
+      "steps": [
+        {
+          "from": "collaborator",
+          "to": "canvas-composer",
+          "action": "Ask the assistant to open a website."
+        },
+        {
+          "from": "chat",
+          "to": "assistant-tools",
+          "action": "Load browser capabilities."
+        },
+        {
+          "from": "assistant-tools",
+          "to": "browser-tools",
+          "action": "Expose browser creation and task tools."
+        },
+        {
+          "from": "browser-tools",
+          "to": "browser-canvas",
+          "action": "Persist and open a shared browser card."
+        },
+        {
+          "from": "browser-canvas",
+          "to": "kernel-browser",
+          "action": "Request a live cloud session."
+        },
+        {
+          "from": "kernel-browser",
+          "to": "kernel-cloud",
+          "action": "Create the browser through the configured connection."
+        },
+        {
+          "from": "browser-card",
+          "to": "kernel-cloud",
+          "action": "Show the same live session to collaborators."
+        },
+        {
+          "from": "browser-card",
+          "to": "browsers",
+          "action": "Submit a task from the card."
+        },
+        {
+          "from": "browsers",
+          "to": "browser-canvas",
+          "action": "Queue the browser job."
+        },
+        {
+          "from": "browser-canvas",
+          "to": "dispatch",
+          "action": "Wake the worker."
+        },
+        {
+          "from": "dispatch",
+          "to": "worker-index",
+          "action": "Signal the durable job."
+        },
+        {
+          "from": "worker-index",
+          "to": "browser-agent",
+          "action": "Run the Mastra browser agent."
+        },
+        {
+          "from": "browser-agent",
+          "to": "browser-skills",
+          "action": "Choose the next page operation."
+        },
+        {
+          "from": "browser-skills",
+          "to": "kernel-cloud",
+          "action": "Perform the operation in the visible session."
+        },
+        {
+          "from": "browser-agent",
+          "to": "canvas-db",
+          "action": "Record progress and publish the result."
+        }
+      ]
+    }
+  }
+}

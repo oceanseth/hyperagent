@@ -89,3 +89,14 @@ bd prime                # Refresh Beads context
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/core-concepts/sync-concepts.md for details and anti-patterns.
 <!-- END BEADS CODEX SETUP -->
+
+<!-- groma:start -->
+## Groma
+
+Groma and Backlog are installed only in this project. Before architecture work,
+run `npm run groma -- agent-instructions` and read the relevant guide. Use the
+local CLI to curate Groma-owned Markdown. Generate the published map and guided
+flows with `npm run architecture:generate`; preview with `npm run architecture:dev`.
+The sponsor showcase is in `web/public/architecture/`. Beads remains the source
+of truth for task tracking; do not duplicate its tasks in Backlog.
+<!-- groma:end -->

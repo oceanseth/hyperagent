@@ -1,5 +1,18 @@
 {
+  "private": true,
+  "scripts": {
+    "groma": "groma",
+    "backlog": "backlog",
+    "architecture:dev": "groma web",
+    "architecture:scan": "groma scan",
+    "architecture:export": "node scripts/export-architecture.mjs",
+    "architecture:generate": "npm run architecture:scan && npm run architecture:export"
+  },
   "dependencies": {
     "agentmail": "^0.5.35"
+  },
+  "devDependencies": {
+    "backlog.md": "1.53.0",
+    "groma.md": "0.6.5"
   }
 }

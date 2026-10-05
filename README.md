@@ -30,7 +30,39 @@ Try it live at **[hyperagent.lol](https://hyperagent.lol/)**.
 ## Built with
 The app uses **React 19**, **TypeScript**, **TanStack Start/Router**, **Vite**, and **Tailwind CSS 4**. **Assistant UI** provides the chat interface, **Mastra** and the **AI SDK** power the assistant and tools, and **Neon Postgres** stores jobs and shared canvas data. Research runs in a separate **Fly.io** worker; the web app is a Node server on **AWS App Runner**, served through CloudFront. Connected search and service integrations are accessed through Executor MCP.
 
-## Run locally
+## Explore the architecture
+
+Open the **[sponsor architecture showcase](https://hyperagent.lol/architecture/index.html)**
+for the eight integration stories and three guided flows, or open the
+**[full Groma map](https://hyperagent.lol/architecture/map/index.html?theme=dark)**
+to inspect components and their source.
+
+Groma and Backlog are pinned **project-local development dependencies**. From
+the repository root:
+
+```sh
+npm install
+npm run architecture:dev       # live Groma map on localhost:4747
+npm run architecture:generate  # scan, export the map, regenerate tour steps
+npm run backlog -- browser    # optional local Backlog interface
+```
+
+Architecture records live in `groma/`; change their meaning with `npm run groma -- edit …`.
+Scans preserve authored descriptions, combined components and relationships.
+The showcase and static export live in `web/public/architecture/`, so the normal
+application deployment publishes them. The export includes the public source
+files owned by the map; the scanner excludes tooling, infrastructure and generated
+assets. The current scanners do not infer this repo's TanStack/Nitro and Fly
+container boundaries, so the map uses responsibility groups and documents the
+runtime boundaries in its project overview and showcase.
+
+Official logo provenance is saved in `web/public/architecture/assets/sources.json`.
+The presentation describes implemented use: Fly.io Machines, Exa search excerpts,
+Mastra agents and optional memory. It does not claim Sprites, full-page crawling
+or Mastra Factory integrations. Beads remains the authoritative task tracker;
+Backlog is initialized without replacing agent instructions or duplicating tasks.
+
+## Run the application locally
 
 From `web/`:
 

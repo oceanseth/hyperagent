@@ -1,0 +1,47 @@
+{
+  "retrieved": "2026-10-05",
+  "assets": [
+    {
+      "name": "neon",
+      "source": "https://neon.com/brand/neon-logo-light-color.svg",
+      "file": "neon.svg"
+    },
+    {
+      "name": "exa",
+      "source": "https://exa.ai/images/logo/exa-logo-blue.svg",
+      "file": "exa.svg"
+    },
+    {
+      "name": "kernel",
+      "source": "https://www.kernel.sh/rebrand/logos/logo-kernel-light.svg",
+      "file": "kernel.svg"
+    },
+    {
+      "name": "assistant-ui",
+      "source": "https://www.assistant-ui.com/icon.svg?icon.0k50h7_4mau84.svg",
+      "file": "assistant-ui.svg"
+    },
+    {
+      "name": "mastra",
+      "source": "https://mastra.ai/favicon/new-brand/icon.svg",
+      "file": "mastra.svg"
+    },
+    {
+      "name": "agentmail",
+      "source": "https://www.agentmail.to/",
+      "file": "agentmail.svg",
+      "note": "Unmodified inline wordmark from the official site header."
+    },
+    {
+      "name": "executor",
+      "source": "https://executor.sh/favicon-192.png",
+      "file": "executor.png"
+    },
+    {
+      "name": "fly",
+      "source": "https://fly.io/",
+      "file": "fly.svg",
+      "note": "Unmodified inline logo from the official site header."
+    }
+  ]
+}
