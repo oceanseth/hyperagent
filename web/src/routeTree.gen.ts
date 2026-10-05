@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as MonitorRouteImport } from './routes/monitor'
 import { Route as ApiAgentmailRouteImport } from './routes/api/agentmail'
@@ -30,15 +31,19 @@ import { Route as ApiVoiceRouteImport } from './routes/api/voice'
 import { Route as ApiWorkspacesRouteImport } from './routes/api/workspaces'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
 import { Route as SCodeRouteImport } from './routes/s.$code'
-import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
-import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
+import { Route as ApiAuthSessionRouteImport } from './routes/api/auth/session'
 import { Route as ApiOgCodeRouteImport } from './routes/api/og/$code'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BoardsRoute = BoardsRouteImport.update({
@@ -141,16 +146,6 @@ const SCodeRoute = SCodeRouteImport.update({
   path: '/s/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
-  id: '/api/auth/callback',
-  path: '/api/auth/callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
-  id: '/api/auth/login',
-  path: '/api/auth/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
   id: '/api/auth/logout',
   path: '/api/auth/logout',
@@ -161,6 +156,11 @@ const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
   path: '/api/auth/me',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthSessionRoute = ApiAuthSessionRouteImport.update({
+  id: '/api/auth/session',
+  path: '/api/auth/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOgCodeRoute = ApiOgCodeRouteImport.update({
   id: '/api/og/$code',
   path: '/api/og/$code',
@@ -169,6 +169,7 @@ const ApiOgCodeRoute = ApiOgCodeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/boards': typeof BoardsRoute
   '/monitor': typeof MonitorRoute
   '/api/agentmail': typeof ApiAgentmailRoute
@@ -189,14 +190,14 @@ export interface FileRoutesByFullPath {
   '/api/workspaces': typeof ApiWorkspacesRoute
   '/p/$slug': typeof PSlugRoute
   '/s/$code': typeof SCodeRoute
-  '/api/auth/callback': typeof ApiAuthCallbackRoute
-  '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/og/$code': typeof ApiOgCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/boards': typeof BoardsRoute
   '/monitor': typeof MonitorRoute
   '/api/agentmail': typeof ApiAgentmailRoute
@@ -217,15 +218,15 @@ export interface FileRoutesByTo {
   '/api/workspaces': typeof ApiWorkspacesRoute
   '/p/$slug': typeof PSlugRoute
   '/s/$code': typeof SCodeRoute
-  '/api/auth/callback': typeof ApiAuthCallbackRoute
-  '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/og/$code': typeof ApiOgCodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/boards': typeof BoardsRoute
   '/monitor': typeof MonitorRoute
   '/api/agentmail': typeof ApiAgentmailRoute
@@ -246,16 +247,16 @@ export interface FileRoutesById {
   '/api/workspaces': typeof ApiWorkspacesRoute
   '/p/$slug': typeof PSlugRoute
   '/s/$code': typeof SCodeRoute
-  '/api/auth/callback': typeof ApiAuthCallbackRoute
-  '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/og/$code': typeof ApiOgCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/boards'
     | '/monitor'
     | '/api/agentmail'
@@ -276,14 +277,14 @@ export interface FileRouteTypes {
     | '/api/workspaces'
     | '/p/$slug'
     | '/s/$code'
-    | '/api/auth/callback'
-    | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
+    | '/api/auth/session'
     | '/api/og/$code'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/boards'
     | '/monitor'
     | '/api/agentmail'
@@ -304,14 +305,14 @@ export interface FileRouteTypes {
     | '/api/workspaces'
     | '/p/$slug'
     | '/s/$code'
-    | '/api/auth/callback'
-    | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
+    | '/api/auth/session'
     | '/api/og/$code'
   id:
     | '__root__'
     | '/'
+    | '/about'
     | '/boards'
     | '/monitor'
     | '/api/agentmail'
@@ -332,15 +333,15 @@ export interface FileRouteTypes {
     | '/api/workspaces'
     | '/p/$slug'
     | '/s/$code'
-    | '/api/auth/callback'
-    | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
+    | '/api/auth/session'
     | '/api/og/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   BoardsRoute: typeof BoardsRoute
   MonitorRoute: typeof MonitorRoute
   ApiAgentmailRoute: typeof ApiAgentmailRoute
@@ -361,10 +362,9 @@ export interface RootRouteChildren {
   ApiWorkspacesRoute: typeof ApiWorkspacesRoute
   PSlugRoute: typeof PSlugRoute
   SCodeRoute: typeof SCodeRoute
-  ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
-  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiAuthMeRoute: typeof ApiAuthMeRoute
+  ApiAuthSessionRoute: typeof ApiAuthSessionRoute
   ApiOgCodeRoute: typeof ApiOgCodeRoute
 }
 
@@ -375,6 +375,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/boards': {
@@ -517,20 +524,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/callback': {
-      id: '/api/auth/callback'
-      path: '/api/auth/callback'
-      fullPath: '/api/auth/callback'
-      preLoaderRoute: typeof ApiAuthCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/login': {
-      id: '/api/auth/login'
-      path: '/api/auth/login'
-      fullPath: '/api/auth/login'
-      preLoaderRoute: typeof ApiAuthLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/auth/logout': {
       id: '/api/auth/logout'
       path: '/api/auth/logout'
@@ -545,6 +538,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthMeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/session': {
+      id: '/api/auth/session'
+      path: '/api/auth/session'
+      fullPath: '/api/auth/session'
+      preLoaderRoute: typeof ApiAuthSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/og/$code': {
       id: '/api/og/$code'
       path: '/api/og/$code'
@@ -557,6 +557,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   BoardsRoute: BoardsRoute,
   MonitorRoute: MonitorRoute,
   ApiAgentmailRoute: ApiAgentmailRoute,
@@ -577,12 +578,20 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorkspacesRoute: ApiWorkspacesRoute,
   PSlugRoute: PSlugRoute,
   SCodeRoute: SCodeRoute,
-  ApiAuthCallbackRoute: ApiAuthCallbackRoute,
-  ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiAuthMeRoute: ApiAuthMeRoute,
+  ApiAuthSessionRoute: ApiAuthSessionRoute,
   ApiOgCodeRoute: ApiOgCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

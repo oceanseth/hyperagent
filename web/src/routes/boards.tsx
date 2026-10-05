@@ -3,11 +3,27 @@ import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
 type Board = { code: string; title: string; role: 'owner' | 'member' }
+type FirebaseConfig = { apiKey: string; authDomain: string }
+
+const FIREBASE_CDN = 'https://www.gstatic.com/firebasejs/11.6.0'
+
+async function googleSignIn(config: FirebaseConfig) {
+  const [appModule, authModule] = await Promise.all([
+    import(/* @vite-ignore */ `${FIREBASE_CDN}/firebase-app.js`),
+    import(/* @vite-ignore */ `${FIREBASE_CDN}/firebase-auth.js`),
+  ])
+  const app = appModule.getApps().length ? appModule.getApp() : appModule.initializeApp(config)
+  const auth = authModule.getAuth(app)
+  const credential = await authModule.signInWithPopup(auth, new authModule.GoogleAuthProvider())
+  return credential.user.getIdToken() as Promise<string>
+}
 
 function Boards() {
   const { error } = Route.useSearch()
   const [account, setAccount] = useState<{ name: string; email: string } | null | undefined>(undefined)
   const [configured, setConfigured] = useState(true)
+  const [firebase, setFirebase] = useState<FirebaseConfig | null>(null)
+  const [signingIn, setSigningIn] = useState(false)
   const [boards, setBoards] = useState<Board[] | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -16,11 +32,12 @@ function Boards() {
   useEffect(() => {
     let cancelled = false
     fetch('/api/auth/me', { cache: 'no-store' })
-      .then((response) => response.json() as Promise<{ account: { name: string; email: string } | null; configured?: boolean }>)
+      .then((response) => response.json() as Promise<{ account: { name: string; email: string } | null; configured?: boolean; firebase?: FirebaseConfig }>)
       .then(async (body) => {
         if (cancelled) return
         setAccount(body.account)
         setConfigured(body.configured !== false)
+        setFirebase(body.firebase ?? null)
         if (!body.account) { setBoards([]); return }
         const list = await fetch('/api/workspaces', { cache: 'no-store' })
         const data = await list.json() as { boards?: Board[]; error?: string }
@@ -31,6 +48,28 @@ function Boards() {
       .catch(() => { if (!cancelled) { setAccount(null); setBoards([]); setMessage('Could not load your boards.') } })
     return () => { cancelled = true }
   }, [])
+
+  const signIn = async () => {
+    if (!firebase || signingIn) return
+    setSigningIn(true)
+    setMessage(null)
+    try {
+      const idToken = await googleSignIn(firebase)
+      const response = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      })
+      const body = await response.json() as { account?: { name: string; email: string }; error?: string }
+      if (!response.ok || !body.account) { setMessage(body.error ?? 'Login did not finish. Try again.'); return }
+      location.reload()
+    } catch (err) {
+      const code = (err as { code?: string })?.code ?? ''
+      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') setMessage('Login did not finish. Try again.')
+    } finally {
+      setSigningIn(false)
+    }
+  }
 
   const createBoard = async () => {
     const response = await fetch('/api/workspaces', {
@@ -62,14 +101,14 @@ function Boards() {
         <a href="/" style={{ color: '#f2f2ed', textDecoration: 'none', fontSize: 22, fontWeight: 650, letterSpacing: '-1px', display: 'inline-flex', alignItems: 'center', gap: 8 }}><HTreeMark size={24} dither />hyperagent</a>
         <h1 style={{ fontSize: 40, letterSpacing: '-1.4px', margin: '28px 0 8px' }}>Your boards</h1>
         <p style={{ color: '#b7b7b0', marginTop: 0 }}>Each link opens that shared canvas. The title is what social apps show when the link is pasted.</p>
-        {error === 'config' && <p style={{ color: '#e7c27a' }}>Auth0 is not configured on this server yet. It needs AUTH0_DOMAIN, AUTH0_CLIENT_ID, and AUTH0_SECRET or AUTH0_CLIENT_SECRET. The callback URL is /api/auth/callback.</p>}
+        {error === 'config' && <p style={{ color: '#e7c27a' }}>Login is not configured on this server yet. It needs SESSION_SECRET.</p>}
         {error === 'login' && <p style={{ color: '#e7c27a' }}>Login did not finish. Try again.</p>}
         {message && <p style={{ color: '#e7c27a' }}>{message}</p>}
         {account === undefined && <p>Loading…</p>}
         {account === null && (
-          configured
-            ? <a href="/api/auth/login" style={{ color: '#1b1b1b', background: '#b4c4a1', padding: '10px 14px', borderRadius: 8, textDecoration: 'none', display: 'inline-block' }}>Log in with Auth0</a>
-            : <p style={{ color: '#e7c27a' }}>Auth0 is not configured on this server yet.</p>
+          configured && firebase
+            ? <button type="button" onClick={() => void signIn()} disabled={signingIn} style={{ color: '#1b1b1b', background: '#b4c4a1', border: 0, padding: '10px 14px', borderRadius: 8, cursor: signingIn ? 'wait' : 'pointer', font: 'inherit', display: 'inline-block' }}>{signingIn ? 'Signing in…' : 'Sign in with Google'}</button>
+            : <p style={{ color: '#e7c27a' }}>Login is not configured on this server yet.</p>
         )}
         {account && (
           <>

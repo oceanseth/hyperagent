@@ -44,10 +44,11 @@ Server secrets for the app: `NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`,
 Northwest is the default filing provider, not required. The worker needs
 `NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`, `DATABASE_URL`,
 `JOBS_SECRET`, `EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`, and optionally
-`COSMOS_TOKEN`. Auth0 login needs `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, and
-`AUTH0_SECRET` (or `AUTH0_CLIENT_SECRET`). Register
-`https://hyperagent.lol/api/auth/callback` as an allowed callback and
-`https://hyperagent.lol` as an allowed logout URL. Optional model overrides: `NEON_MODEL_ASSISTANT` (default
+`COSMOS_TOKEN`. Google login needs `SESSION_SECRET` (any long random string;
+it signs the session cookie). Sign-in itself runs through Firebase Auth's
+Google provider — the public web config is baked in and can be swapped with
+`FIREBASE_API_KEY` / `FIREBASE_AUTH_DOMAIN`; the serving domain must be in
+that Firebase project's authorized domains list. Optional model overrides: `NEON_MODEL_ASSISTANT` (default
 claude-sonnet-5), `NEON_MODEL_RESEARCH` (default gpt-5-5), and
 `NEON_MODEL_BROWSER` (browser agent; defaults to the assistant model).
 Values are mirrored in AWS SSM under `/hyperagent/*`.

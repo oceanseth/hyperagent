@@ -1,11 +1,26 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 
 const ACCOUNT = 'phab-account'
-const TX = 'phab-auth-tx'
 
 export type Account = { sub: string; name: string; email: string }
 
-type AuthConfig = { domain: string; clientId: string; clientSecret?: string; secret: string }
+// Google sign-in runs client-side through Firebase Auth; the server verifies the
+// ID token against the same Firebase project and keeps its own sealed cookie.
+// The Firebase web config is public by design; env vars can swap the project.
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY?.trim() || 'AIzaSyBIEI6RLWvtoDuMWbMtzkjq3lEnywKheWo'
+const FIREBASE_AUTH_DOMAIN = process.env.FIREBASE_AUTH_DOMAIN?.trim() || 'chooseyourprotocol.firebaseapp.com'
+
+export function firebaseClientConfig() {
+  return { apiKey: FIREBASE_API_KEY, authDomain: FIREBASE_AUTH_DOMAIN }
+}
+
+function sessionSecret() {
+  return process.env.SESSION_SECRET?.trim() || process.env.AUTH0_SECRET?.trim() || ''
+}
+
+export function authConfigured() {
+  return Boolean(sessionSecret())
+}
 
 export function appOrigin(request: Request) {
   const url = new URL(request.url)
@@ -18,19 +33,6 @@ export function appOrigin(request: Request) {
     if (allowed.includes(origin) || forwarded.startsWith('localhost')) return origin
   }
   return allowed[0] ?? 'https://hyperagent.lol'
-}
-
-function authConfig(): AuthConfig | undefined {
-  const domain = process.env.AUTH0_DOMAIN?.trim().replace(/^https?:\/\//, '').replace(/\/$/, '')
-  const clientId = process.env.AUTH0_CLIENT_ID?.trim()
-  const clientSecret = process.env.AUTH0_CLIENT_SECRET?.trim()
-  const secret = process.env.AUTH0_SECRET?.trim() || clientSecret
-  if (!domain || !clientId || !secret) return undefined
-  return { domain, clientId, clientSecret, secret }
-}
-
-export function authConfigured() {
-  return Boolean(authConfig())
 }
 
 function cookieValue(request: Request, name: string) {
@@ -64,10 +66,10 @@ function open<T>(token: string, secret: string): T | undefined {
 }
 
 export function accountFromRequest(request: Request): Account | undefined {
-  const cfg = authConfig()
+  const secret = sessionSecret()
   const raw = cookieValue(request, ACCOUNT)
-  if (!cfg || !raw) return undefined
-  const data = open<Account & { exp?: number }>(decodeURIComponent(raw), cfg.secret)
+  if (!secret || !raw) return undefined
+  const data = open<Account & { exp?: number }>(decodeURIComponent(raw), secret)
   if (!data?.sub || !data.exp || data.exp < Date.now()) return undefined
   return {
     sub: String(data.sub).slice(0, 200),
@@ -81,92 +83,38 @@ function accountCookie(account: Account, request: Request, secret: string) {
   return setCookie(ACCOUNT, token, request, 30 * 86400)
 }
 
-export function loginResponse(request: Request) {
-  const cfg = authConfig()
-  const origin = appOrigin(request)
-  if (!cfg) return Response.redirect(`${origin}/boards?error=config`, 302)
-  const state = randomBytes(16).toString('base64url')
-  const verifier = randomBytes(32).toString('base64url')
-  const challenge = createHash('sha256').update(verifier).digest('base64url')
-  const redirectUri = `${origin}/api/auth/callback`
-  const authorize = new URL(`https://${cfg.domain}/authorize`)
-  authorize.searchParams.set('response_type', 'code')
-  authorize.searchParams.set('client_id', cfg.clientId)
-  authorize.searchParams.set('redirect_uri', redirectUri)
-  authorize.searchParams.set('scope', 'openid profile email')
-  authorize.searchParams.set('state', state)
-  authorize.searchParams.set('code_challenge', challenge)
-  authorize.searchParams.set('code_challenge_method', 'S256')
-  const headers = new Headers({ Location: authorize.toString(), 'Cache-Control': 'no-store' })
-  headers.append('Set-Cookie', setCookie(TX, seal({ state, verifier }, cfg.secret), request, 600))
-  return new Response(null, { status: 302, headers })
-}
-
-export async function callbackResponse(request: Request) {
-  const cfg = authConfig()
-  const origin = appOrigin(request)
-  const fail = (reason: string) => {
-    const headers = new Headers({ Location: `${origin}/boards?error=${reason}`, 'Cache-Control': 'no-store' })
-    headers.append('Set-Cookie', setCookie(TX, '', request, 0))
-    return new Response(null, { status: 302, headers })
-  }
-  if (!cfg) return fail('config')
-  const url = new URL(request.url)
-  const code = url.searchParams.get('code')
-  const state = url.searchParams.get('state')
-  const raw = cookieValue(request, TX)
-  const tx = raw ? open<{ state?: string; verifier?: string }>(decodeURIComponent(raw), cfg.secret) : undefined
-  if (!code || !state || !tx?.verifier || tx.state !== state) return fail('login')
-  const redirectUri = `${origin}/api/auth/callback`
-  const body = new URLSearchParams({
-    grant_type: 'authorization_code',
-    client_id: cfg.clientId,
-    code,
-    redirect_uri: redirectUri,
-    code_verifier: tx.verifier,
-  })
-  if (cfg.clientSecret) body.set('client_secret', cfg.clientSecret)
+export async function sessionResponse(request: Request) {
+  const secret = sessionSecret()
+  if (!secret) return Response.json({ error: 'Login is not configured on this server yet.' }, { status: 503 })
+  let idToken = ''
   try {
-    const tokenResponse = await fetch(`https://${cfg.domain}/oauth/token`, {
+    const body = await request.json() as { idToken?: unknown }
+    if (typeof body?.idToken === 'string') idToken = body.idToken
+  } catch { /* fall through to the length check */ }
+  if (!idToken || idToken.length > 4096) return Response.json({ error: 'Login did not finish. Try again.' }, { status: 400 })
+  try {
+    const lookup = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
       signal: AbortSignal.timeout(15000),
     })
-    const token = await tokenResponse.json() as { access_token?: string }
-    if (!tokenResponse.ok || !token.access_token) return fail('login')
-    const infoResponse = await fetch(`https://${cfg.domain}/userinfo`, {
-      headers: { Authorization: `Bearer ${token.access_token}` },
-      signal: AbortSignal.timeout(15000),
-    })
-    const info = await infoResponse.json() as { sub?: string; name?: string; email?: string; nickname?: string }
-    if (!infoResponse.ok || !info.sub) return fail('login')
+    const data = await lookup.json() as { users?: Array<{ localId?: string; email?: string; displayName?: string }> }
+    const user = data.users?.[0]
+    if (!lookup.ok || !user?.localId) return Response.json({ error: 'Login did not finish. Try again.' }, { status: 401 })
     const account: Account = {
-      sub: info.sub,
-      name: info.name || info.nickname || info.email || 'Account',
-      email: info.email || '',
+      sub: user.localId,
+      name: user.displayName || user.email || 'Account',
+      email: user.email || '',
     }
-    const headers = new Headers({ Location: `${origin}/boards`, 'Cache-Control': 'no-store' })
-    headers.append('Set-Cookie', accountCookie(account, request, cfg.secret))
-    headers.append('Set-Cookie', setCookie(TX, '', request, 0))
-    return new Response(null, { status: 302, headers })
+    return Response.json({ account }, { headers: { 'Set-Cookie': accountCookie(account, request, secret), 'Cache-Control': 'no-store' } })
   } catch {
-    return fail('login')
+    return Response.json({ error: 'Login did not finish. Try again.' }, { status: 502 })
   }
 }
 
 export function logoutResponse(request: Request) {
-  const cfg = authConfig()
-  const origin = appOrigin(request)
-  const headers = new Headers({ 'Cache-Control': 'no-store' })
+  const headers = new Headers({ 'Cache-Control': 'no-store', Location: appOrigin(request) })
   headers.append('Set-Cookie', setCookie(ACCOUNT, '', request, 0))
-  if (!cfg) {
-    headers.set('Location', origin)
-    return new Response(null, { status: 302, headers })
-  }
-  const logout = new URL(`https://${cfg.domain}/v2/logout`)
-  logout.searchParams.set('client_id', cfg.clientId)
-  logout.searchParams.set('returnTo', origin)
-  headers.set('Location', logout.toString())
   return new Response(null, { status: 302, headers })
 }
