@@ -24,6 +24,7 @@ function boardHref() {
 
 export function InfiniteCanvas({ children }: { children: ReactNode }) {
   const canvas = useInfiniteCanvas()
+  const [scooterPlaying, setScooterPlaying] = useState(false)
 
   return (
     <div className="phab-canvas" data-dragging={canvas.isDragging} {...canvas.canvasProps}>
@@ -31,7 +32,12 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
 
       <header className="phab-canvas-toolbar" data-canvas-overlay>
         <div className="phab-canvas-toolbar-left">
-          <a className="phab-wordmark" href={boardHref()} aria-label="hyperagent home">
+          <a className="phab-wordmark" href={boardHref()} aria-label="hyperagent home" onClick={(event) => {
+            if ((event.target as HTMLElement).closest('.htree-mark')) {
+              event.preventDefault()
+              setScooterPlaying(true)
+            }
+          }}>
             <HTreeMark size={24} dither />
             <span>hyperagent</span>
           </a>
@@ -75,6 +81,16 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
       {canvas.workspace.error && <div className="phab-sync-status" role="status">{canvas.workspace.error}</div>}
       {canvas.selectedPlan && 'plan' in canvas.selectedPlan && <PlanInspector item={canvas.selectedPlan} />}
       <MonitorWidget />
+
+      {scooterPlaying && (
+        <div data-canvas-overlay style={{ position: 'fixed', zIndex: 100, right: 20, bottom: 20, width: 320, padding: 12, borderRadius: 14, background: '#171717', border: '1px solid #ffffff22', boxShadow: '0 12px 40px #0009' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, color: '#f2f2ed', fontSize: 13 }}>
+            <span>Scooter — Hyper Hyper</span>
+            <button className="phab-icon-button" aria-label="Stop Hyper Hyper" onClick={() => setScooterPlaying(false)}><X size={15} /></button>
+          </div>
+          <iframe title="Scooter — Hyper Hyper" width="100%" height="180" src="https://www.youtube.com/embed/F7aKqJsuPDg?autoplay=1" allow="autoplay; encrypted-media; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen style={{ display: 'block', border: 0, borderRadius: 8 }} />
+        </div>
+      )}
 
       {canvas.panel === 'space' && (
         <aside className="phab-canvas-panel phab-space-panel" data-canvas-overlay>
