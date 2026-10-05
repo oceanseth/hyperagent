@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Activity, Check, Crosshair, Eraser, Grid2X2, Minus, PanelLeft, Plus, Search, Share2, StickyNote, X } from 'lucide-react'
+import { Activity, Check, Crosshair, Eraser, Grid2X2, Info, Minus, PanelLeft, Plus, Search, Share2, StickyNote, X } from 'lucide-react'
 import { ArtifactCard } from '#/components/assistant-ui/elements/artifact-card'
 import { field, paper } from '#/components/assistant-ui/elements/surfaces'
 import { useCanvasNote, useInfiniteCanvas } from '#/hooks/use-infinite-canvas'
@@ -9,6 +9,7 @@ import { ResearchCard } from './research-cards'
 import { MonitorWidget } from './monitor-widget'
 import { HTreeMark } from '#/components/brand/htree-mark'
 import { SettingsDialog } from './settings-dialog'
+import { WelcomeDialog } from './welcome-dialog'
 import { clearCanvas, refreshCanvas } from '#/lib/canvas-workspace'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '#/components/ui/dialog'
 import { Button } from '#/components/ui/button'
@@ -51,6 +52,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
           <AccountLink />
           {canvas.workspace.shared && canvas.workspace.boardTitle && <BoardTitle title={canvas.workspace.boardTitle} />}
           <ShareButton shared={canvas.workspace.shared} />
+          <a className="phab-monitor-link" href="/about" target="_blank" rel="noopener noreferrer" title="What is hyperagent?"><Info size={15} /><span>About</span></a>
           <a className="phab-monitor-link" href="/monitor" target="_blank" rel="noopener noreferrer"><Activity size={15} /><span>Activity</span></a>
           <button className="phab-icon-button" {...canvas.overviewButtonProps}><Grid2X2 size={17} strokeWidth={1.5} /></button>
           <button className="phab-icon-button" {...canvas.resetButtonProps}><Crosshair size={19} strokeWidth={1.5} /></button>
@@ -83,6 +85,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
       {canvas.workspace.error && <div className="phab-sync-status" role="status">{canvas.workspace.error}</div>}
       {canvas.selectedPlan && 'plan' in canvas.selectedPlan && <PlanInspector item={canvas.selectedPlan} />}
       <MonitorWidget />
+      <WelcomeDialog />
 
       {scooterPlaying && (
         <div data-canvas-overlay style={{ position: 'fixed', zIndex: 100, right: 20, bottom: 20, width: 320, padding: 12, borderRadius: 14, background: '#171717', border: '1px solid #ffffff22', boxShadow: '0 12px 40px #0009' }}>
