@@ -7,8 +7,11 @@
 .phab-research-image img { height: 169px; width: 260px; object-fit: cover; }
 .phab-research-pdf { height: 169px; overflow: hidden; background: #eeeee8; cursor: auto; }
 .phab-research-pdf iframe { display: block; width: 520px; height: 338px; border: 0; transform: scale(.5); transform-origin: top left; background: #fff; }
-.phab-research-excerpt { height: 169px; overflow: hidden; padding: 18px; background: #e2e1d4; color: #56584b; }
-.phab-research-excerpt p { margin-top: 13px; font-size: 12px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.phab-research-excerpt { height: 169px; overflow: hidden; padding: 17px 18px; background: radial-gradient(ellipse at 100% 0%, #a6b58220, transparent 65%), #30332c; color: #e2e5d8; }
+.phab-research-excerpt-kicker { display: flex; align-items: center; gap: 7px; color: #aeb99a; font-size: 8px; letter-spacing: 1px; }
+.phab-research-excerpt p { margin: 17px 0 0; color: #d5d8cb; font-size: 12px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.phab-research-excerpt[data-empty='true'] p { margin-top: 20px; color: #b5b9ab; }
+.phab-research-excerpt-hint { display: block; margin-top: 8px; color: #858b7c; font-size: 9px; }
 .phab-research-source-title { display: flex; align-items: flex-start; gap: 8px; padding: 14px 15px 8px; }
 .phab-research-source-title h3 { flex: 1; margin: 0; font-size: 13px; font-weight: 500; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .phab-research-source-title a { color: #b3b59a; padding: 2px; }

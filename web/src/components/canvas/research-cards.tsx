@@ -38,7 +38,11 @@ export function ResearchCard({ item }: { item: CanvasArtifact }) {
       ) : card.pdfPreview ? (
         <div className="phab-research-pdf" {...card.previewProps}><iframe src={card.pdfPreview} title={item.label} loading="lazy" referrerPolicy="no-referrer" tabIndex={-1} /></div>
       ) : (
-        <div className="phab-research-excerpt"><FileText size={22} /><p>{item.text || 'Open this source to read the original.'}</p></div>
+        <div className="phab-research-excerpt" data-empty={!item.text}>
+          <span className="phab-research-excerpt-kicker"><FileText size={14} /> SOURCE PREVIEW</span>
+          <p>{item.text || 'A preview isn’t available for this page yet.'}</p>
+          {!item.text && <span className="phab-research-excerpt-hint">Open the source below to read more</span>}
+        </div>
       )}
       <div className="phab-research-source-title"><h3>{item.label}</h3><a {...card.openProps}><ArrowUpRight size={17} /></a></div>
       <div className="phab-research-source-footer"><span className="phab-research-state" data-status={card.status}>{card.working ? <LoaderCircle size={10} className="phab-research-state-spinner" /> : card.failed ? <CircleAlert size={10} /> : <Check size={10} />}{card.statusLabel}</span><a {...card.openProps}>{card.openLabel} <ArrowUpRight size={12} /></a></div>

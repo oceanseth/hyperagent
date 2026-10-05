@@ -5,7 +5,7 @@ import { reportToolEvent, type ResearchToolEventHandler } from './mcp'
 // results or the user's job status.
 export class WebSearchError extends Error {}
 
-type SearchSource = { url: string; title?: string; pdfUrl?: string }
+type SearchSource = { url: string; title?: string; pdfUrl?: string; description?: string }
 type SearchInput = {
   query: string
   limit?: number
@@ -139,20 +139,30 @@ async function invokeExa(rpc: Rpc, query: string, count: number): Promise<string
 function parseExaResults(text: string): { text: string; sources: SearchSource[] } {
   const sources = new Map<string, SearchSource>()
   let title: string | undefined
+  let currentUrl: string | undefined
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim()
     if (/^Title:\s*/i.test(line)) { title = line.replace(/^Title:\s*/i, '').trim().slice(0, 300) || undefined; continue }
+    if (/^Highlights?:\s*/i.test(line)) {
+      const description = line.replace(/^Highlights?:\s*/i, '').trim().slice(0, 1200) || undefined
+      const previous = currentUrl ? sources.get(currentUrl) : undefined
+      if (currentUrl && previous && description) sources.set(currentUrl, { ...previous, description })
+      continue
+    }
     const urlMatch = /^(?:Source |Result )?URL:\s*(\S+)/i.exec(line)
     if (urlMatch) {
       const url = sourceUrl(urlMatch[1])
       if (url && (sources.has(url) || sources.size < 60)) {
+        const previous = sources.get(url)
         sources.set(url, {
           url,
-          title: title || sources.get(url)?.title,
+          title: title || previous?.title,
+          description: previous?.description,
           // This is the exact returned URL, never a guessed publisher URL.
           pdfUrl: /\.pdf$/i.test(new URL(url).pathname) ? url : undefined,
         })
       }
+      currentUrl = url
       title = undefined
     }
   }
