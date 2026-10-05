@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 
 const VIDEO_URL =
-  'https://buzz.masky.ai/media/bfde632e2ddc76364861c82d4d0902b6a41aaf6a1a24ee7e8c34129c37615284.mp4'
+  'https://buzz.masky.ai/media/e635c682fced9856fb1a9d62fa9644bb643d238e17f41d9ac0bf2cd71b598a05.mp4'
 
 export const Route = createFileRoute('/about')({
   ssr: false,
