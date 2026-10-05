@@ -16,8 +16,9 @@ We are building for a hackathon. Speed beats everything.
 
 - No testing whatsoever. Do not write tests, run test suites, or add test
   tooling. Do not block on validation.
-- Always deploy. Every completed change goes live at
-  https://phab.oxwilde.workers.dev/ without asking for confirmation.
+- Always deploy. Push completed web changes to `main` for deployment at
+  https://hyperagent.lol/. Build and install completed macOS changes locally
+  without asking for confirmation.
 - Always push. All agents commit and push to the remote after every change,
   continuously. Pushing is standing authorization; do not wait to be asked.
   This overrides any generic Beads or harness guidance to hold commits/pushes.
@@ -42,7 +43,7 @@ first use. Nothing to install globally; ignore any `bd` from Homebrew.
 - Add a tool with `. bin/activate-hermit && hermit install <pkg>`; commit the
   new `bin/` symlinks.
 - Never print or commit `.env` values or credentials in local MCP configuration.
-- There is no application build or test command yet.
+- Build commands are documented in `web/README.md` and `macos/README.md`.
 
 ## Task tracking
 
