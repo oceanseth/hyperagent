@@ -1,20 +1,21 @@
 name: deploy-production
 
-# PRODUCTION: this deploys hyperagent.lol. Only the production branch builds
-# here, and only when explicitly instructed — day-to-day work ships to the dev
-# branch (deploy-dev.yml → dev.hyperagent.lol).
+# PRODUCTION: this deploys hyperagent.lol, which is served by Fly.io
+# (app `hyperagent-app`, fronted by CloudFront E1CN18K0LLPOH3).
+# Pushes to the production branch deploy directly — there is no dev hop.
+# Fly machine swaps take ~1 minute; one deploy at a time (runs queue via
+# the concurrency group below, they are not cancelled mid-rollout).
 on:
   push:
     branches: [production]
   workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: read
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -23,55 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: us-east-1
+      - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Login to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build image
+      - name: Deploy to Fly
+        working-directory: web
         env:
-          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-        run: |
-          docker build -f web/Dockerfile.app \
-            -t "$ECR_REGISTRY/hyperagent-app:latest" \
-            -t "$ECR_REGISTRY/hyperagent-app:${{ github.sha }}" \
-            web
-
-      - name: Push image
-        env:
-          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-        run: |
-          docker push "$ECR_REGISTRY/hyperagent-app:latest"
-          docker push "$ECR_REGISTRY/hyperagent-app:${{ github.sha }}"
-
-      # App Runner auto-deploys on :latest pushes; this explicit StartDeployment
-      # is belt-and-braces. It must not fail the job if the service does not
-      # exist yet (first deploy happens before the service is created).
-      - name: Trigger App Runner deployment
-        run: |
-          SERVICE_ARN=$(aws apprunner list-services --region us-east-1 \
-            --query "ServiceSummaryList[?ServiceName=='hyperagent-app'].ServiceArn | [0]" \
-            --output text)
-          if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then
-            echo "App Runner service hyperagent-app not found; skipping StartDeployment."
-            exit 0
-          fi
-          # StartDeployment is rejected while a previous roll is in flight
-          # (service not RUNNING), which would strand this image until the
-          # next push. Wait for RUNNING, then trigger.
-          for i in $(seq 1 60); do
-            STATUS=$(aws apprunner describe-service --region us-east-1 \
-              --service-arn "$SERVICE_ARN" --query Service.Status --output text)
-            if [ "$STATUS" = "RUNNING" ]; then
-              aws apprunner start-deployment --region us-east-1 --service-arn "$SERVICE_ARN" && exit 0
-            fi
-            echo "Service status: $STATUS; retrying StartDeployment in 15s (attempt $i/60)"
-            sleep 15
-          done
-          echo "Timed out waiting for RUNNING; image is pushed and will roll on the next deployment." >&2
-          exit 1
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy . -c fly.app.toml --remote-only
