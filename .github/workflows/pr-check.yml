@@ -1,0 +1,46 @@
+name: pr-check
+
+# Prove web install, typecheck, production build, and both images on pull
+# requests to dev. No registry push and no deploy credentials.
+on:
+  pull_request:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install, typecheck, and build
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run typecheck
+          pnpm run build
+
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app image
+        run: docker build -f web/Dockerfile.app web
+
+      - name: Build worker image
+        run: docker build -f web/Dockerfile.worker web

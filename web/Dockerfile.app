@@ -4,14 +4,15 @@
 FROM node:24-slim AS build
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install -g pnpm@12.4.2
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 
 # Routes are pre-generated and committed; regenerate defensively if present.
-RUN if [ -d src/routes ]; then npx tsr generate || true; fi
-RUN NITRO_PRESET=node_server npm run build
+RUN if [ -d src/routes ]; then pnpm exec tsr generate || true; fi
+RUN NITRO_PRESET=node_server pnpm run build
 
 # --- Stage 2: runtime ---
 FROM node:24-slim

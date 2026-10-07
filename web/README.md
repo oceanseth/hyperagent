@@ -118,7 +118,7 @@ GitHub Actions builds `web/Dockerfile.app` and pushes it to ECR
 Auth uses the OIDC role in the `AWS_DEPLOY_ROLE_ARN`
 repository variable; there are no long-lived AWS keys in GitHub.
 
-For a local production build: `NITRO_PRESET=node_server npm run build`, then
+For a local production build: `NITRO_PRESET=node_server pnpm run build`, then
 `node .output/server/index.mjs` with the env above.
 
 # Getting Started
@@ -126,16 +126,46 @@ For a local production build: `NITRO_PRESET=node_server npm run build`, then
 To run this application:
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
+
+`pnpm dev` starts Vite through [portless](https://github.com/vercel-labs/portless)
+(`portless run vite dev`). There is no fixed `--port 3001`. The dev script
+still loads `web/.env.local` into the server with `dotenv-cli`, so values that
+contain `&` are not split by the shell. The app name is `web` (from
+`package.json`):
+
+- Main checkout: `https://web.localhost`
+- Linked worktree: `https://<branch>.web.localhost`, using the last segment of
+  the branch name (`feature/my-fix` → `my-fix.web.localhost`)
+
+The first run on a machine starts the HTTPS proxy on port 443, which asks for
+sudo, and creates a local certificate authority. Trust it once with
+`pnpm exec portless trust`.
+
+Headless and no-sudo runs (agents, CI, containers) keep the proxy off port 443
+and off the user `~/.portless` state directory:
+
+```bash
+export PORTLESS_STATE_DIR="${TMPDIR:-/tmp}/portless-hyperagent"
+export PORTLESS_SYNC_HOSTS=0
+pnpm exec portless proxy start --no-tls -p 1355
+pnpm dev
+# http://web.localhost:1355
+# or http://<branch>.web.localhost:1355 in a linked worktree
+pnpm exec portless proxy stop -p 1355
+```
+
+Linked worktrees are created and removed with the repo scripts. See
+[Worktrees](../AGENTS.md#worktrees) in `AGENTS.md`.
 
 # Building For Production
 
 To build this application for production:
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 ## Styling
@@ -157,7 +187,7 @@ If you prefer not to use Tailwind CSS:
 This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
 
 ```bash
-npm run build
+pnpm run build
 node dist/server/index.mjs
 ```
 

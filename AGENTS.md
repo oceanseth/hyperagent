@@ -108,3 +108,30 @@ flows with `npm run architecture:generate`; preview with `npm run architecture:d
 The sponsor showcase is in `web/public/architecture/`. Beads remains the source
 of truth for task tracking; do not duplicate its tasks in Backlog.
 <!-- groma:end -->
+
+## Worktrees
+
+Create a linked worktree, then bootstrap it from that worktree's root. The
+setup script refuses to run in the main checkout.
+
+```bash
+git worktree add ../hyperagent-<branch> -b <branch>
+cd ../hyperagent-<branch>
+scripts/worktree-setup.sh
+```
+
+After the branch is merged, delete the worktree:
+
+```bash
+scripts/worktree-teardown.sh --remove-worktree
+```
+
+Anyone who adds a new gitignored runtime requirement (env file, local dataset,
+credential file, or generated artifact needed at runtime) must add it to the
+setup manifest in `scripts/worktree-setup.sh` and, where relevant, to
+`scripts/worktree-teardown.sh`, in the same change.
+
+Environment variables are loaded through direnv from the root `.envrc`.
+`scripts/worktree-setup.sh` runs `direnv allow` on every run, including again
+whenever `.envrc` changes. In non-interactive shells, run commands with
+`direnv exec . <cmd>`. Dev URLs for `pnpm dev` are documented in `web/README.md`.

@@ -1,7 +1,9 @@
 FROM node:24-bookworm-slim
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm install -g pnpm@12.4.2
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Production dependencies only. tsx is a runtime dependency and stays installed.
+RUN pnpm install --frozen-lockfile --prod
 COPY tsconfig.json ./
 COPY src/lib ./src/lib
 COPY src/server ./src/server

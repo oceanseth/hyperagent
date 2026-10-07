@@ -67,8 +67,8 @@ Backlog is initialized without replacing agent instructions or duplicating tasks
 From `web/`:
 
 ```sh
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 The app expects server configuration for Neon, the Executor MCP, and the research worker. See [`web/README.md`](web/README.md) for deployment details, integration settings, browser-agent behavior, and the full architecture. Keep credentials in local ignored environment files or production secret stores.
@@ -82,7 +82,7 @@ The app expects server configuration for Neon, the Executor MCP, and the researc
 
 **Rules for agents working in this repo:**
 
-1. **Test locally first** (`npm run dev` from `web/`).
+1. **Test locally first** (`pnpm dev` from `web/`).
 2. **Ship to `dev`.** Merge or push your work to the `dev` branch; GitHub Actions (`deploy-dev.yml`) builds it and deploys dev.hyperagent.lol automatically.
 3. **Never touch `production` unless specifically told to.** A production release is an explicit, human-requested act: fast-forward `production` to the commit being released and push; `deploy-production.yml` deploys hyperagent.lol.
 

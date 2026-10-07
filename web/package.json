@@ -6,7 +6,7 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "dotenv -e .env.local -- vite dev --port 3001",
+    "dev": "dotenv -e .env.local portless run vite dev",
     "generate-routes": "tsr generate",
     "build": "vite build",
     "preview": "vite preview",
@@ -54,13 +54,9 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.1",
     "dotenv-cli": "^11.0.0",
+    "portless": "0.15.1",
     "typescript": "^6.0.2",
     "vite": "^8.0.0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lightningcss"
-    ]
-  }
+  "packageManager": "pnpm@12.4.2"
 }

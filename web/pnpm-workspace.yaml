@@ -1,0 +1,5 @@
+# pnpm 12 ignores package.json "pnpm.onlyBuiltDependencies". esbuild's
+# postinstall fetches its native binary; lightningcss is the Tailwind engine.
+allowBuilds:
+  esbuild: true
+  lightningcss: true
