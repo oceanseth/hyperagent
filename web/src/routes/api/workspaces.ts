@@ -8,7 +8,7 @@ export const Route = createFileRoute('/api/workspaces')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const account = accountFromRequest(request)
+        const account = await accountFromRequest(request)
         if (!account) return Response.json({ error: 'Log in to see your boards.' }, { status: 401, headers: { 'Cache-Control': 'no-store' } })
         try {
           const workspaceId = readWorkspaceId(request)
@@ -20,7 +20,7 @@ export const Route = createFileRoute('/api/workspaces')({
         }
       },
       POST: async ({ request }) => {
-        const account = accountFromRequest(request)
+        const account = await accountFromRequest(request)
         if (!account) return Response.json({ error: 'Log in to make a board.' }, { status: 401, headers: { 'Cache-Control': 'no-store' } })
         const parsed = z.object({ title: z.string().max(120).optional() }).safeParse(await request.json().catch(() => ({})))
         if (!parsed.success) return Response.json({ error: 'Invalid board.' }, { status: 400 })

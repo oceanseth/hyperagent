@@ -1,28 +1,15 @@
 import { HTreeMark } from '#/components/brand/htree-mark'
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { supabase } from '#/utils/supabase'
 
 type Board = { code: string; title: string; role: 'owner' | 'member' }
-type FirebaseConfig = { apiKey: string; authDomain: string }
-
-const FIREBASE_CDN = 'https://www.gstatic.com/firebasejs/11.6.0'
-
-async function googleSignIn(config: FirebaseConfig) {
-  const [appModule, authModule] = await Promise.all([
-    import(/* @vite-ignore */ `${FIREBASE_CDN}/firebase-app.js`),
-    import(/* @vite-ignore */ `${FIREBASE_CDN}/firebase-auth.js`),
-  ])
-  const app = appModule.getApps().length ? appModule.getApp() : appModule.initializeApp(config)
-  const auth = authModule.getAuth(app)
-  const credential = await authModule.signInWithPopup(auth, new authModule.GoogleAuthProvider())
-  return credential.user.getIdToken() as Promise<string>
-}
 
 function Boards() {
   const { error } = Route.useSearch()
   const [account, setAccount] = useState<{ name: string; email: string } | null | undefined>(undefined)
-  const [configured, setConfigured] = useState(true)
-  const [firebase, setFirebase] = useState<FirebaseConfig | null>(null)
+  const [email, setEmail] = useState('')
+  const [linkSent, setLinkSent] = useState(false)
   const [signingIn, setSigningIn] = useState(false)
   const [boards, setBoards] = useState<Board[] | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -31,44 +18,49 @@ function Boards() {
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/auth/me', { cache: 'no-store' })
-      .then((response) => response.json() as Promise<{ account: { name: string; email: string } | null; configured?: boolean; firebase?: FirebaseConfig }>)
-      .then(async (body) => {
-        if (cancelled) return
-        setAccount(body.account)
-        setConfigured(body.configured !== false)
-        setFirebase(body.firebase ?? null)
-        if (!body.account) { setBoards([]); return }
-        const list = await fetch('/api/workspaces', { cache: 'no-store' })
-        const data = await list.json() as { boards?: Board[]; error?: string }
-        if (cancelled) return
-        if (!list.ok) setMessage(data.error ?? 'Could not load your boards.')
-        setBoards(data.boards ?? [])
-      })
-      .catch(() => { if (!cancelled) { setAccount(null); setBoards([]); setMessage('Could not load your boards.') } })
+    const load = async () => {
+      // A magic-link / OAuth redirect lands here with ?code=. getSession waits
+      // for the PKCE exchange, which writes the sb-* cookies the server reads.
+      await supabase.auth.getSession().catch(() => null)
+      if (location.search.includes('code=')) history.replaceState(null, '', location.pathname)
+      const response = await fetch('/api/auth/me', { cache: 'no-store' })
+      const body = await response.json() as { account: { name: string; email: string } | null }
+      if (cancelled) return
+      setAccount(body.account)
+      if (!body.account) { setBoards([]); return }
+      const list = await fetch('/api/workspaces', { cache: 'no-store' })
+      const data = await list.json() as { boards?: Board[]; error?: string }
+      if (cancelled) return
+      if (!list.ok) setMessage(data.error ?? 'Could not load your boards.')
+      setBoards(data.boards ?? [])
+    }
+    load().catch(() => { if (!cancelled) { setAccount(null); setBoards([]); setMessage('Could not load your boards.') } })
     return () => { cancelled = true }
   }, [])
 
-  const signIn = async () => {
-    if (!firebase || signingIn) return
+  const sendMagicLink = async () => {
+    const address = email.trim()
+    if (!address || signingIn) return
     setSigningIn(true)
     setMessage(null)
-    try {
-      const idToken = await googleSignIn(firebase)
-      const response = await fetch('/api/auth/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      })
-      const body = await response.json() as { account?: { name: string; email: string }; error?: string }
-      if (!response.ok || !body.account) { setMessage(body.error ?? 'Login did not finish. Try again.'); return }
-      location.reload()
-    } catch (err) {
-      const code = (err as { code?: string })?.code ?? ''
-      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') setMessage('Login did not finish. Try again.')
-    } finally {
-      setSigningIn(false)
-    }
+    const { error: sendError } = await supabase.auth.signInWithOtp({
+      email: address,
+      options: { emailRedirectTo: `${location.origin}/boards` },
+    })
+    setSigningIn(false)
+    if (sendError) setMessage(sendError.message)
+    else setLinkSent(true)
+  }
+
+  const githubSignIn = async () => {
+    setMessage(null)
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: { redirectTo: `${location.origin}/boards` },
+    })
+    // On success the browser navigates away; an error usually means the
+    // provider is not enabled in the Supabase dashboard yet.
+    if (oauthError) setMessage(oauthError.message)
   }
 
   const createBoard = async () => {
@@ -101,14 +93,29 @@ function Boards() {
         <a href="/" style={{ color: '#f2f2ed', textDecoration: 'none', fontSize: 22, fontWeight: 650, letterSpacing: '-1px', display: 'inline-flex', alignItems: 'center', gap: 8 }}><HTreeMark size={24} dither />hyperagent</a>
         <h1 style={{ fontSize: 40, letterSpacing: '-1.4px', margin: '28px 0 8px' }}>Your boards</h1>
         <p style={{ color: '#b7b7b0', marginTop: 0 }}>Each link opens that shared canvas. The title is what social apps show when the link is pasted.</p>
-        {error === 'config' && <p style={{ color: '#e7c27a' }}>Login is not configured on this server yet. It needs SESSION_SECRET.</p>}
         {error === 'login' && <p style={{ color: '#e7c27a' }}>Login did not finish. Try again.</p>}
         {message && <p style={{ color: '#e7c27a' }}>{message}</p>}
         {account === undefined && <p>Loading…</p>}
         {account === null && (
-          configured && firebase
-            ? <button type="button" onClick={() => void signIn()} disabled={signingIn} style={{ color: '#1b1b1b', background: '#b4c4a1', border: 0, padding: '10px 14px', borderRadius: 8, cursor: signingIn ? 'wait' : 'pointer', font: 'inherit', display: 'inline-block' }}>{signingIn ? 'Signing in…' : 'Sign in with Google'}</button>
-            : <p style={{ color: '#e7c27a' }}>Login is not configured on this server yet.</p>
+          linkSent
+            ? <p>Check your email — the sign-in link lands you back here.</p>
+            : (
+              <div style={{ display: 'grid', gap: 12, maxWidth: 420 }}>
+                <form onSubmit={(event) => { event.preventDefault(); void sendMagicLink() }} style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    aria-label="Email for sign-in link"
+                    style={{ color: '#f2f2ed', background: '#252623', border: '1px solid #444', borderRadius: 8, padding: '10px 12px', font: 'inherit', flex: '1 1 200px' }}
+                  />
+                  <button type="submit" disabled={signingIn} style={{ color: '#1b1b1b', background: '#b4c4a1', border: 0, padding: '10px 14px', borderRadius: 8, cursor: signingIn ? 'wait' : 'pointer', font: 'inherit' }}>{signingIn ? 'Sending…' : 'Email me a sign-in link'}</button>
+                </form>
+                <button type="button" onClick={() => void githubSignIn()} style={{ color: '#f2f2ed', background: 'transparent', border: '1px solid #444', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', font: 'inherit', justifySelf: 'start' }}>Sign in with GitHub</button>
+              </div>
+            )
         )}
         {account && (
           <>
@@ -155,7 +162,7 @@ function Boards() {
 
 export const Route = createFileRoute('/boards')({
   validateSearch: (search: Record<string, unknown>) => ({
-    error: search.error === 'config' || search.error === 'login' ? search.error : undefined,
+    error: search.error === 'login' ? search.error : undefined,
   }),
   ssr: false,
   component: Boards,
