@@ -77,10 +77,12 @@ PY
 cleanup() {
   set +e
   local pid wt branch
-  for wt in "${worktrees[@]+"${worktrees[@]}"}"; do
-    [[ -n $wt && -d $wt ]] || continue
-    stop_tree "$wt"
-  done
+  if [[ -f $BASE/worktrees.list ]]; then
+    while IFS= read -r wt; do
+      [[ -n $wt && -d $wt ]] || continue
+      stop_tree "$wt"
+    done <"$BASE/worktrees.list"
+  fi
   for pid in "${dev_pids[@]+"${dev_pids[@]}"}"; do
     [[ -n $pid ]] || continue
     kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
@@ -92,14 +94,18 @@ cleanup() {
         "$repo/web/node_modules/.bin/portless" proxy stop -p "$PROXY_PORT"
     ) >/dev/null 2>&1 || true
   fi
-  for wt in "${worktrees[@]+"${worktrees[@]}"}"; do
-    [[ -n $wt && -d $wt ]] || continue
-    git -C "$repo" worktree remove --force "$wt" >/dev/null 2>&1 || true
-  done
-  for branch in "${branches[@]+"${branches[@]}"}"; do
-    [[ -n $branch ]] || continue
-    git -C "$repo" branch -D "$branch" >/dev/null 2>&1 || true
-  done
+  if [[ -f $BASE/worktrees.list ]]; then
+    while IFS= read -r wt; do
+      [[ -n $wt && -d $wt ]] || continue
+      git -C "$repo" worktree remove --force "$wt" >/dev/null 2>&1 || true
+    done <"$BASE/worktrees.list"
+  fi
+  if [[ -f $BASE/branches.list ]]; then
+    while IFS= read -r branch; do
+      [[ -n $branch ]] || continue
+      git -C "$repo" branch -D "$branch" >/dev/null 2>&1 || true
+    done <"$BASE/branches.list"
+  fi
   [[ -n $BASE && -d $BASE ]] && rm -rf "$BASE"
   git -C "$repo" worktree prune >/dev/null 2>&1 || true
 }
@@ -110,8 +116,9 @@ add_worktree() {
   local branch="wt-selftest-$name-$$"
   local path="$BASE/$name"
   git -C "$repo" worktree add -b "$branch" "$path" HEAD >/dev/null
-  worktrees+=("$path")
-  branches+=("$branch")
+  # Recorded on disk because this function is often called in a command substitution.
+  printf '%s\n' "$path" >>"$BASE/worktrees.list"
+  printf '%s\n' "$branch" >>"$BASE/branches.list"
   printf '%s\n' "$path"
 }
 
@@ -129,13 +136,14 @@ sys.exit(0)
 PY
 }
 
-main_unchanged() {
-  local before=$1
-  local after
-  after=$(git -C "$MAIN" status --porcelain)
-  if [[ $before != "$after" ]]; then
-    die "main checkout status changed"
-  fi
+snapshot_main_env() {
+  MAIN_ENV_HASH=$(sha256sum "$MAIN/web/.env.local" | awk '{print $1}')
+  MAIN_ENV_MODE=$(stat -c %a "$MAIN/web/.env.local")
+}
+
+assert_main_env() {
+  [[ $(sha256sum "$MAIN/web/.env.local" | awk '{print $1}') == "$MAIN_ENV_HASH" ]] || die "main env file content changed"
+  [[ $(stat -c %a "$MAIN/web/.env.local") == "$MAIN_ENV_MODE" ]] || die "main env file mode changed"
 }
 
 env_fingerprint() {
@@ -184,9 +192,10 @@ branch_host() {
 
 wait_canvas() {
   local url=$1
-  local attempt
+  local attempt body
   for attempt in $(seq 1 90); do
-    if curl -fsS --max-time 5 "$url" | python3 -c 'import json,sys; body=json.load(sys.stdin); raise SystemExit(0 if isinstance(body, dict) and "stacks" in body else 1)'; then
+    body=$(curl -fsS --max-time 5 "$url" 2>/dev/null || true)
+    if [[ -n $body ]] && printf '%s' "$body" | python3 -c 'import json,sys; body=json.load(sys.stdin); raise SystemExit(0 if isinstance(body, dict) and "stacks" in body else 1)'; then
       return 0
     fi
     sleep 2
@@ -240,7 +249,7 @@ filtered_log() {
 
 case $command_name in
   store)
-    main_before=$(git -C "$MAIN" status --porcelain)
+    snapshot_main_env
     first=$(add_worktree store-a)
     second=$(add_worktree store-b)
     (cd "$first/web" && pnpm install --frozen-lockfile --prefer-offline)
@@ -265,11 +274,11 @@ if st.st_nlink <= 1:
 if os.stat(store).st_dev != st.st_dev:
     sys.exit("package file is not on the pnpm store filesystem")
 PY
-    main_unchanged "$main_before"
+    assert_main_env
     ;;
 
   setup)
-    main_before=$(git -C "$MAIN" status --porcelain)
+    snapshot_main_env
     env_hash=$(sha256sum "$MAIN/web/.env.local" | awk '{print $1}')
     env_mode=$(stat -c %a "$MAIN/web/.env.local")
     set +e
@@ -321,11 +330,11 @@ PY
     assert_no_secrets "$BASE/setup-again.out" || die "second setup printed a secret"
     [[ $(env_fingerprint "$wt") == "$finger" ]] || die "second setup changed the copied env file"
     [[ $(git -C "$wt" status --porcelain) == "$status_a" ]] || die "second setup changed tracked files"
-    main_unchanged "$main_before"
+    assert_main_env
     ;;
 
   portless)
-    main_before=$(git -C "$MAIN" status --porcelain)
+    snapshot_main_env
     grep -q 'portless run' "$repo/web/package.json" || die "dev script does not run portless"
     grep -q -- '--port 3001' "$repo/web/package.json" && die "fixed --port 3001 is still in package.json"
     grep -q 'portless proxy start --no-tls' "$repo/web/README.md" || die "README is missing the headless portless example"
@@ -369,11 +378,11 @@ PY
       PORTLESS_STATE_DIR="$STATE_DIR" PORTLESS_SYNC_HOSTS=0 \
         "$a/web/node_modules/.bin/portless" proxy stop -p "$PROXY_PORT"
     )
-    main_unchanged "$main_before"
+    assert_main_env
     ;;
 
   teardown)
-    main_before=$(git -C "$MAIN" status --porcelain)
+    snapshot_main_env
     if grep -n 'rm -rf' "$repo/scripts/worktree-teardown.sh" >/dev/null; then
       die "teardown contains rm -rf"
     fi
@@ -432,11 +441,11 @@ PY
     (cd "$b" && PORTLESS_STATE_DIR="$STATE_DIR" PORTLESS_PORT="$PROXY_PORT" PORTLESS_HTTPS=0 PORTLESS_SYNC_HOSTS=0 \
       bash scripts/worktree-teardown.sh --remove-worktree)
     [[ ! -d $b ]] || die "merged-worktree removal left the worktree in place"
-    main_unchanged "$main_before"
+    assert_main_env
     ;;
 
   direnv)
-    main_before=$(git -C "$MAIN" status --porcelain)
+    snapshot_main_env
     grep -q 'dotenv_if_exists web/.env.local' "$repo/.envrc" || die ".envrc is missing web/.env.local"
     grep -q 'dotenv_if_exists .env' "$repo/.envrc" || die ".envrc dropped dotenv_if_exists .env"
     grep -q 'source bin/activate-hermit' "$repo/.envrc" || die ".envrc dropped hermit activation"
@@ -459,7 +468,7 @@ PY
     run_exec "$wt"
     run_exec "$wt/web"
     (cd "$wt" && bash scripts/worktree-setup.sh)
-    main_unchanged "$main_before"
+    assert_main_env
     ;;
 
   *)

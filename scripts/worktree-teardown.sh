@@ -37,56 +37,67 @@ main_checkout() {
   (cd "$line" && pwd -P)
 }
 
-is_ancestor() {
-  local pid=$1
-  local cursor=$2
-  while [[ $cursor -gt 1 ]]; do
-    if [[ $cursor -eq $pid ]]; then
-      return 0
-    fi
-    cursor=$(ps -o ppid= -p "$cursor" | tr -d ' ')
-    [[ -n $cursor ]] || break
-  done
-  return 1
-}
-
 stop_servers() {
   local root=$1
-  local pid cwd cmd
-  local -a victims=()
-  for pid in /proc/[0-9]*; do
-    pid=${pid#/proc/}
-    [[ $pid =~ ^[0-9]+$ ]] || continue
-    is_ancestor "$pid" "$$" && continue
-    cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null || true)
-    [[ -n $cwd ]] || continue
-    case $cwd in
-      "$root"|"$root"/*) ;;
-      *) continue ;;
-    esac
-    cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)
-    case $cmd in
-      *portless*|*vite*|*dotenv*|*pnpm*) ;;
-      *) continue ;;
-    esac
-    victims+=("$pid")
-  done
-  if [[ ${#victims[@]} -eq 0 ]]; then
-    return 0
-  fi
-  kill -TERM "${victims[@]}" 2>/dev/null || true
-  local i
-  for i in 1 2 3 4 5 6 7 8 9 10; do
-    local alive=0
-    for pid in "${victims[@]}"; do
-      if kill -0 "$pid" 2>/dev/null; then
-        alive=1
-      fi
-    done
-    [[ $alive -eq 0 ]] && return 0
-    sleep 0.2
-  done
-  kill -KILL "${victims[@]}" 2>/dev/null || true
+  # One pass over /proc. A bash loop that forked ps or tr per PID stalled for
+  # minutes and delayed the signal to this worktree's dev server.
+  python3 - "$root" "$$" <<'PY'
+import os, signal, sys, time
+root = sys.argv[1]
+skip = set()
+cursor = int(sys.argv[2])
+while cursor > 1:
+    skip.add(cursor)
+    try:
+        ppid = None
+        with open(f"/proc/{cursor}/status", encoding="ascii", errors="replace") as fh:
+            for line in fh:
+                if line.startswith("PPid:"):
+                    ppid = int(line.split()[1])
+                    break
+        if ppid is None:
+            break
+        cursor = ppid
+    except OSError:
+        break
+tokens = ("portless", "vite", "dotenv", "pnpm")
+victims = []
+for name in os.listdir("/proc"):
+    if not name.isdigit():
+        continue
+    pid = int(name)
+    if pid in skip:
+        continue
+    try:
+        cwd = os.readlink(f"/proc/{pid}/cwd")
+        raw = os.open(f"/proc/{pid}/cmdline", os.O_RDONLY | os.O_NONBLOCK)
+        try:
+            cmd = os.read(raw, 65536).replace(b"\0", b" ").decode(errors="replace")
+        finally:
+            os.close(raw)
+    except OSError:
+        continue
+    if cwd != root and not cwd.startswith(root + os.sep):
+        continue
+    if not any(token in cmd for token in tokens):
+        continue
+    victims.append(pid)
+for pid in victims:
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        pass
+for _ in range(25):
+    if not any(os.path.exists(f"/proc/{pid}") for pid in victims):
+        break
+    time.sleep(0.2)
+else:
+    for pid in victims:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+PY
 }
 
 root=$(git rev-parse --show-toplevel)
