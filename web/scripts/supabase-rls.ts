@@ -29,12 +29,38 @@ const subB = crypto.randomUUID()
 const direct = new PrismaClient({ datasourceUrl: directUrl })
 const created: { workspaceId: string }[] = []
 
+// Interactive transactions default to a 5s timeout. Right after migrate that
+// expires before the role checks finish and Prisma reports the closed
+// transaction as "Transaction not found".
+const roleTransaction = { maxWait: 20_000, timeout: 30_000 }
+
+function lostTransaction(error: unknown) {
+  const parts: string[] = []
+  let current: unknown = error
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    if (!(current instanceof Error)) {
+      parts.push(String(current))
+      break
+    }
+    parts.push(current.message)
+    current = 'cause' in current ? (current as { cause?: unknown }).cause : undefined
+  }
+  return parts.join('\n').includes('Transaction not found')
+}
+
 async function asRole<T>(role: 'authenticated' | 'anon', sub: string | null, read: (tx: Prisma.TransactionClient) => Promise<T>) {
-  return direct.$transaction(async (tx) => {
+  const run = () => direct.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(`SET LOCAL ROLE ${role}`)
     if (sub) await tx.$executeRaw`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub, role: 'authenticated' })}, true)`
     return read(tx)
-  })
+  }, roleTransaction)
+  try {
+    return await run()
+  } catch (error) {
+    if (!lostTransaction(error)) throw error
+    console.log('retry asRole after Transaction not found')
+    return run()
+  }
 }
 
 try {
