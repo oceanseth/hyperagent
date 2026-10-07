@@ -79,7 +79,11 @@ for name in os.listdir("/proc"):
         continue
     if cwd != root and not cwd.startswith(root + os.sep):
         continue
-    if not any(token in cmd for token in tokens):
+    if pid == os.getpid():
+        continue
+    # Drop the worktree path before matching. A directory named portless-*
+    # is not a portless process, and this helper's argv contains that path.
+    if not any(token in cmd.replace(root, " ") for token in tokens):
         continue
     victims.append(pid)
 for pid in victims:

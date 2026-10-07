@@ -369,9 +369,9 @@ PY
       die "second dev server failed"
     fi
     (cd "$a" && PORTLESS_STATE_DIR="$STATE_DIR" PORTLESS_PORT="$PROXY_PORT" PORTLESS_HTTPS=0 PORTLESS_SYNC_HOSTS=0 \
-      bash scripts/worktree-teardown.sh)
+      bash "$repo/scripts/worktree-teardown.sh")
     (cd "$b" && PORTLESS_STATE_DIR="$STATE_DIR" PORTLESS_PORT="$PROXY_PORT" PORTLESS_HTTPS=0 PORTLESS_SYNC_HOSTS=0 \
-      bash scripts/worktree-teardown.sh)
+      bash "$repo/scripts/worktree-teardown.sh")
     dev_pids=()
     (
       cd /
@@ -417,29 +417,29 @@ PY
     wait_canvas "$url_a" || { filtered_log "$log_a"; die "teardown fixture A failed"; }
     wait_canvas "$url_b" || { filtered_log "$log_b"; die "teardown fixture B failed"; }
     (cd "$a" && PORTLESS_STATE_DIR="$STATE_DIR" PORTLESS_PORT="$PROXY_PORT" PORTLESS_HTTPS=0 PORTLESS_SYNC_HOSTS=0 \
-      bash scripts/worktree-teardown.sh)
+      bash "$repo/scripts/worktree-teardown.sh")
     if curl -fsS --max-time 5 "$url_a" >/dev/null 2>&1; then
       die "teardown left the first dev server answering"
     fi
     wait_canvas "$url_b" || die "the other worktree stopped answering"
     (cd "$a" && PORTLESS_STATE_DIR="$STATE_DIR" PORTLESS_PORT="$PROXY_PORT" PORTLESS_HTTPS=0 PORTLESS_SYNC_HOSTS=0 \
-      bash scripts/worktree-teardown.sh)
+      bash "$repo/scripts/worktree-teardown.sh")
     wait_canvas "$url_b" || die "idempotent teardown disturbed the other worktree"
 
     dirty=$(add_worktree teardown-dirty)
     echo dirty >"$dirty/untracked.txt"
     set +e
-    dirty_out=$(cd "$dirty" && bash scripts/worktree-teardown.sh --remove-worktree 2>&1)
+    dirty_out=$(cd "$dirty" && bash "$repo/scripts/worktree-teardown.sh" --remove-worktree 2>&1)
     dirty_code=$?
     set -e
     [[ $dirty_code -ne 0 ]] || die "teardown removed a dirty worktree"
     [[ -d $dirty ]] || die "dirty worktree disappeared"
     printf '%s\n' "$dirty_out" | grep -q 'uncommitted' || die "dirty refusal did not mention uncommitted changes"
-    (cd "$dirty" && bash scripts/worktree-teardown.sh --remove-worktree --force)
+    (cd "$dirty" && bash "$repo/scripts/worktree-teardown.sh" --remove-worktree --force)
     [[ ! -d $dirty ]] || die "--force did not remove the dirty worktree"
 
     (cd "$b" && PORTLESS_STATE_DIR="$STATE_DIR" PORTLESS_PORT="$PROXY_PORT" PORTLESS_HTTPS=0 PORTLESS_SYNC_HOSTS=0 \
-      bash scripts/worktree-teardown.sh --remove-worktree)
+      bash "$repo/scripts/worktree-teardown.sh" --remove-worktree)
     [[ ! -d $b ]] || die "merged-worktree removal left the worktree in place"
     assert_main_env
     ;;
