@@ -45,6 +45,8 @@ def main():
             funnel = profile['funnel']
             command = [sys.executable, str(Path(__file__).with_name('funnel-client.py')),
                        '--host', funnel['host'], '--port', str(funnel['port']), '--local-port', '0']
+            for address in funnel.get('fallback_addresses', []):
+                command += ['--fallback-address', address]
             # Used only for a routing proof through the public relay's resolved IP.
             if os.environ.get('BEADS_FUNNEL_CONNECT_ADDRESS'):
                 command += ['--connect-address', os.environ['BEADS_FUNNEL_CONNECT_ADDRESS']]

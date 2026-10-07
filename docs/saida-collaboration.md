@@ -33,3 +33,10 @@ credentials and validate independent worktree services, stateful integration
 tests and required PR CI. Registration and database access are already usable.
 The app's documented hosted dev deployment shares production resources; it
 is not an isolated baseline. Follow `AGENTS.md` and the city delivery policy.
+
+The hostname's public DNS publication is currently failing. The private profile
+includes temporary verified Funnel relay addresses; the helper uses them only
+when DNS lookup fails, while still validating TLS for the hostname. These are
+Tailscale relay addresses, not the city machine's IP. Normal hostname resolution
+resumes automatically once DNS is fixed. Relay address changes would require
+an updated profile until then.
