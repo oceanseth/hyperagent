@@ -1,6 +1,8 @@
 node_modules
 .git
 .env*
+!.env.development
+!.env.production
 *.local
 .output
 .nitro
