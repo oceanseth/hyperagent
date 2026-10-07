@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Settings } from 'lucide-react'
 import {
   Dialog,
@@ -6,7 +6,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '#/components/ui/dialog'
 import { Button } from '#/components/ui/button'
 
@@ -25,13 +24,62 @@ const EXECUTOR_LABELS: Record<string, { label: string; note: string }> = {
   kernel: { label: 'KERNEL cloud browsers', note: 'Atlas, wyobiz, and any filing site without an API.' },
 }
 
+type BoardRow = { code: string; title: string; role: 'owner' | 'member'; live: number }
+
+function currentBoardCode() {
+  return /^\/s\/([a-z0-9]{4,32})$/i.exec(window.location.pathname)?.[1]?.toLowerCase() ?? ''
+}
+
+function liveLabel(count: number) {
+  if (count === 1) return '1 live'
+  return `${count} live`
+}
+
 export function SettingsDialog() {
   const [open, setOpen] = useState(false)
+  const [menu, setMenu] = useState(false)
+  const [boards, setBoards] = useState<BoardRow[] | null>(null)
+  const [signedIn, setSignedIn] = useState<boolean | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const [settings, setSettings] = useState<MaskedSetting[]>([])
   const [executor, setExecutor] = useState<Record<string, boolean>>({})
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const response = await fetch('/api/workspaces', { cache: 'no-store' })
+        if (cancelled) return
+        if (response.status === 401) { setSignedIn(false); setBoards([]); return }
+        if (!response.ok) return
+        const data = await response.json() as { boards?: BoardRow[] }
+        setSignedIn(true)
+        setBoards(data.boards ?? [])
+      } catch {
+        if (!cancelled) setBoards([])
+      }
+    }
+    void load()
+    const timer = window.setInterval(() => void load(), 15_000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [])
+
+  useEffect(() => {
+    if (!menu) return
+    const close = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenu(false)
+    }
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenu(false) }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
 
   useEffect(() => {
     if (!open) return
@@ -67,11 +115,75 @@ export function SettingsDialog() {
     }
   }
 
+  const owned = (boards ?? []).filter((board) => board.role === 'owner')
+  const liveTotal = owned.reduce((sum, board) => sum + board.live, 0)
+  const here = currentBoardCode()
+
+  const createBoard = async () => {
+    const response = await fetch('/api/workspaces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+    const data = await response.json().catch(() => ({})) as { url?: string }
+    if (response.ok && data.url) location.href = data.url
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="phab-icon-button" title="Settings" aria-label="Settings">
+    <div className="phab-settings" ref={menuRef}>
+      <button
+        type="button"
+        className="phab-icon-button"
+        title="Canvases and settings"
+        aria-label="Canvases and settings"
+        aria-expanded={menu}
+        aria-haspopup="menu"
+        onClick={() => setMenu((value) => !value)}
+      >
         <Settings size={17} strokeWidth={1.5} />
-      </DialogTrigger>
+        {liveTotal > 0 && <span className="phab-settings-badge">{liveTotal > 9 ? '9+' : liveTotal}</span>}
+      </button>
+      {menu && (
+        <div className="phab-settings-menu" role="menu">
+          <div className="phab-settings-menu-head">
+            <span>Your canvases</span>
+            <span>{boards === null && signedIn !== false ? '…' : liveLabel(liveTotal)}</span>
+          </div>
+          {signedIn === false && <p className="phab-settings-note">Log in to see the canvases on this account.</p>}
+          {boards === null && signedIn !== false && <p className="phab-settings-note">Loading…</p>}
+          {signedIn && owned.length === 0 && <p className="phab-settings-note">No canvases yet.</p>}
+          {owned.map((board) => {
+            const current = board.code.toLowerCase() === here
+            return (
+              <a
+                key={board.code}
+                className="phab-settings-row"
+                role="menuitem"
+                href={`/s/${board.code}`}
+                data-current={current}
+                aria-current={current ? 'page' : undefined}
+                onClick={() => setMenu(false)}
+              >
+                <span className="phab-settings-row-title">{board.title}</span>
+                <span className="phab-settings-live" data-on={board.live > 0}>{board.live > 0 ? liveLabel(board.live) : 'idle'}</span>
+              </a>
+            )
+          })}
+          {signedIn && (
+            <button type="button" className="phab-settings-row" role="menuitem" onClick={() => void createBoard()}>
+              <span>New canvas</span>
+            </button>
+          )}
+          {signedIn === false && (
+            <a className="phab-settings-row" role="menuitem" href="/boards">Log in</a>
+          )}
+          <div className="phab-settings-rule" />
+          <button type="button" className="phab-settings-row" role="menuitem" onClick={() => { setMenu(false); setOpen(true) }}>
+            <span>API keys</span>
+          </button>
+        </div>
+      )}
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
@@ -126,5 +238,6 @@ export function SettingsDialog() {
         </div>
       </DialogContent>
     </Dialog>
+    </div>
   )
 }

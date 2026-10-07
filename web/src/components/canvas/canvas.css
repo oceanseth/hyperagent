@@ -32,6 +32,20 @@
 .phab-share-toast-head strong { color: #b4c4a1; font-weight: 600; }
 .phab-share-toast-head button { display: grid; place-items: center; padding: 2px; border: 0; background: transparent; color: #969696; cursor: pointer; }
 .phab-share-toast input { width: 100%; padding: 6px 8px; border: 1px solid #ffffff17; border-radius: 6px; background: #1b1b1b; color: #f0f0ec; font: inherit; font-size: 11px; outline: none; }
+.phab-settings { position: relative; }
+.phab-settings > .phab-icon-button { position: relative; }
+.phab-settings-badge { position: absolute; top: 2px; right: 1px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: #b4c4a1; color: #1b1b1b; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; pointer-events: none; }
+.phab-settings-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; display: grid; gap: 2px; width: 280px; max-height: min(420px, 70dvh); overflow: auto; padding: 10px; border: 1px solid #ffffff17; border-radius: 12px; background: #252623f2; box-shadow: 0 12px 40px #0006; color: #f0f0ec; }
+.phab-settings-menu-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 2px 6px 8px; color: #8e8e86; font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; }
+.phab-settings-menu-head span:last-child { color: #b4c4a1; letter-spacing: 0; text-transform: none; font-weight: 600; }
+.phab-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: 8px; background: transparent; color: #f0f0ec; font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; }
+.phab-settings-row:hover, .phab-settings-row[data-current='true'] { background: #ffffff0c; }
+.phab-settings-row[data-current='true'] { box-shadow: inset 2px 0 0 #b4c4a1; }
+.phab-settings-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phab-settings-live { flex: none; color: #8e8e86; font-size: 11px; }
+.phab-settings-live[data-on='true'] { color: #b4c4a1; }
+.phab-settings-note { margin: 4px 6px 8px; color: #8e8e86; font-size: 12px; line-height: 1.4; }
+.phab-settings-rule { height: 1px; margin: 6px 4px; background: #ffffff14; }
 @keyframes phab-share-in { from { opacity: 0; transform: translateY(-4px); } }
 .phab-toolbar-divider { height: 14px; width: 1px; background: #3b3b3b; margin-inline: 3px; flex: none; }
 .phab-icon-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; color: #969696; border: 0; border-radius: 7px; background: transparent; cursor: pointer; transition: color .15s, background .15s; }

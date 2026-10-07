@@ -206,9 +206,16 @@ export async function claimWorkspace(sub: string, workspaceId: string) {
 }
 
 export async function listBoards(sub: string) {
-  const rows = await sql`SELECT s.code, s.title, m.role, m.created_at
+  // A running job older than the worker lease is not live; claimJob treats it
+  // the same way. Queued jobs still count — an agent is about to start.
+  const rows = await sql`SELECT s.code, s.title, m.role, COALESCE(live.n, 0) AS live
     FROM phab_board_members m
     JOIN phab_share_codes s ON s.code = m.code
+    LEFT JOIN LATERAL (
+      SELECT count(*)::int AS n FROM phab_canvas_jobs j
+      WHERE j.workspace_id = s.workspace_id
+        AND (j.status = 'queued' OR (j.status = 'running' AND j.updated_at > now() - interval '12 minutes'))
+    ) live ON true
     WHERE m.sub = ${sub}
     ORDER BY m.created_at DESC
     LIMIT 100`
@@ -216,6 +223,7 @@ export async function listBoards(sub: string) {
     code: String(row.code),
     title: cleanTitle(row.title),
     role: row.role === 'owner' ? 'owner' as const : 'member' as const,
+    live: Number(row.live ?? 0),
   }))
 }
 
