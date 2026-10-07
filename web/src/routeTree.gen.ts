@@ -33,7 +33,6 @@ import { Route as PSlugRouteImport } from './routes/p.$slug'
 import { Route as SCodeRouteImport } from './routes/s.$code'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
-import { Route as ApiAuthSessionRouteImport } from './routes/api/auth/session'
 import { Route as ApiOgCodeRouteImport } from './routes/api/og/$code'
 
 const IndexRoute = IndexRouteImport.update({
@@ -156,11 +155,6 @@ const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
   path: '/api/auth/me',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthSessionRoute = ApiAuthSessionRouteImport.update({
-  id: '/api/auth/session',
-  path: '/api/auth/session',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiOgCodeRoute = ApiOgCodeRouteImport.update({
   id: '/api/og/$code',
   path: '/api/og/$code',
@@ -192,7 +186,6 @@ export interface FileRoutesByFullPath {
   '/s/$code': typeof SCodeRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
-  '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/og/$code': typeof ApiOgCodeRoute
 }
 export interface FileRoutesByTo {
@@ -220,7 +213,6 @@ export interface FileRoutesByTo {
   '/s/$code': typeof SCodeRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
-  '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/og/$code': typeof ApiOgCodeRoute
 }
 export interface FileRoutesById {
@@ -249,7 +241,6 @@ export interface FileRoutesById {
   '/s/$code': typeof SCodeRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
-  '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/og/$code': typeof ApiOgCodeRoute
 }
 export interface FileRouteTypes {
@@ -279,7 +270,6 @@ export interface FileRouteTypes {
     | '/s/$code'
     | '/api/auth/logout'
     | '/api/auth/me'
-    | '/api/auth/session'
     | '/api/og/$code'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -307,7 +297,6 @@ export interface FileRouteTypes {
     | '/s/$code'
     | '/api/auth/logout'
     | '/api/auth/me'
-    | '/api/auth/session'
     | '/api/og/$code'
   id:
     | '__root__'
@@ -335,7 +324,6 @@ export interface FileRouteTypes {
     | '/s/$code'
     | '/api/auth/logout'
     | '/api/auth/me'
-    | '/api/auth/session'
     | '/api/og/$code'
   fileRoutesById: FileRoutesById
 }
@@ -364,7 +352,6 @@ export interface RootRouteChildren {
   SCodeRoute: typeof SCodeRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiAuthMeRoute: typeof ApiAuthMeRoute
-  ApiAuthSessionRoute: typeof ApiAuthSessionRoute
   ApiOgCodeRoute: typeof ApiOgCodeRoute
 }
 
@@ -538,13 +525,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthMeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/session': {
-      id: '/api/auth/session'
-      path: '/api/auth/session'
-      fullPath: '/api/auth/session'
-      preLoaderRoute: typeof ApiAuthSessionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/og/$code': {
       id: '/api/og/$code'
       path: '/api/og/$code'
@@ -580,7 +560,6 @@ const rootRouteChildren: RootRouteChildren = {
   SCodeRoute: SCodeRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiAuthMeRoute: ApiAuthMeRoute,
-  ApiAuthSessionRoute: ApiAuthSessionRoute,
   ApiOgCodeRoute: ApiOgCodeRoute,
 }
 export const routeTree = rootRouteImport

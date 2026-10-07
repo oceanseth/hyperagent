@@ -25,7 +25,7 @@ export const Route = createFileRoute('/api/share')({
           return Response.json({ error: 'Share requests must come from this app.' }, { status: 403, headers: { 'Cache-Control': 'no-store' } })
         }
         const session = workspaceSession(request)
-        const account = accountFromRequest(request)
+        const account = await accountFromRequest(request)
         try {
           const parsed = bodySchema.safeParse(await request.json())
           if (!parsed.success) return Response.json({ error: 'Invalid share request.' }, { status: 400, headers: session.headers })

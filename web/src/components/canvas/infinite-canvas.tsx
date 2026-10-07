@@ -179,18 +179,14 @@ function ClearCanvasDialog({ itemCount, shared }: { itemCount: number; shared: b
 
 function AccountLink() {
   const [label, setLabel] = useState<string | null>(null)
-  const [configured, setConfigured] = useState(true)
   useEffect(() => {
     fetch('/api/auth/me', { cache: 'no-store' })
-      .then((response) => response.json() as Promise<{ account: { name?: string; email?: string } | null; configured?: boolean }>)
-      .then((body) => {
-        setConfigured(body.configured !== false)
-        setLabel(body.account ? (body.account.name || body.account.email || 'Boards') : '')
-      })
+      .then((response) => response.json() as Promise<{ account: { name?: string; email?: string } | null }>)
+      .then((body) => setLabel(body.account ? (body.account.name || body.account.email || 'Boards') : ''))
       .catch(() => setLabel(''))
   }, [])
   if (label === null) return null
-  if (!label) return <a className="phab-monitor-link" href={configured ? '/api/auth/login' : '/boards?error=config'}>Log in</a>
+  if (!label) return <a className="phab-monitor-link" href="/boards">Log in</a>
   return <a className="phab-monitor-link phab-board-title" href="/boards">{label}</a>
 }
 
