@@ -1,90 +1,7 @@
-import { neon } from '@neondatabase/serverless'
 import type { CanvasBrowser, CanvasJob, CanvasNote, CanvasStack, CanvasSnapshot, JobEvent } from '#/lib/canvas'
-import { listPlans } from './plans'
 import { uniqueBoardName } from './board-names'
-
-let schemaReady: Promise<void> | undefined
-function database() {
-  const url = process.env.DATABASE_URL
-  if (!url) throw new Error('Canvas storage is not configured.')
-  return neon(url, { fetchOptions: { signal: AbortSignal.timeout(15000) } })
-}
-
-async function ready() {
-  const sql = database()
-  schemaReady ??= (async () => {
-    await sql`CREATE TABLE IF NOT EXISTS phab_canvas_stacks (
-      workspace_id uuid NOT NULL, id uuid NOT NULL, data jsonb NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (workspace_id, id)
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS phab_canvas_jobs (
-      workspace_id uuid NOT NULL, id uuid NOT NULL, title text NOT NULL,
-      task text NOT NULL, context jsonb NOT NULL DEFAULT '[]',
-      status text NOT NULL DEFAULT 'queued', progress text NOT NULL DEFAULT 'Queued',
-      stack_id uuid, created_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (workspace_id, id)
-    )`
-    await sql`ALTER TABLE phab_canvas_jobs
-      ADD COLUMN IF NOT EXISTS worker_id text,
-      ADD COLUMN IF NOT EXISTS worker_region text,
-      ADD COLUMN IF NOT EXISTS started_at timestamptz,
-      ADD COLUMN IF NOT EXISTS heartbeat_at timestamptz,
-      ADD COLUMN IF NOT EXISTS replaces jsonb NOT NULL DEFAULT '[]',
-      ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'research',
-      ADD COLUMN IF NOT EXISTS browser_id uuid`
-    await sql`CREATE TABLE IF NOT EXISTS phab_job_events (
-      workspace_id uuid NOT NULL, job_id uuid NOT NULL,
-      id bigserial PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now(),
-      type text NOT NULL, message text NOT NULL, tool text,
-      duration_ms double precision, details jsonb NOT NULL DEFAULT '{}'
-    )`
-    await sql`CREATE INDEX IF NOT EXISTS phab_job_events_workspace_job_id_idx
-      ON phab_job_events (workspace_id, job_id, id DESC)`
-    await sql`CREATE TABLE IF NOT EXISTS phab_chat_messages (
-      workspace_id uuid NOT NULL, id text NOT NULL, role text NOT NULL,
-      modality text NOT NULL DEFAULT 'chat', content text NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
-      PRIMARY KEY (workspace_id, id)
-    )`
-    await sql`CREATE INDEX IF NOT EXISTS phab_chat_messages_workspace_created_idx
-      ON phab_chat_messages (workspace_id, created_at)`
-    await sql`CREATE TABLE IF NOT EXISTS phab_canvas_notes (
-      workspace_id uuid NOT NULL, id uuid NOT NULL,
-      label text NOT NULL DEFAULT '', body text NOT NULL DEFAULT '',
-      x double precision NOT NULL DEFAULT 0, y double precision NOT NULL DEFAULT 0,
-      promoted_plan_id uuid, promoted_node_id uuid,
-      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
-      PRIMARY KEY (workspace_id, id)
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS phab_canvas_layout (
-      workspace_id uuid PRIMARY KEY, positions jsonb NOT NULL DEFAULT '{}',
-      updated_at timestamptz NOT NULL DEFAULT now()
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS phab_share_codes (
-      code text PRIMARY KEY, workspace_id uuid NOT NULL,
-      title text NOT NULL DEFAULT 'Untitled board',
-      owner_sub text,
-      created_at timestamptz NOT NULL DEFAULT now()
-    )`
-    await sql`ALTER TABLE phab_share_codes
-      ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT 'Untitled board',
-      ADD COLUMN IF NOT EXISTS owner_sub text`
-    await sql`CREATE INDEX IF NOT EXISTS phab_share_codes_workspace_idx
-      ON phab_share_codes (workspace_id)`
-    await sql`CREATE TABLE IF NOT EXISTS phab_board_members (
-      sub text NOT NULL, code text NOT NULL, role text NOT NULL DEFAULT 'member',
-      created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (sub, code)
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS phab_canvas_browsers (
-      workspace_id uuid NOT NULL, id uuid NOT NULL, data jsonb NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
-      PRIMARY KEY (workspace_id, id)
-    )`
-  })().catch((error) => { schemaReady = undefined; throw error })
-  await schemaReady
-  return sql
-}
-
+import { sql, type Sql } from './db'
+import { listPlans } from './plans'
 const isoTimestamp = (value: unknown) => (value instanceof Date ? value : new Date(String(value))).toISOString()
 
 const publicEvent = (row: Record<string, unknown>): JobEvent => ({
@@ -109,13 +26,12 @@ const publicJob = (row: Record<string, unknown>): CanvasJob => ({
 })
 
 export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
-  const sql = await ready()
   const [stacks, jobs, plans, notes, layout, shared, browsers] = await Promise.all([
-    sql`SELECT data FROM (SELECT data, created_at FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT 100) latest ORDER BY created_at ASC`,
+    sql`SELECT data FROM (SELECT data, created_at FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}::uuid ORDER BY created_at DESC LIMIT 100) latest ORDER BY created_at ASC`,
     sql`SELECT jobs.*, history.events FROM (
       SELECT workspace_id, id, title, status, progress, stack_id, created_at, updated_at,
         worker_id, worker_region, started_at, heartbeat_at, kind, browser_id
-      FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT 30
+      FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId}::uuid ORDER BY created_at DESC LIMIT 30
     ) jobs LEFT JOIN LATERAL (
       SELECT COALESCE(jsonb_agg(event ORDER BY event.id), '[]'::jsonb) AS events FROM (
         SELECT id, created_at, type, message, tool, duration_ms, details FROM phab_job_events
@@ -124,8 +40,8 @@ export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
     ) history ON true ORDER BY jobs.created_at DESC`,
     listPlans(workspaceId).catch(() => []),
     listNotes(workspaceId).catch(() => []),
-    sql`SELECT positions FROM phab_canvas_layout WHERE workspace_id = ${workspaceId}`,
-    sql`SELECT title FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`,
+    sql`SELECT positions FROM phab_canvas_layout WHERE workspace_id = ${workspaceId}::uuid`,
+    sql`SELECT title FROM phab_share_codes WHERE workspace_id = ${workspaceId}::uuid LIMIT 1`,
     listBrowsers(workspaceId).catch(() => []),
   ])
   return {
@@ -144,64 +60,55 @@ const publicNote = (row: Record<string, unknown>): CanvasNote => ({
 })
 
 export async function listNotes(workspaceId: string): Promise<CanvasNote[]> {
-  const sql = await ready()
-  const rows = await sql`SELECT * FROM phab_canvas_notes WHERE workspace_id = ${workspaceId} ORDER BY created_at ASC LIMIT 200`
+  const rows = await sql`SELECT * FROM phab_canvas_notes WHERE workspace_id = ${workspaceId}::uuid ORDER BY created_at ASC LIMIT 200`
   return rows.map(publicNote)
 }
 
 /** Upsert keeps promoted_* columns untouched so plan promotion survives edits. */
 export async function upsertNote(workspaceId: string, note: { id: string; label: string; body: string; x: number; y: number }) {
-  const sql = await ready()
   await sql`INSERT INTO phab_canvas_notes (workspace_id, id, label, body, x, y)
-    VALUES (${workspaceId}, ${note.id}, ${note.label.slice(0, 200)}, ${note.body.slice(0, 20_000)}, ${note.x}, ${note.y})
+    VALUES (${workspaceId}::uuid, ${note.id}::uuid, ${note.label.slice(0, 200)}, ${note.body.slice(0, 20_000)}, ${note.x}, ${note.y})
     ON CONFLICT (workspace_id, id) DO UPDATE SET
       label = EXCLUDED.label, body = EXCLUDED.body, x = EXCLUDED.x, y = EXCLUDED.y, updated_at = now()`
 }
 
 export async function removeNote(workspaceId: string, id: string) {
-  const sql = await ready()
-  await sql`DELETE FROM phab_canvas_notes WHERE workspace_id = ${workspaceId} AND id = ${id}`
+  await sql`DELETE FROM phab_canvas_notes WHERE workspace_id = ${workspaceId}::uuid AND id = ${id}::uuid`
 }
 
 export async function listBrowsers(workspaceId: string): Promise<CanvasBrowser[]> {
-  const sql = await ready()
-  const rows = await sql`SELECT data FROM phab_canvas_browsers WHERE workspace_id = ${workspaceId} ORDER BY created_at ASC LIMIT 20`
+  const rows = await sql`SELECT data FROM phab_canvas_browsers WHERE workspace_id = ${workspaceId}::uuid ORDER BY created_at ASC LIMIT 20`
   return rows.map((row) => row.data as CanvasBrowser)
 }
 
 export async function getBrowser(workspaceId: string, id: string): Promise<CanvasBrowser | undefined> {
-  const sql = await ready()
-  const rows = await sql`SELECT data FROM phab_canvas_browsers WHERE workspace_id = ${workspaceId} AND id = ${id}`
+  const rows = await sql`SELECT data FROM phab_canvas_browsers WHERE workspace_id = ${workspaceId}::uuid AND id = ${id}::uuid`
   return rows[0]?.data as CanvasBrowser | undefined
 }
 
 export async function saveBrowser(workspaceId: string, browser: CanvasBrowser) {
-  const sql = await ready()
   await sql`INSERT INTO phab_canvas_browsers (workspace_id, id, data)
-    VALUES (${workspaceId}, ${browser.id}, ${JSON.stringify(browser)}::jsonb)
+    VALUES (${workspaceId}::uuid, ${browser.id}::uuid, ${JSON.stringify(browser)}::jsonb)
     ON CONFLICT (workspace_id, id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`
 }
 
 /** Updates a browser only while it is still on the canvas, so a close wins over a late launch. */
 export async function patchBrowser(workspaceId: string, id: string, patch: Partial<CanvasBrowser>) {
-  const sql = await ready()
   // Keys set to undefined are cleared, e.g. a stale loading message.
   const cleared = Object.entries(patch).filter(([, value]) => value === undefined).map(([key]) => key)
   const rows = await sql`UPDATE phab_canvas_browsers SET data = (data - ${cleared}::text[]) || ${JSON.stringify(patch)}::jsonb, updated_at = now()
-    WHERE workspace_id = ${workspaceId} AND id = ${id} RETURNING data`
+    WHERE workspace_id = ${workspaceId}::uuid AND id = ${id}::uuid RETURNING data`
   return rows[0]?.data as CanvasBrowser | undefined
 }
 
 export async function removeBrowser(workspaceId: string, id: string) {
-  const sql = await ready()
-  const rows = await sql`DELETE FROM phab_canvas_browsers WHERE workspace_id = ${workspaceId} AND id = ${id} RETURNING data`
+  const rows = await sql`DELETE FROM phab_canvas_browsers WHERE workspace_id = ${workspaceId}::uuid AND id = ${id}::uuid RETURNING data`
   return rows[0]?.data as CanvasBrowser | undefined
 }
 
 export async function saveLayout(workspaceId: string, positions: Record<string, { x: number; y: number }>) {
-  const sql = await ready()
   await sql`INSERT INTO phab_canvas_layout (workspace_id, positions)
-    VALUES (${workspaceId}, ${JSON.stringify(positions)}::jsonb)
+    VALUES (${workspaceId}::uuid, ${JSON.stringify(positions)}::jsonb)
     ON CONFLICT (workspace_id) DO UPDATE SET positions = EXCLUDED.positions, updated_at = now()`
 }
 
@@ -212,7 +119,7 @@ export function cleanTitle(value: unknown) {
 
 const shareCode = /^[a-z0-9]{4,32}$/i
 
-async function saveMember(sql: Awaited<ReturnType<typeof ready>>, sub: string, code: string, role: 'owner' | 'member') {
+async function saveMember(sql: Sql, sub: string, code: string, role: 'owner' | 'member') {
   await sql`INSERT INTO phab_board_members (sub, code, role) VALUES (${sub}, ${code}, ${role})
     ON CONFLICT (sub, code) DO UPDATE SET role = CASE
       WHEN EXCLUDED.role = 'owner' OR phab_board_members.role = 'owner' THEN 'owner'
@@ -222,26 +129,25 @@ async function saveMember(sql: Awaited<ReturnType<typeof ready>>, sub: string, c
 
 const untitled = 'Untitled board'
 
-function newBoardName(sql: Awaited<ReturnType<typeof ready>>) {
+function newBoardName(sql: Sql) {
   return uniqueBoardName(async (name) => (await sql`SELECT 1 FROM phab_share_codes WHERE title = ${name} LIMIT 1`).length > 0)
 }
 
 // Sharing names the board automatically: a board still called 'Untitled
 // board' gets a unique docker-style name instead of asking the user.
 export async function createShareCode(workspaceId: string, options?: { title?: string; ownerSub?: string }) {
-  const sql = await ready()
   const requested = options?.title?.trim() ? cleanTitle(options.title) : undefined
-  const existing = await sql`SELECT code, title FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
+  const existing = await sql`SELECT code, title FROM phab_share_codes WHERE workspace_id = ${workspaceId}::uuid LIMIT 1`
   if (existing[0]) {
     const code = String(existing[0].code)
     let title = cleanTitle(existing[0].title)
     const next = requested ?? (title === untitled ? await newBoardName(sql) : undefined)
     if (next && next !== title) {
-      await sql`UPDATE phab_share_codes SET title = ${next} WHERE workspace_id = ${workspaceId}`
+      await sql`UPDATE phab_share_codes SET title = ${next} WHERE workspace_id = ${workspaceId}::uuid`
       title = next
     }
     if (options?.ownerSub) {
-      await sql`UPDATE phab_share_codes SET owner_sub = ${options.ownerSub} WHERE workspace_id = ${workspaceId} AND owner_sub IS NULL`
+      await sql`UPDATE phab_share_codes SET owner_sub = ${options.ownerSub} WHERE workspace_id = ${workspaceId}::uuid AND owner_sub IS NULL`
       await saveMember(sql, options.ownerSub, code, 'owner')
     }
     return { code, title }
@@ -249,23 +155,21 @@ export async function createShareCode(workspaceId: string, options?: { title?: s
   const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
   const title = requested ?? await newBoardName(sql)
   await sql`INSERT INTO phab_share_codes (code, workspace_id, title, owner_sub)
-    VALUES (${code}, ${workspaceId}, ${title}, ${options?.ownerSub ?? null})
+    VALUES (${code}, ${workspaceId}::uuid, ${title}, ${options?.ownerSub ?? null})
     ON CONFLICT (code) DO NOTHING`
-  const row = await sql`SELECT code, title FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
+  const row = await sql`SELECT code, title FROM phab_share_codes WHERE workspace_id = ${workspaceId}::uuid LIMIT 1`
   const saved = String(row[0]?.code ?? code)
   if (options?.ownerSub) await saveMember(sql, options.ownerSub, saved, 'owner')
   return { code: saved, title: row[0] ? cleanTitle(row[0].title) : title }
 }
 
 export async function resolveShareCode(code: string) {
-  const sql = await ready()
   const rows = await sql`SELECT workspace_id FROM phab_share_codes WHERE code = ${code}`
   return rows[0] ? String(rows[0].workspace_id) : undefined
 }
 
 export async function getShareCard(code: string) {
   if (!shareCode.test(code)) return undefined
-  const sql = await ready()
   const rows = await sql`SELECT code, title FROM phab_share_codes WHERE code = ${code} LIMIT 1`
   if (!rows[0]) return undefined
   return { code: String(rows[0].code), title: cleanTitle(rows[0].title) }
@@ -273,7 +177,6 @@ export async function getShareCard(code: string) {
 
 export async function rememberBoard(sub: string, code: string) {
   if (!shareCode.test(code)) return
-  const sql = await ready()
   const rows = await sql`SELECT code, owner_sub FROM phab_share_codes WHERE code = ${code} LIMIT 1`
   if (!rows[0]) return
   const role = rows[0].owner_sub === sub ? 'owner' : 'member'
@@ -283,15 +186,14 @@ export async function rememberBoard(sub: string, code: string) {
 // The first signed-in person to touch an unowned board becomes its owner.
 // A board that already has an owner is only added to this account's list.
 export async function claimWorkspace(sub: string, workspaceId: string) {
-  const sql = await ready()
-  const existing = await sql`SELECT code, owner_sub FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
+  const existing = await sql`SELECT code, owner_sub FROM phab_share_codes WHERE workspace_id = ${workspaceId}::uuid LIMIT 1`
   if (!existing[0]) {
     const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
     const title = await newBoardName(sql)
     await sql`INSERT INTO phab_share_codes (code, workspace_id, title, owner_sub)
-      VALUES (${code}, ${workspaceId}, ${title}, ${sub})
+      VALUES (${code}, ${workspaceId}::uuid, ${title}, ${sub})
       ON CONFLICT (code) DO NOTHING`
-    const row = await sql`SELECT code FROM phab_share_codes WHERE workspace_id = ${workspaceId} LIMIT 1`
+    const row = await sql`SELECT code FROM phab_share_codes WHERE workspace_id = ${workspaceId}::uuid LIMIT 1`
     if (row[0]) await saveMember(sql, sub, String(row[0].code), 'owner')
     return
   }
@@ -304,7 +206,6 @@ export async function claimWorkspace(sub: string, workspaceId: string) {
 }
 
 export async function listBoards(sub: string) {
-  const sql = await ready()
   const rows = await sql`SELECT s.code, s.title, m.role, m.created_at
     FROM phab_board_members m
     JOIN phab_share_codes s ON s.code = m.code
@@ -319,10 +220,9 @@ export async function listBoards(sub: string) {
 }
 
 export async function renameBoard(options: { title: string; workspaceId?: string; code?: string; ownerSub?: string }) {
-  const sql = await ready()
   const title = cleanTitle(options.title)
   if (options.workspaceId) {
-    const rows = await sql`UPDATE phab_share_codes SET title = ${title} WHERE workspace_id = ${options.workspaceId} RETURNING code, title`
+    const rows = await sql`UPDATE phab_share_codes SET title = ${title} WHERE workspace_id = ${options.workspaceId}::uuid RETURNING code, title`
     return rows[0] ? { code: String(rows[0].code), title: String(rows[0].title) } : undefined
   }
   if (options.code && options.ownerSub && shareCode.test(options.code)) {
@@ -335,12 +235,11 @@ export async function renameBoard(options: { title: string; workspaceId?: string
 }
 
 export async function createOwnedBoard(ownerSub: string, title: string) {
-  const sql = await ready()
   const workspaceId = crypto.randomUUID()
   const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
   const name = title.trim() ? cleanTitle(title) : await newBoardName(sql)
   await sql`INSERT INTO phab_share_codes (code, workspace_id, title, owner_sub)
-    VALUES (${code}, ${workspaceId}, ${name}, ${ownerSub})`
+    VALUES (${code}, ${workspaceId}::uuid, ${name}, ${ownerSub})`
   await saveMember(sql, ownerSub, code, 'owner')
   return { workspaceId, code, title: name }
 }
@@ -360,18 +259,16 @@ export async function saveChatMessages(
       content: message.text.slice(0, 20_000),
     }))
   if (!rows.length) return
-  const sql = await ready()
   await sql`INSERT INTO phab_chat_messages (workspace_id, id, role, modality, content)
-    SELECT ${workspaceId}, m.id, m.role, m.modality, m.content
+    SELECT ${workspaceId}::uuid, m.id, m.role, m.modality, m.content
     FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS m(id text, role text, modality text, content text)
     ON CONFLICT (workspace_id, id) DO UPDATE SET content = EXCLUDED.content, updated_at = now()`
 }
 
 export async function listChatHistory(workspaceId: string, limit = 300): Promise<ChatHistoryMessage[]> {
-  const sql = await ready()
   const rows = await sql`SELECT id, role, modality, content, created_at FROM (
     SELECT id, role, modality, content, created_at FROM phab_chat_messages
-    WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT ${limit}
+    WHERE workspace_id = ${workspaceId}::uuid ORDER BY created_at DESC LIMIT ${limit}
   ) latest ORDER BY created_at ASC`
   return rows.map((row) => ({
     id: String(row.id), role: row.role as ChatHistoryMessage['role'],
@@ -383,11 +280,10 @@ export async function listChatHistory(workspaceId: string, limit = 300): Promise
 export type JobKind = 'research' | 'browser'
 
 export async function insertJob(workspaceId: string, title: string, task: string, context: CanvasStack[], replaces: string[] = [], options?: { kind?: JobKind; browserId?: string }) {
-  const sql = await ready()
   const id = crypto.randomUUID()
   const kind = options?.kind ?? 'research'
   const rows = await sql`INSERT INTO phab_canvas_jobs (workspace_id, id, title, task, context, replaces, kind, browser_id)
-    VALUES (${workspaceId}, ${id}, ${title}, ${task}, ${JSON.stringify(context)}::jsonb, ${JSON.stringify(replaces)}::jsonb, ${kind}, ${options?.browserId ?? null}) RETURNING *`
+    VALUES (${workspaceId}::uuid, ${id}::uuid, ${title}, ${task}, ${JSON.stringify(context)}::jsonb, ${JSON.stringify(replaces)}::jsonb, ${kind}, ${options?.browserId ?? null}::uuid) RETURNING *`
   const job = publicJob(rows[0])
   // A telemetry failure must not undo or block durable job lifecycle changes.
   const queued = await recordJobEvent(workspaceId, id, { type: 'queued', message: kind === 'browser' ? 'Browser task saved to the queue.' : 'Research request saved to the queue.' }).catch(() => undefined)
@@ -399,9 +295,8 @@ export async function insertJob(workspaceId: string, title: string, task: string
 }
 
 async function cancelJobs(workspaceId: string, ids: string[], progress: string) {
-  const sql = await ready()
   const rows = await sql`UPDATE phab_canvas_jobs SET status = 'cancelled', progress = ${progress}, updated_at = now()
-    WHERE workspace_id = ${workspaceId} AND (id::text = ANY(${ids}) OR stack_id::text = ANY(${ids}))
+    WHERE workspace_id = ${workspaceId}::uuid AND (id::text = ANY(${ids}) OR stack_id::text = ANY(${ids}))
       AND status IN ('queued', 'running') RETURNING *`
   return await Promise.all(rows.map(async (row) => {
     const job = publicJob(row)
@@ -413,37 +308,34 @@ async function cancelJobs(workspaceId: string, ids: string[], progress: string) 
 
 /** Removes stacks from the canvas and stops any in-flight jobs with those IDs. */
 export async function removeFromCanvas(workspaceId: string, ids: string[]) {
-  const sql = await ready()
   // Stop writers before deleting their partial stacks, so they cannot reappear.
   const cancelled = await cancelJobs(workspaceId, ids, 'Removed from the canvas')
-  const removed = await sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}
+  const removed = await sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}::uuid
     AND (id::text = ANY(${ids}) OR id IN (
-      SELECT stack_id FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId} AND id::text = ANY(${ids})
+      SELECT stack_id FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId}::uuid AND id::text = ANY(${ids})
     )) RETURNING id`
   return { removedStackIds: removed.map((row) => String(row.id)), cancelled }
 }
 
 /** Compact canvas inventory for the sidecar agent: what is on the canvas and what is still coming. */
 export async function canvasInventory(workspaceId: string) {
-  const sql = await ready()
   const [stacks, jobs] = await Promise.all([
     sql`SELECT id, data->>'title' AS title, jsonb_array_length(data->'sources') AS source_count,
       (SELECT jsonb_agg(s->>'title') FROM (SELECT jsonb_array_elements(data->'sources') s LIMIT 4) t) AS sample_sources, created_at
-      FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC LIMIT 40`,
+      FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}::uuid ORDER BY created_at DESC LIMIT 40`,
     sql`SELECT id, title, left(task, 400) AS task, status, created_at FROM phab_canvas_jobs
-      WHERE workspace_id = ${workspaceId} AND status IN ('queued', 'running', 'completed') ORDER BY created_at DESC LIMIT 15`,
+      WHERE workspace_id = ${workspaceId}::uuid AND status IN ('queued', 'running', 'completed') ORDER BY created_at DESC LIMIT 15`,
   ])
   return { stacks, jobs }
 }
 
 export async function claimJob(workspaceId: string, id: string) {
-  const sql = await ready()
   // Atomic lease: duplicate workflow deliveries cannot create duplicate stacks.
   const rows = await sql`UPDATE phab_canvas_jobs SET status = 'running',
     progress = CASE WHEN kind = 'browser' THEN 'Attaching to the browser' ELSE 'Finding sources' END, updated_at = now(),
     worker_id = ${process.env.FLY_MACHINE_ID ?? null}, worker_region = ${process.env.FLY_REGION ?? null},
     started_at = now(), heartbeat_at = now()
-    WHERE workspace_id = ${workspaceId} AND id = ${id} AND (status = 'queued' OR (status = 'running' AND updated_at < now() - interval '12 minutes'))
+    WHERE workspace_id = ${workspaceId}::uuid AND id = ${id}::uuid AND (status = 'queued' OR (status = 'running' AND updated_at < now() - interval '12 minutes'))
     RETURNING *`
   const job = rows[0] as (Record<string, unknown> & { task: string; context: CanvasStack[]; kind: JobKind; browser_id: string | null }) | undefined
   if (job) {
@@ -456,48 +348,43 @@ export async function claimJob(workspaceId: string, id: string) {
 }
 
 export async function pendingJobs() {
-  const sql = await ready()
   return await sql`SELECT workspace_id, id, kind FROM phab_canvas_jobs
     WHERE status = 'queued' OR (status = 'running' AND updated_at < now() - interval '12 minutes')
     ORDER BY created_at ASC LIMIT 4` as { workspace_id: string; id: string; kind: JobKind }[]
 }
 
 export async function updateJob(workspaceId: string, id: string, status: CanvasJob['status'], progress: string) {
-  const sql = await ready()
   const rows = await sql`UPDATE phab_canvas_jobs SET status = ${status}, progress = ${progress}, updated_at = now()
-    WHERE workspace_id = ${workspaceId} AND id = ${id} AND status <> 'cancelled' RETURNING id`
+    WHERE workspace_id = ${workspaceId}::uuid AND id = ${id}::uuid AND status <> 'cancelled' RETURNING id`
   if (status === 'failed' && rows.length) {
     await recordJobEvent(workspaceId, id, { type: 'failed', message: progress }).catch(() => undefined)
   }
 }
 
 export async function recordJobEvent(workspaceId: string, jobId: string, event: Omit<JobEvent, 'id' | 'at'>) {
-  const sql = await ready()
   const rows = await sql`INSERT INTO phab_job_events (workspace_id, job_id, type, message, tool, duration_ms, details)
     SELECT workspace_id, id, ${event.type}, ${event.message}, ${event.tool ?? null},
       ${event.durationMs ?? null}, ${JSON.stringify(event.details ?? {})}::jsonb
-    FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId} AND id = ${jobId}
+    FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId}::uuid AND id = ${jobId}::uuid
     RETURNING id, created_at, type, message, tool, duration_ms, details`
   return rows[0] ? publicEvent(rows[0]) : undefined
 }
 
 export async function heartbeatJob(workspaceId: string, jobId: string) {
-  const sql = await ready()
   const rows = await sql`UPDATE phab_canvas_jobs SET heartbeat_at = now(), updated_at = now()
-    WHERE workspace_id = ${workspaceId} AND id = ${jobId} AND status = 'running' RETURNING id`
+    WHERE workspace_id = ${workspaceId}::uuid AND id = ${jobId}::uuid AND status = 'running' RETURNING id`
   return rows.length > 0
 }
 
 export async function upsertPartialStack(workspaceId: string, jobId: string, stack: CanvasStack) {
-  const sql = await ready()
   const partial: CanvasStack = {
     ...stack, status: 'working', statusText: (stack.statusText ?? 'Research is still running.').slice(0, 500),
   }
   // Lock the job before its stack, matching completeJob. Late partial updates
   // cannot overwrite the final result after the job has completed.
   const rows = await sql`WITH active_job AS (
-    UPDATE phab_canvas_jobs SET stack_id = ${stack.id}, updated_at = now()
-    WHERE workspace_id = ${workspaceId} AND id = ${jobId} AND status IN ('queued', 'running')
+    UPDATE phab_canvas_jobs SET stack_id = ${stack.id}::uuid, updated_at = now()
+    WHERE workspace_id = ${workspaceId}::uuid AND id = ${jobId}::uuid AND status IN ('queued', 'running')
     RETURNING workspace_id
   ) INSERT INTO phab_canvas_stacks (workspace_id, id, data)
     SELECT workspace_id, ${stack.id}::uuid, ${JSON.stringify(partial)}::jsonb FROM active_job WHERE true
@@ -507,17 +394,15 @@ export async function upsertPartialStack(workspaceId: string, jobId: string, sta
 }
 
 export async function markPartialStackFailed(workspaceId: string, jobId: string, message: string) {
-  const sql = await ready()
   await sql`UPDATE phab_canvas_stacks AS stacks
     SET data = stacks.data || jsonb_build_object('status', 'failed', 'statusText', ${message.slice(0, 500)}::text)
     FROM phab_canvas_jobs AS jobs
-    WHERE jobs.workspace_id = ${workspaceId} AND jobs.id = ${jobId}
+    WHERE jobs.workspace_id = ${workspaceId}::uuid AND jobs.id = ${jobId}::uuid
       AND stacks.workspace_id = jobs.workspace_id AND stacks.id = jobs.stack_id
       AND jobs.status NOT IN ('completed', 'cancelled') AND stacks.data->>'status' IS DISTINCT FROM 'complete'`
 }
 
 export async function completeJob(workspaceId: string, id: string, stack: CanvasStack) {
-  const sql = await ready()
   const completed: CanvasStack = {
     ...stack, status: 'complete',
     statusText: ((stack.status === 'complete' ? stack.statusText : undefined) ?? 'Research complete.').slice(0, 500),
@@ -525,25 +410,25 @@ export async function completeJob(workspaceId: string, id: string, stack: Canvas
   // Lock the job before touching stacks, matching progressive writes. A
   // cancellation wins if it committed first; otherwise publication is atomic.
   const [published] = await sql.transaction([
-    sql`UPDATE phab_canvas_jobs SET status = 'completed', progress = 'Added to your canvas', stack_id = ${stack.id}, updated_at = now()
-      WHERE workspace_id = ${workspaceId} AND id = ${id} AND status <> 'cancelled' RETURNING id`,
+    sql`UPDATE phab_canvas_jobs SET status = 'completed', progress = 'Added to your canvas', stack_id = ${stack.id}::uuid, updated_at = now()
+      WHERE workspace_id = ${workspaceId}::uuid AND id = ${id}::uuid AND status <> 'cancelled' RETURNING id`,
     sql`INSERT INTO phab_canvas_stacks (workspace_id, id, data, created_at)
-      SELECT ${workspaceId}, ${stack.id}, ${JSON.stringify(completed)}::jsonb, COALESCE((
+      SELECT ${workspaceId}::uuid, ${stack.id}::uuid, ${JSON.stringify(completed)}::jsonb, COALESCE((
         SELECT min(old.created_at) FROM phab_canvas_stacks old
-        WHERE old.workspace_id = ${workspaceId} AND (
+        WHERE old.workspace_id = ${workspaceId}::uuid AND (
           old.id::text IN (SELECT jsonb_array_elements_text(job.replaces)) OR old.id IN (
-            SELECT stack_id FROM phab_canvas_jobs prior WHERE prior.workspace_id = ${workspaceId}
+            SELECT stack_id FROM phab_canvas_jobs prior WHERE prior.workspace_id = ${workspaceId}::uuid
               AND prior.id::text IN (SELECT jsonb_array_elements_text(job.replaces))
           )
         )
-      ), (SELECT created_at FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} AND id = ${stack.id}), now())
-      FROM phab_canvas_jobs job WHERE job.workspace_id = ${workspaceId} AND job.id = ${id} AND job.status = 'completed'
+      ), (SELECT created_at FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}::uuid AND id = ${stack.id}::uuid), now())
+      FROM phab_canvas_jobs job WHERE job.workspace_id = ${workspaceId}::uuid AND job.id = ${id}::uuid AND job.status = 'completed'
       ON CONFLICT (workspace_id, id) DO UPDATE SET data = EXCLUDED.data, created_at = EXCLUDED.created_at`,
-    sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId} AND id <> ${stack.id} AND id::text IN (
-      SELECT jsonb_array_elements_text(replaces) FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId} AND id = ${id} AND status = 'completed'
+    sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}::uuid AND id <> ${stack.id}::uuid AND id::text IN (
+      SELECT jsonb_array_elements_text(replaces) FROM phab_canvas_jobs WHERE workspace_id = ${workspaceId}::uuid AND id = ${id}::uuid AND status = 'completed'
       UNION
       SELECT prior.stack_id::text FROM phab_canvas_jobs prior, phab_canvas_jobs job
-        WHERE prior.workspace_id = ${workspaceId} AND job.workspace_id = ${workspaceId} AND job.id = ${id} AND job.status = 'completed'
+        WHERE prior.workspace_id = ${workspaceId}::uuid AND job.workspace_id = ${workspaceId}::uuid AND job.id = ${id}::uuid AND job.status = 'completed'
           AND prior.id::text IN (SELECT jsonb_array_elements_text(job.replaces))
     )`,
   ])
@@ -556,12 +441,11 @@ export async function completeJob(workspaceId: string, id: string, stack: Canvas
  * Chat history and share codes stay, so a shared board keeps its link and name.
  */
 export async function clearCanvas(workspaceId: string) {
-  const sql = await ready()
   await sql`UPDATE phab_canvas_jobs SET status = 'cancelled', progress = 'Canvas cleared', updated_at = now()
-    WHERE workspace_id = ${workspaceId} AND status IN ('queued', 'running')`
+    WHERE workspace_id = ${workspaceId}::uuid AND status IN ('queued', 'running')`
   await Promise.all([
-    sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}`,
-    sql`DELETE FROM phab_canvas_notes WHERE workspace_id = ${workspaceId}`,
-    sql`DELETE FROM phab_canvas_layout WHERE workspace_id = ${workspaceId}`,
+    sql`DELETE FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}::uuid`,
+    sql`DELETE FROM phab_canvas_notes WHERE workspace_id = ${workspaceId}::uuid`,
+    sql`DELETE FROM phab_canvas_layout WHERE workspace_id = ${workspaceId}::uuid`,
   ])
 }

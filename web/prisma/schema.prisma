@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("SUPABASE_DATABASE_URL")
+  directUrl = env("SUPABASE_DIRECT_URL")
+}
+
+model phab_canvas_stacks {
+  workspace_id String   @db.Uuid
+  id           String   @db.Uuid
+  data         Json
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([workspace_id, id])
+}
+
+model phab_canvas_jobs {
+  workspace_id  String    @db.Uuid
+  id            String    @db.Uuid
+  title         String
+  task          String
+  context       Json      @default("[]")
+  status        String    @default("queued")
+  progress      String    @default("Queued")
+  stack_id      String?   @db.Uuid
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  worker_id     String?
+  worker_region String?
+  started_at    DateTime? @db.Timestamptz(6)
+  heartbeat_at  DateTime? @db.Timestamptz(6)
+  replaces      Json      @default("[]")
+  kind          String    @default("research")
+  browser_id    String?   @db.Uuid
+
+  @@id([workspace_id, id])
+}
+
+model phab_job_events {
+  id           BigInt   @id @default(autoincrement())
+  workspace_id String   @db.Uuid
+  job_id       String   @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  type         String
+  message      String
+  tool         String?
+  duration_ms  Float?
+  details      Json     @default("{}")
+
+  @@index([workspace_id, job_id, id(sort: Desc)], map: "phab_job_events_workspace_job_id_idx")
+}
+
+model phab_chat_messages {
+  workspace_id String   @db.Uuid
+  id           String
+  role         String
+  modality     String   @default("chat")
+  content      String
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([workspace_id, id])
+  @@index([workspace_id, created_at], map: "phab_chat_messages_workspace_created_idx")
+}
+
+model phab_canvas_notes {
+  workspace_id     String   @db.Uuid
+  id               String   @db.Uuid
+  label            String   @default("")
+  body             String   @default("")
+  x                Float    @default(0)
+  y                Float    @default(0)
+  promoted_plan_id String?  @db.Uuid
+  promoted_node_id String?  @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([workspace_id, id])
+}
+
+model phab_canvas_layout {
+  workspace_id String   @id @db.Uuid
+  positions    Json     @default("{}")
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model phab_share_codes {
+  code         String   @id
+  workspace_id String   @db.Uuid
+  title        String   @default("Untitled board")
+  owner_sub    String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([workspace_id], map: "phab_share_codes_workspace_idx")
+}
+
+model phab_board_members {
+  sub        String
+  code       String
+  role       String   @default("member")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([sub, code])
+}
+
+model phab_canvas_browsers {
+  workspace_id String   @db.Uuid
+  id           String   @db.Uuid
+  data         Json
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([workspace_id, id])
+}
+
+model phab_plans {
+  workspace_id String   @db.Uuid
+  id           String   @db.Uuid
+  data         Json
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([workspace_id, id])
+}
+
+model phab_published_plans {
+  slug        String   @id
+  label       String
+  description String   @default("")
+  tree        Json
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model phab_payment_methods {
+  workspace_id String   @id @db.Uuid
+  brand        String
+  last4        String
+  exp          String
+  zip          String
+  token        String
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model phab_workspace_settings {
+  workspace_id String   @db.Uuid
+  key          String
+  value        String
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([workspace_id, key])
+}

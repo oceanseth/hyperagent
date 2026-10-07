@@ -3,3 +3,6 @@
 allowBuilds:
   esbuild: true
   lightningcss: true
+  prisma: true
+  "@prisma/engines": true
+  "@prisma/client": true

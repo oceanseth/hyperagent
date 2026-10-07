@@ -1,4 +1,3 @@
-import { neon } from '@neondatabase/serverless'
 import { companyFormationPlan } from '#/lib/company-formation'
 import {
   planSchema,
@@ -6,66 +5,27 @@ import {
   type Plan,
   type PlanNode,
 } from '#/lib/plan'
+import { sql } from './db'
 import { isSettingKey, putSetting } from './settings-db'
-
-let schemaReady: Promise<void> | undefined
-
-function database() {
-  const url = process.env.DATABASE_URL
-  if (!url) throw new Error('Canvas storage is not configured.')
-  return neon(url, { fetchOptions: { signal: AbortSignal.timeout(15000) } })
-}
-
-async function ready() {
-  const sql = database()
-  schemaReady ??= (async () => {
-    await sql`CREATE TABLE IF NOT EXISTS phab_plans (
-      workspace_id uuid NOT NULL, id uuid NOT NULL, data jsonb NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
-      PRIMARY KEY (workspace_id, id)
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS phab_published_plans (
-      slug text PRIMARY KEY,
-      label text NOT NULL,
-      description text NOT NULL DEFAULT '',
-      tree jsonb NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now()
-    )`
-    await sql`CREATE TABLE IF NOT EXISTS phab_payment_methods (
-      workspace_id uuid NOT NULL PRIMARY KEY,
-      brand text NOT NULL,
-      last4 text NOT NULL,
-      exp text NOT NULL,
-      zip text NOT NULL,
-      token text NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now()
-    )`
-  })().catch((error) => { schemaReady = undefined; throw error })
-  await schemaReady
-  return sql
-}
 
 function parsePlan(data: unknown): Plan {
   return refreshPlanStatuses(planSchema.parse(data))
 }
 
 export async function listPlans(workspaceId: string): Promise<Plan[]> {
-  const sql = await ready()
-  const rows = await sql`SELECT data FROM phab_plans WHERE workspace_id = ${workspaceId} ORDER BY created_at ASC`
+  const rows = await sql`SELECT data FROM phab_plans WHERE workspace_id = ${workspaceId}::uuid ORDER BY created_at ASC`
   return rows.map((row) => parsePlan(row.data))
 }
 
 export async function getPlan(workspaceId: string, id: string): Promise<Plan | undefined> {
-  const sql = await ready()
-  const rows = await sql`SELECT data FROM phab_plans WHERE workspace_id = ${workspaceId} AND id = ${id}`
+  const rows = await sql`SELECT data FROM phab_plans WHERE workspace_id = ${workspaceId}::uuid AND id = ${id}::uuid`
   return rows[0] ? parsePlan(rows[0].data) : undefined
 }
 
 async function writePlan(workspaceId: string, plan: Plan) {
-  const sql = await ready()
   const next = refreshPlanStatuses({ ...plan, updatedAt: new Date().toISOString() })
   await sql`INSERT INTO phab_plans (workspace_id, id, data, created_at, updated_at)
-    VALUES (${workspaceId}, ${next.id}, ${JSON.stringify(next)}::jsonb, ${next.createdAt}::timestamptz, now())
+    VALUES (${workspaceId}::uuid, ${next.id}::uuid, ${JSON.stringify(next)}::jsonb, ${next.createdAt}::timestamptz, now())
     ON CONFLICT (workspace_id, id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`
   return next
 }
@@ -78,9 +38,8 @@ export async function savePlans(workspaceId: string, plans: Plan[]) {
 
 async function deletePlans(workspaceId: string, ids: string[]) {
   if (!ids.length) return
-  const sql = await ready()
   for (const id of ids) {
-    await sql`DELETE FROM phab_plans WHERE workspace_id = ${workspaceId} AND id = ${id}`
+    await sql`DELETE FROM phab_plans WHERE workspace_id = ${workspaceId}::uuid AND id = ${id}::uuid`
   }
 }
 
@@ -280,23 +239,20 @@ export async function patchNode(workspaceId: string, planId: string, nodeId: str
 export async function saveCard(workspaceId: string, input: { brand: string; last4: string; exp: string; zip: string; payableId: string }) {
   if (!/^\d{4}$/.test(input.last4)) throw new Error('Card last four is required.')
   if (!input.payableId.trim()) throw new Error('Select a Northwest payment method. The PAN is never stored here.')
-  const sql = await ready()
   const token = input.payableId.trim().slice(0, 120)
   await sql`INSERT INTO phab_payment_methods (workspace_id, brand, last4, exp, zip, token)
-    VALUES (${workspaceId}, ${input.brand.slice(0, 40)}, ${input.last4}, ${input.exp.slice(0, 7)}, ${input.zip.slice(0, 16)}, ${token})
+    VALUES (${workspaceId}::uuid, ${input.brand.slice(0, 40)}, ${input.last4}, ${input.exp.slice(0, 7)}, ${input.zip.slice(0, 16)}, ${token})
     ON CONFLICT (workspace_id) DO UPDATE SET brand = EXCLUDED.brand, last4 = EXCLUDED.last4, exp = EXCLUDED.exp, zip = EXCLUDED.zip, token = EXCLUDED.token`
   return { brand: input.brand, last4: input.last4, exp: input.exp, zip: input.zip }
 }
 
 export async function getCard(workspaceId: string) {
-  const sql = await ready()
-  const rows = await sql`SELECT brand, last4, exp, zip FROM phab_payment_methods WHERE workspace_id = ${workspaceId}`
+  const rows = await sql`SELECT brand, last4, exp, zip FROM phab_payment_methods WHERE workspace_id = ${workspaceId}::uuid`
   return rows[0] as { brand: string; last4: string; exp: string; zip: string } | undefined
 }
 
 export async function getCardSecret(workspaceId: string) {
-  const sql = await ready()
-  const rows = await sql`SELECT brand, last4, exp, zip, token FROM phab_payment_methods WHERE workspace_id = ${workspaceId}`
+  const rows = await sql`SELECT brand, last4, exp, zip, token FROM phab_payment_methods WHERE workspace_id = ${workspaceId}::uuid`
   return rows[0] as { brand: string; last4: string; exp: string; zip: string; token: string } | undefined
 }
 
@@ -372,7 +328,6 @@ export async function publishPlan(workspaceId: string, planId: string, label: st
   const root = plans.find((plan) => plan.id === planId)
   if (!root) throw new Error('Plan not found.')
   const tree = [root, ...plans.filter((plan) => plan.parentId === root.id || belongsTo(plans, plan, root.id))]
-  const sql = await ready()
   let next = root.published?.slug ?? slug()
   for (let attempt = 0; attempt < 6; attempt++) {
     const publication = { slug: next, label, description }
@@ -400,7 +355,6 @@ function belongsTo(plans: Plan[], plan: Plan, rootId: string) {
 }
 
 export async function importPublishedPlan(workspaceId: string, publishedSlug: string) {
-  const sql = await ready()
   const rows = await sql`SELECT tree FROM phab_published_plans WHERE slug = ${publishedSlug}`
   const tree = rows[0]?.tree
   if (!Array.isArray(tree) || !tree.length) throw new Error('Published plan not found.')
@@ -413,15 +367,13 @@ export async function importPublishedPlan(workspaceId: string, publishedSlug: st
 }
 
 export async function getPublished(publishedSlug: string) {
-  const sql = await ready()
   const rows = await sql`SELECT slug, label, description, tree, created_at FROM phab_published_plans WHERE slug = ${publishedSlug}`
   return rows[0]
 }
 
 /** Removes every plan in a workspace. Published copies under /p/<slug> are kept. */
 export async function clearPlans(workspaceId: string) {
-  const sql = await ready()
-  await sql`DELETE FROM phab_plans WHERE workspace_id = ${workspaceId}`
+  await sql`DELETE FROM phab_plans WHERE workspace_id = ${workspaceId}::uuid`
 }
 
 /** Removes a plan and every child plan nested under it. */

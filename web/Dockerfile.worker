@@ -1,9 +1,14 @@
 FROM node:24-bookworm-slim
 WORKDIR /app
+# Full install, generate the Prisma client, then keep production dependencies.
+# The generated client stays in node_modules for the tsx worker.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN npm install -g pnpm@12.4.2
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-# Production dependencies only. tsx is a runtime dependency and stays installed.
-RUN pnpm install --frozen-lockfile --prod
+COPY prisma ./prisma
+RUN pnpm install --frozen-lockfile
+RUN pnpm exec prisma generate
+RUN pnpm prune --prod
 COPY tsconfig.json ./
 COPY src/lib ./src/lib
 COPY src/server ./src/server

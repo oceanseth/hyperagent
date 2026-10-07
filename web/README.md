@@ -3,22 +3,23 @@
 The app runs Assistant UI and the conversational Mastra agent, with all model
 inference served by the Neon AI Gateway. It deploys as a Node server container
 on AWS App Runner behind the hyperagent.lol CloudFront distribution.
-Research runs separately on a Fly.io worker. Both use the same Neon project.
+Research runs separately on a Fly.io worker. Board state lives in Supabase
+Postgres through Prisma.
 Web search and connected services (Exa, Neon API/MCP, AgentMail) come through
 the Executor MCP; voice calls use browser speech APIs plus `/api/voice` turns.
 
 ## Background research and context stacks
 
-The assistant's `queue_research` tool stores a job in Neon and acknowledges it.
+The assistant's `queue_research` tool stores a job in Supabase and acknowledges it.
 The worker atomically claims queued jobs, discovers Executor MCP tools, searches
 connected sources, and publishes a source stack with a cited Markdown summary.
 Cosmos has a direct search adapter. Public document/PDF URLs and image URLs are
 displayed as source cards; the summary uses Assistant UI's Markdown renderer.
 The source service must allow embedding for an inline PDF preview; the original
-PDF always has an open link. PDF bytes are not copied into Neon.
+PDF always has an open link. PDF bytes are not copied into Supabase.
 
 The canvas observes jobs and results through `/api/canvas`. Closing the page or
-turning off the development computer does not stop the worker. Neon holds the
+turning off the development computer does not stop the worker. Supabase holds the
 queue, context stacks, and job state; a worker restart recovers queued work and
 expired leases. Each browser gets an opaque HttpOnly workspace cookie. There is
 no cross-device account sync yet. Card positions are browser preferences; source
@@ -38,11 +39,12 @@ Fly also receives structured JSON logs keyed by job and worker ID. Nothing in
 monitoring depends on a local log tail remaining open.
 
 Server secrets for the app: `NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`,
-`EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`, `DATABASE_URL`, `JOBS_URL`,
+`EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`, `SUPABASE_DATABASE_URL`,
+`SUPABASE_DIRECT_URL`, `JOBS_URL`,
 `JOBS_SECRET`, and for live company formation optional `NORTHWEST_ACCESS_TOKEN`
 (plus `NORTHWEST_MCP_URL`, `MERCURY_API_TOKEN` when those providers are used).
 Northwest is the default filing provider, not required. The worker needs
-`NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`, `DATABASE_URL`,
+`NEON_AI_GATEWAY_BASE_URL`, `NEON_AI_GATEWAY_TOKEN`, `SUPABASE_DATABASE_URL`,
 `JOBS_SECRET`, `EXECUTOR_MCP_URL`, `EXECUTOR_API_KEY`, and optionally
 `COSMOS_TOKEN`. Google login needs `SESSION_SECRET` (any long random string;
 it signs the session cookie). Sign-in itself runs through Firebase Auth's
@@ -58,8 +60,36 @@ stores in production. Never send integration keys to the browser.
 Deploy the research worker from `web/` with `fly deploy --remote-only --ha=false`.
 Its `fly.toml` keeps one machine running to process the queue.
 
+## Database
+
+Board, plan, and settings rows are in Supabase Postgres. The app reads them
+through Prisma (`web/src/server/db.ts`) using `SUPABASE_DATABASE_URL`: the
+transaction pooler on port 6543 with `?pgbouncer=true`, so Prisma does not
+prepare statements. Migrations use `SUPABASE_DIRECT_URL`, the session pooler
+on port 5432. Both values live in ignored `web/.env.local` and are never
+committed. `DATABASE_URL` may still point at Neon for older trees; this app
+does not read it.
+
+Add a migration by writing SQL into a new folder under
+`web/prisma/migrations/<timestamp>_<name>/migration.sql`. Generate table SQL
+with `prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script`
+(or a diff from the previous datamodel) and apply with `prisma migrate deploy`.
+Never use `prisma migrate dev` or `prisma db push` against the shared dev
+project: there is no shadow database, and those commands can reset data.
+
+The server connects as the table owner, so row level security does not apply
+to Prisma and server writes keep working. RLS is enabled and not forced.
+The Data API and Realtime see member rows only: authenticated select policies
+call `private.is_board_member`, and tables without a policy stay server-only.
+Anonymous cookie boards have no members, so those clients see nothing.
+
+`scripts/supabase-selftest.sh` checks the port. Subcommands: `schema`,
+`migrate`, `rls`, `isolation`, `http`, and `built`. Each one removes only the
+rows or temporary schema it created.
+
 This repository deliberately runs no tests or typechecking gates in hackathon
-mode. Production builds are part of deployment.
+mode. Production builds are part of deployment. Pull requests to `dev` still
+run `.github/workflows/pr-check.yml` (install, typecheck, build, and images).
 
 ## Live browsers on the canvas
 
@@ -67,7 +97,7 @@ The assistant (chat and voice) can put KERNEL cloud browsers on the shared
 canvas with `open_browser`, `navigate_browser`, `list_browsers`, and
 `close_browser`. Each browser is a card holding the session's live view in an
 iframe; everyone on a shared board sees and can drive it. Cards are stored in
-Neon (`phab_canvas_browsers`) and positions sync through the shared layout.
+Supabase (`phab_canvas_browsers`) and positions sync through the shared layout.
 Closing a card (or `close_browser`) removes it and deletes the KERNEL session;
 idle sessions end on their own about 10 minutes after the last viewer leaves.
 

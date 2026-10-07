@@ -22,8 +22,8 @@
     "@mastra/ai-sdk": "^1.10.6",
     "@mastra/core": "^1.74.0",
     "@mastra/mcp": "^1.18.0",
-    "@neondatabase/serverless": "^1.2.0",
     "@paper-design/shaders-react": "^0.0.81",
+    "@prisma/client": "6.19.3",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "@tailwindcss/vite": "^4.1.18",
@@ -57,6 +57,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "dotenv-cli": "^11.0.0",
     "portless": "0.15.1",
+    "prisma": "6.19.3",
     "typescript": "^6.0.2",
     "vite": "^8.0.0"
   },
