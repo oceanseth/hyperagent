@@ -55,8 +55,11 @@ for name in os.listdir("/proc"):
         continue
     if cwd != root and not cwd.startswith(root + os.sep):
         continue
-    if any(token in cmd for token in ("vite", "portless", "dotenv", "pnpm")):
-        pids.append(pid)
+    # Drop the worktree path before matching, same as worktree-teardown.sh.
+    # A directory named portless-* is not a portless process.
+    if not any(token in cmd.replace(root, " ") for token in ("vite", "portless", "dotenv", "pnpm")):
+        continue
+    pids.append(pid)
 for pid in pids:
     try:
         os.kill(pid, signal.SIGTERM)
@@ -175,7 +178,7 @@ for name in os.listdir("/proc"):
         continue
     if cwd != root and not cwd.startswith(root + os.sep):
         continue
-    if any(token in cmd for token in ("vite", "portless", "dotenv", "pnpm")):
+    if any(token in cmd.replace(root, " ") for token in ("vite", "portless", "dotenv", "pnpm")):
         count += 1
 print(count)
 PY
