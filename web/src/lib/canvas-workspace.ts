@@ -66,6 +66,28 @@ function publishedSlug() {
   return match?.[1]
 }
 
+// Database triggers ping the board's private Supabase Realtime channel on every
+// change, so open boards refresh at once instead of waiting for the next poll.
+// Polling stays as the fallback; a realtime failure never breaks the canvas.
+let realtimeTopic: string | undefined
+let realtimeChannel: { unsubscribe: () => unknown } | undefined
+let realtimeTimer: ReturnType<typeof setTimeout> | undefined
+async function connectRealtime(topic: string) {
+  if (topic === realtimeTopic || typeof window === 'undefined') return
+  realtimeTopic = topic
+  try {
+    void realtimeChannel?.unsubscribe()
+    const { supabase } = await import('../utils/supabase')
+    await supabase.realtime.setAuth()
+    realtimeChannel = supabase.channel(topic, { config: { private: true } })
+      .on('broadcast', { event: 'board-changed' }, () => {
+        clearTimeout(realtimeTimer)
+        realtimeTimer = setTimeout(() => { void refreshCanvas() }, 250)
+      })
+      .subscribe()
+  } catch { realtimeTopic = undefined }
+}
+
 export function refreshCanvas() {
   pending ??= (async () => {
     try {
@@ -105,6 +127,8 @@ export function refreshCanvas() {
         }),
         error: null, loaded: true, syncedAt: Date.now(),
       }))
+      const topic = (snapshot as CanvasSnapshot & { realtimeTopic?: string }).realtimeTopic
+      if (topic) void connectRealtime(topic)
     } catch {
       canvasWorkspace.setState({ error: 'Could not load saved context. Reconnecting…' })
     } finally { pending = undefined }
