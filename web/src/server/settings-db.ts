@@ -2,7 +2,7 @@ import { sql } from './db'
 
 // Per-workspace credentials (AgentMail, provider API keys). Values are only
 // ever returned masked; full values stay server-side for outbound API calls.
-export const SETTING_KEYS = ['agentmail', 'northwest', 'mercury', 'stripe'] as const
+export const SETTING_KEYS = ['agentmail', 'northwest', 'mercury', 'stripe', 'monid'] as const
 export type SettingKey = (typeof SETTING_KEYS)[number]
 
 // Platform credentials the agent executor provides through its server
@@ -59,6 +59,7 @@ export async function getSecret(workspaceId: string, key: SettingKey): Promise<s
     northwest: process.env.NORTHWEST_ACCESS_TOKEN,
     mercury: process.env.MERCURY_API_TOKEN,
     stripe: process.env.STRIPE_SECRET_KEY,
+    monid: process.env.MONID_API_KEY,
   }
   try {
       const rows = await sql`SELECT value FROM phab_workspace_settings WHERE workspace_id = ${workspaceId}::uuid AND key = ${key}` as { value: string }[]

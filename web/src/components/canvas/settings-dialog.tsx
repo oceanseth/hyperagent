@@ -16,6 +16,7 @@ const LABELS: Record<string, { label: string; placeholder: string; note?: string
   northwest: { label: 'Northwest access token', placeholder: 'Bearer token' },
   mercury: { label: 'Mercury API token', placeholder: 'secret-token:…' },
   stripe: { label: 'Stripe / Atlas key', placeholder: 'sk_… or Atlas token', note: 'Stored for this workspace. Atlas has no public form-an-LLC API — KERNEL drives the Atlas site after you confirm.' },
+  monid: { label: 'Monid API key', placeholder: 'monid_live_…', note: 'Prepare packet looks up live filing and bank requirements. The service env is used when this is empty.' },
 }
 
 // Provided by the agent executor's server environment; never entered here.

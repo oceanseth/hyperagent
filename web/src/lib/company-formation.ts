@@ -74,7 +74,8 @@ If you self-file on wyobiz or another RA, bind the last four of the card you wil
     'Prepare packet',
     `## Prepare packet
 Assemble the articles of organization from confirmed name, members, agent, and addresses.
-Northwest is used when connected; otherwise this writes a local packet you can file on wyobiz or another RA.`,
+Northwest is used when connected; otherwise this writes a local packet you can file on wyobiz or another RA.
+Monid looks up the live filing and bank requirements and writes them onto this packet.`,
     [field('packetReady', 'Packet reviewed', guesses, { required: false, confirmed: false })],
     [question('Does the packet match the confirmed company details?')],
     'prepare-packet',

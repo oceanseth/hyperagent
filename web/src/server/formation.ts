@@ -1,6 +1,7 @@
 import { bankProfile, lastFour } from '#/lib/bank-profile'
 import type { Plan, PlanDocument, PlanNode } from '#/lib/plan'
 import { listOperatingAccounts, mercuryConfigured } from './mercury'
+import { lookupRequirements, recordMonidActivity, type MonidNote } from './monid'
 import {
   addEin,
   addFormation,
@@ -21,6 +22,8 @@ export type FormationContext = {
   plans: Plan[]
   node: PlanNode
   card?: { brand: string; last4: string; exp: string; zip: string; token?: string }
+  workspaceId?: string
+  monidKey?: string
 }
 
 function document(kind: PlanDocument['kind'], title: string, markdown: string): PlanDocument {
@@ -57,6 +60,28 @@ async function methodFromCard(card: FormationContext['card']): Promise<Northwest
     throw new Error('No matching Northwest payment method. Save a card in the Northwest portal, then bind last four here.')
   }
   return match
+}
+
+async function attachMonid(produced: PlanDocument[], plans: Plan[], context: FormationContext) {
+  const state = value(plans, 'state', 'Wyoming')
+  const entityType = value(plans, 'entityType', 'LLC')
+  const companyName = value(plans, 'companyName', 'Untitled Company')
+  const bank = value(plans, 'bankName')
+  const query = `${state} ${entityType} secretary of state filing requirements and fees, and ${bank || 'US business'} bank account requirements`
+  const key = context.monidKey?.trim()
+  const note: MonidNote = key
+    ? await lookupRequirements(key, { companyName, state, entityType, query }).catch((error: unknown) => ({
+      ok: false,
+      events: [{ type: 'failed', message: error instanceof Error ? error.message : 'Monid request failed', tool: 'monid' }],
+      markdown: '## Live requirements\n\nMonid did not respond. The packet above is still the local formation packet.',
+    }))
+    : {
+      ok: false,
+      events: [{ type: 'failed', message: 'MONID_API_KEY is not set for this workspace.', tool: 'monid' }],
+      markdown: '## Live requirements\n\nNo Monid key on this workspace. Add one under Settings → API keys, or set `MONID_API_KEY` on the service.',
+    }
+  if (produced[0]) produced[0] = { ...produced[0], markdown: `${produced[0].markdown}\n\n${note.markdown}` }
+  if (context.workspaceId) await recordMonidActivity(context.workspaceId, query, note).catch(() => undefined)
 }
 
 async function companyFromPlans(plans: Plan[]) {
@@ -113,6 +138,7 @@ export async function runFormation(hint: string, context: FormationContext) {
       produced.push(document('articles', `Formation packet — ${companyName}`, `# Formation packet\n\n**Company:** ${companyName}\n**Provider:** ${value(plans, 'formationProvider', 'self-file')}\n**Jurisdiction:** ${value(plans, 'state', atlas ? 'Delaware' : 'Wyoming')}\n**Organizer:** ${value(plans, 'organizer') || 'confirmed'}\n**Members:** ${value(plans, 'members') || 'confirmed'}\n**Principal address:** ${value(plans, 'principalAddress') || 'on file'}\n**Registered agent:** ${value(plans, 'registeredAgent') || (atlas ? 'Stripe Atlas RA' : 'required — Wyoming needs an in-state RA')}\n\n${atlas
         ? 'Stripe Atlas has no public form-an-LLC API. After you confirm this packet, Phab can open https://atlas.stripe.com in a KERNEL browser so you finish the Delaware filing there. Paste the real confirmation on Submit to state.\n\nAtlas: https://atlas.stripe.com'
         : 'Northwest is not in this path. File on wyobiz or the RA you chose, then confirm the filing id on Submit to state.\n\nWyoming e-file: https://wyobiz.wyo.gov'}`))
+      await attachMonid(produced, plans, context)
       return { produced, fieldUpdates }
     }
     const company = await companyFromPlans(plans)
@@ -129,6 +155,7 @@ export async function runFormation(hint: string, context: FormationContext) {
     const quote = await quoteFormation(company.id)
     if (quote.price) fieldUpdates.feeAmount = quote.price
     produced.push(document('articles', `Formation packet — ${companyName}`, `# Formation packet\n\n**Company:** ${companyName}\n**Northwest id:** \`${company.id}\`\n**Jurisdiction:** ${value(plans, 'state', 'Wyoming')}\n**Organizer:** ${organizer || 'confirmed'}\n**Members:** ${members || 'confirmed'}\n**Principal address:** ${address || 'on file'}\n**Registered agent:** ${value(plans, 'registeredAgent', 'Northwest Registered Agent')}\n\n## Quote\n\n${quote.summary || 'See Northwest filing options.'}\n\nNothing has been filed yet. Pay the fee to place the order.`))
+    await attachMonid(produced, plans, context)
     return { produced, fieldUpdates, northwestCompanyId: company.id }
   }
 

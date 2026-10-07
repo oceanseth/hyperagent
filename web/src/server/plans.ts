@@ -6,7 +6,7 @@ import {
   type PlanNode,
 } from '#/lib/plan'
 import { sql } from './db'
-import { isSettingKey, putSetting } from './settings-db'
+import { getSecret, isSettingKey, putSetting } from './settings-db'
 
 function parsePlan(data: unknown): Plan {
   return refreshPlanStatuses(planSchema.parse(data))
@@ -275,7 +275,8 @@ export async function executeNode(workspaceId: string, planId: string, nodeId: s
     }
   }
   const card = await getCardSecret(workspaceId)
-  const result = await runFormation(readyNode.executeHint ?? '', { plans, node: readyNode, card })
+  const monidKey = await getSecret(workspaceId, 'monid')
+  const result = await runFormation(readyNode.executeHint ?? '', { plans, node: readyNode, card, workspaceId, monidKey })
   const produced = result.produced
   const updates = result.fieldUpdates
   if (result.payableId) {
