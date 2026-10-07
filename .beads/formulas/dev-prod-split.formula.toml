@@ -1,0 +1,131 @@
+formula = "mol-dev-prod-split"
+description = "Split a single-branch AWS deploy into our standard dev/production pattern: a dev branch auto-deploying dev.<domain> and a protected production branch deploying <domain>. Mirrors the hyperagent.lol rollout of 2026-10-06."
+version = 1
+type = "workflow"
+phase = "vapor"
+
+[vars.domain]
+description = "Apex production domain (e.g. hyperagent.lol)"
+required = true
+
+[vars.app]
+description = "Base name shared by the ECR repo and App Runner service (e.g. hyperagent-app)"
+required = true
+
+[vars.region]
+description = "AWS region"
+default = "us-east-1"
+
+[vars.dev_branch]
+description = "Branch that auto-deploys the dev site"
+default = "dev"
+
+[vars.prod_branch]
+description = "Protected branch that deploys the production site"
+default = "production"
+
+[[steps]]
+id = "audit"
+title = "Audit current deploy pipeline for {{domain}}"
+type = "task"
+description = """
+Map what exists before changing it: GitHub Actions workflows (which branch
+triggers what), ECR repo + tags, App Runner services and their env vars
+(aws apprunner describe-service), CloudFront/Route53 for {{domain}}, and any
+IAM deploy-role scoping (confirm the CI role allows the new service + tag;
+the hyperagent role already scoped ECR by repo and App Runner by *, so no
+IAM change was needed).
+"""
+
+[[steps]]
+id = "retag-image"
+title = "Seed ECR {{app}}:{{dev_branch}} tag from the current prod image"
+type = "task"
+needs = ["audit"]
+description = """
+App Runner create-service requires the image tag to exist. Retag without
+docker: MANIFEST=$(aws ecr batch-get-image --repository-name {{app}}
+--image-ids imageTag=latest --query 'images[0].imageManifest' --output text)
+then aws ecr put-image --repository-name {{app}} --image-tag {{dev_branch}}
+--image-manifest "$MANIFEST".
+"""
+
+[[steps]]
+id = "dev-service"
+title = "Create App Runner service {{app}}-dev"
+type = "task"
+needs = ["retag-image"]
+description = """
+Clone the prod service config (describe-service -> create-service JSON):
+same port, instance size, health check, ECR access role, and env vars, but
+ImageIdentifier ...:{{dev_branch}} and AutoDeploymentsEnabled=true. Then set
+any public-origin env (e.g. PUBLIC_ORIGINS=https://dev.{{domain}}) once the
+service is RUNNING - update-service is rejected during OPERATION_IN_PROGRESS.
+"""
+
+[[steps]]
+id = "dev-dns"
+title = "Point dev.{{domain}} at the dev service"
+type = "task"
+needs = ["dev-service"]
+description = """
+Dev bypasses CloudFront on purpose. aws apprunner associate-custom-domain
+--domain-name dev.{{domain}} --no-enable-www-subdomain (service must be
+RUNNING), poll describe-custom-domains for the two ACM validation CNAMEs,
+then UPSERT into the Route53 zone: both validation CNAMEs + a CNAME
+dev.{{domain}} -> <service DNSTarget>. Wait for domain status active.
+Document the CLI-managed resources in infra terraform if the zone is
+terraform-managed.
+"""
+
+[[steps]]
+id = "split-workflows"
+title = "Split GitHub Actions by branch"
+type = "task"
+needs = ["audit"]
+description = """
+deploy-dev.yml: on push to {{dev_branch}} -> build -> push {{app}}:{{dev_branch}}
+(+ {{dev_branch}}-sha) -> StartDeployment on {{app}}-dev. Rename the existing
+prod workflow to deploy-production.yml triggered ONLY by {{prod_branch}}
+(keep workflow_dispatch). Separate concurrency groups. Any shared backend
+workers (Fly etc.) deploy with {{prod_branch}} pushes or manual dispatch,
+since both sites share one worker. Push events use the workflow files at the
+pushed commit, so a main push that removes its own trigger deploys nothing.
+"""
+
+[[steps]]
+id = "branches"
+title = "Create {{dev_branch}} + {{prod_branch}} branches, make {{dev_branch}} the default"
+type = "task"
+needs = ["split-workflows"]
+description = """
+Commit the workflow/doc changes, push to main (verify nothing deploys), then
+push the same commit as {{prod_branch}} (prod redeploys same code, a safe
+no-op) and {{dev_branch}}. Set the default branch so PRs land on dev:
+gh api repos/<owner>/<repo> -X PATCH -f default_branch={{dev_branch}}.
+"""
+
+[[steps]]
+id = "docs"
+title = "Write the shipping policy into README + AGENTS.md"
+type = "task"
+needs = ["split-workflows"]
+description = """
+Both files must state: (1) test locally first, (2) ship day-to-day work to
+{{dev_branch}} (auto-deploys dev.{{domain}}), (3) NEVER push or merge to
+{{prod_branch}} unless specifically told to - production releases are an
+explicit human-requested act (fast-forward {{prod_branch}} and push). Fix any
+stale 'push to main deploys prod' text in secondary READMEs. Note if dev
+shares the production database/worker.
+"""
+
+[[steps]]
+id = "verify"
+title = "Verify both sites and the branch gates"
+type = "task"
+needs = ["dev-dns", "branches", "docs"]
+description = """
+dev CI run green and https://dev.{{domain}} serves the app (TLS valid);
+https://{{domain}} still healthy; a push to {{dev_branch}} triggers only
+deploy-dev; nothing fires on main. Announce the result in the channel.
+"""
