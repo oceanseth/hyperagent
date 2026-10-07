@@ -47,7 +47,7 @@ export const Route = createRootRoute({
 
 // Knocks out visitors already on the page once the access gate is up.
 const KICK = `(function(){var done=0;function bye(){if(done)return;done=1;document.body.innerHTML='<div style="position:fixed;inset:0;display:grid;place-items:center;background:#1b1b1b;color:#eee;font:18px system-ui">Sorry to see you go.</div>'}
-var f=window.fetch;window.fetch=function(){return f.apply(this,arguments).then(function(r){if(r.status===401)bye();return r})};
+var f=window.fetch;
 setInterval(function(){f('/api/auth/me',{cache:'no-store'}).then(function(r){if(r.status===401)bye()}).catch(function(){})},3000)})()`
 
 function RootDocument({ children }: { children: React.ReactNode }) {
