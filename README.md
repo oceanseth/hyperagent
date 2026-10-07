@@ -73,12 +73,19 @@ npm run dev
 
 The app expects server configuration for Neon, the Executor MCP, and the research worker. See [`web/README.md`](web/README.md) for deployment details, integration settings, browser-agent behavior, and the full architecture. Keep credentials in local ignored environment files or production secret stores.
 
-## Deployment
+## Branches and deployment
 
-Pushes to `main` build and deploy the app through GitHub Actions to AWS App Runner. The separate research worker is deployed from `web/` with:
+| Branch | Deploys to | Who pushes here |
+|--------|------------|-----------------|
+| `dev` (default) | [dev.hyperagent.lol](https://dev.hyperagent.lol/) | Everyone — all day-to-day work lands here |
+| `production` | [hyperagent.lol](https://hyperagent.lol/) | **Nobody**, unless specifically told to ship production |
 
-```sh
-fly deploy --remote-only --ha=false
-```
+**Rules for agents working in this repo:**
+
+1. **Test locally first** (`npm run dev` from `web/`).
+2. **Ship to `dev`.** Merge or push your work to the `dev` branch; GitHub Actions (`deploy-dev.yml`) builds it and deploys dev.hyperagent.lol automatically.
+3. **Never touch `production` unless specifically told to.** A production release is an explicit, human-requested act: fast-forward `production` to the commit being released and push; `deploy-production.yml` deploys hyperagent.lol.
+
+Both sites run as AWS App Runner services behind the same ECR repo (`hyperagent-app:dev` / `hyperagent-app:latest`). Dev currently shares the production database and research worker, so schema-destructive experiments still need care. The research worker (Fly.io) deploys with production releases only, or by manual `workflow_dispatch` of `deploy-research.yml`.
 
 This is a hackathon project; the repository intentionally has no test or typecheck gate.

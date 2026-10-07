@@ -1,8 +1,11 @@
-name: deploy
+name: deploy-production
 
+# PRODUCTION: this deploys hyperagent.lol. Only the production branch builds
+# here, and only when explicitly instructed — day-to-day work ships to the dev
+# branch (deploy-dev.yml → dev.hyperagent.lol).
 on:
   push:
-    branches: [main]
+    branches: [production]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-main
+  group: deploy-production
   cancel-in-progress: true
 
 jobs:

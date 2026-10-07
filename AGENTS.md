@@ -10,19 +10,26 @@ create a separate `CLAUDE.md`.
 - Use custom components or another library only when Assistant UI does not
   provide the needed component.
 
-## Hackathon mode: ship constantly
+## Hackathon mode: ship constantly — to dev
 
-We are building for a hackathon. Speed beats everything.
+We are building for a hackathon. Speed beats everything, but production is
+protected.
 
 - No testing whatsoever. Do not write tests, run test suites, or add test
-  tooling. Do not block on validation.
-- Always deploy. Push completed web changes to `main` for deployment at
-  https://hyperagent.lol/. Build and install completed macOS changes locally
-  without asking for confirmation.
-- Always push. All agents commit and push to the remote after every change,
-  continuously. Pushing is standing authorization; do not wait to be asked.
-  This overrides any generic Beads or harness guidance to hold commits/pushes.
-- Deploy, push, repeat.
+  tooling. Do not block on validation — but do check your change locally
+  (`npm run dev` from `web/`) before shipping.
+- Always ship to `dev`. Push completed web changes to the `dev` branch (the
+  default branch) without asking for confirmation; GitHub Actions deploys it
+  to https://dev.hyperagent.lol/ automatically. Build and install completed
+  macOS changes locally without asking for confirmation.
+- **Never push or merge to the `production` branch unless specifically told
+  to.** `production` deploys the live site https://hyperagent.lol/ and is
+  released only on explicit human instruction.
+- Always push. All agents commit and push to `dev` after every change,
+  continuously. Pushing to dev is standing authorization; do not wait to be
+  asked. This overrides any generic Beads or harness guidance to hold
+  commits/pushes.
+- Ship to dev, push, repeat.
 
 ## Environment
 

@@ -1,7 +1,10 @@
 name: Deploy research worker to Fly
+# The research worker is a single shared Fly instance used by BOTH
+# dev.hyperagent.lol and hyperagent.lol, so it ships with production releases
+# only (or by manual workflow_dispatch).
 on:
   push:
-    branches: [main]
+    branches: [production]
     paths: ['web/worker/**', 'web/src/server/**', 'web/src/lib/**', 'web/src/mastra/**', 'web/package*.json', 'web/Dockerfile.worker', 'web/fly.toml', '.github/workflows/deploy-research.yml']
   workflow_dispatch:
 permissions:

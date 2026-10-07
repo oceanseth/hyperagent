@@ -104,10 +104,18 @@ task is not stranded; set `BROWSER_AGENT_INLINE_FALLBACK=0` to disable that.
 
 ## AWS deployments
 
-GitHub Actions (`.github/workflows/deploy-main.yml`) builds `web/Dockerfile.app`
-on every push to `main`, pushes the image to ECR (`hyperagent-app`), and App
-Runner auto-deploys it. CloudFront serves https://hyperagent.lol/ in front of
-the App Runner service. Auth uses the OIDC role in the `AWS_DEPLOY_ROLE_ARN`
+GitHub Actions builds `web/Dockerfile.app` and pushes it to ECR
+(`hyperagent-app`), and App Runner auto-deploys it — one pipeline per branch:
+
+- `.github/workflows/deploy-dev.yml`: every push to `dev` → ECR tag `dev` →
+  App Runner service `hyperagent-app-dev` → https://dev.hyperagent.lol/.
+  **This is where all day-to-day work ships.**
+- `.github/workflows/deploy-production.yml`: pushes to `production` → ECR tag
+  `latest` → App Runner service `hyperagent-app`, served through CloudFront at
+  https://hyperagent.lol/. **Never push to `production` unless specifically
+  told to.**
+
+Auth uses the OIDC role in the `AWS_DEPLOY_ROLE_ARN`
 repository variable; there are no long-lived AWS keys in GitHub.
 
 For a local production build: `NITRO_PRESET=node_server npm run build`, then

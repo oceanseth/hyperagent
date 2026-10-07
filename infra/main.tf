@@ -23,6 +23,14 @@ variable "app_origin" {
   default = "y8h6g3vd2a.us-east-1.awsapprunner.com"
 }
 
+# NOT managed by this terraform (created 2026-10-06 via AWS CLI):
+# - App Runner service hyperagent-app-dev (ECR tag hyperagent-app:dev,
+#   auto-deploy, deployed by .github/workflows/deploy-dev.yml on the dev branch)
+# - dev.hyperagent.lol: App Runner custom-domain association on that service,
+#   plus its ACM validation CNAMEs and the dev CNAME record in the zone below.
+# Dev bypasses CloudFront on purpose; only production (hyperagent.lol) fronts
+# App Runner with the distribution defined here.
+
 resource "aws_route53_zone" "main" {
   name = var.domain
 }

@@ -1,0 +1,77 @@
+name: deploy-dev
+
+# DEV: this deploys dev.hyperagent.lol from the dev branch. This is where all
+# day-to-day work ships. hyperagent.lol is deployed only from the production
+# branch (deploy-production.yml).
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker build -f web/Dockerfile.app \
+            -t "$ECR_REGISTRY/hyperagent-app:dev" \
+            -t "$ECR_REGISTRY/hyperagent-app:dev-${{ github.sha }}" \
+            web
+
+      - name: Push image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker push "$ECR_REGISTRY/hyperagent-app:dev"
+          docker push "$ECR_REGISTRY/hyperagent-app:dev-${{ github.sha }}"
+
+      # App Runner auto-deploys on :dev pushes; this explicit StartDeployment
+      # is belt-and-braces. It must not fail the job if the service does not
+      # exist yet.
+      - name: Trigger App Runner deployment
+        run: |
+          SERVICE_ARN=$(aws apprunner list-services --region us-east-1 \
+            --query "ServiceSummaryList[?ServiceName=='hyperagent-app-dev'].ServiceArn | [0]" \
+            --output text)
+          if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then
+            echo "App Runner service hyperagent-app-dev not found; skipping StartDeployment."
+            exit 0
+          fi
+          # StartDeployment is rejected while a previous roll is in flight
+          # (service not RUNNING), which would strand this image until the
+          # next push. Wait for RUNNING, then trigger.
+          for i in $(seq 1 60); do
+            STATUS=$(aws apprunner describe-service --region us-east-1 \
+              --service-arn "$SERVICE_ARN" --query Service.Status --output text)
+            if [ "$STATUS" = "RUNNING" ]; then
+              aws apprunner start-deployment --region us-east-1 --service-arn "$SERVICE_ARN" && exit 0
+            fi
+            echo "Service status: $STATUS; retrying StartDeployment in 15s (attempt $i/60)"
+            sleep 15
+          done
+          echo "Timed out waiting for RUNNING; image is pushed and will roll on the next deployment." >&2
+          exit 1
