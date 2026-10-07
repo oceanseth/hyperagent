@@ -10,26 +10,48 @@ create a separate `CLAUDE.md`.
 - Use custom components or another library only when Assistant UI does not
   provide the needed component.
 
-## Hackathon mode: ship constantly — to dev
+## Delivery into dev
 
-We are building for a hackathon. Speed beats everything, but production is
-protected.
+For Saida-managed work, follow the city delivery policy at
+`/home/debian/saida/workflow/POLICY.md` and the Hyperagent rig override. This
+section replaces the previous hackathon policy to skip tests and push dev
+directly.
 
-- No testing whatsoever. Do not write tests, run test suites, or add test
-  tooling. Do not block on validation — but do check your change locally
-  (`npm run dev` from `web/`) before shipping.
-- Always ship to `dev`. Push completed web changes to the `dev` branch (the
-  default branch) without asking for confirmation; GitHub Actions deploys it
-  to https://dev.hyperagent.lol/ automatically. Build and install completed
-  macOS changes locally without asking for confirmation.
-- **Never push or merge to the `production` branch unless specifically told
-  to.** `production` deploys the live site https://hyperagent.lol/ and is
-  released only on explicit human instruction.
-- Always push. All agents commit and push to `dev` after every change,
-  continuously. Pushing to dev is standing authorization; do not wait to be
-  asked. This overrides any generic Beads or harness guidance to hold
-  commits/pushes.
-- Ship to dev, push, repeat.
+- Plan with the user, then implement approved work; an explicit "run this
+  through" request also authorizes implementation. Each bead must carry a
+  clear, approved contract with acceptance, scope, prerequisites and proofs.
+- Work in a separate worktree and named branch based on current `origin/dev`.
+  Run the rig setup script before implementation. Missing env files, services,
+  dependencies or failing baseline tests block work.
+- Own an isolated development environment per worktree. The documented hosted
+  dev environment shares production resources and must not be used as a test
+  baseline. Keep credentials out of Git, bead metadata and logs.
+- Add meaningful stateful integration tests that exercise behavior and state
+  transitions. Keep tests green; do not add tests that merely mirror code.
+- Open a draft PR targeting `dev`, then obtain an independent review from a
+  better model or higher reasoning effort. A fresh agent applies findings with
+  the full bead, environment, diff and review context. Use at most three review
+  rounds total, including reviews after rebase; escalate exhaustion to the user.
+- Readiness requires current-head test and acceptance evidence, approved review,
+  and all required PR CI checks passing. Only the Saida delivery integrator
+  merges ready work into `dev`, using the city's serialized merge queue.
+  Workers must push their feature branches rather than push `dev` directly.
+- **Never push or merge `production` without explicit human instruction.**
+  A push to `dev` triggers the existing deployment; production releases remain
+  a separate decision.
+
+## Shared beads on Saida
+
+The existing `hackalon` database, project ID and issue history are preserved.
+Saida uses a central Dolt server. Public clients connect with separate writer
+accounts over verified TLS; no Tailscale membership is needed. See
+`docs/saida-collaboration.md` and use `bin/beads-public.py` for this mode.
+
+When using the central database, read/claim/update it directly. Do not run
+`bd dolt pull`, `bd dolt push` or `bin/setup-beads` against it: the designated
+city maintainer handles backup and `refs/dolt/data` publication. Embedded
+clones can still use the existing setup and sync workflow, but live
+collaborators should use the central database so claims are visible immediately.
 
 ## Environment
 
@@ -61,10 +83,11 @@ first use. Nothing to install globally; ignore any `bd` from Homebrew.
   `bd close <id> --reason "..."`; leave unfinished work with clear next steps.
 - Repo: `oceanseth/hyperagent` is the shared hub (`origin`). Push code and
   Beads there. `oxfern/phab` is the old repo, kept as `upstream` in some clones.
-- Beads sync through GitHub (`refs/dolt/data` on `oceanseth/hyperagent`). New clone:
+- For embedded clones only, Beads sync through GitHub (`refs/dolt/data` on `oceanseth/hyperagent`). New clone:
   `bin/setup-beads`, then `bd dolt pull`. Run `bd dolt pull` before picking
   work and `bd dolt push` right after claiming or changing issues, so other
   agents see your claims quickly.
+- Central server clients use the public helper instead of these embedded sync commands.
 - After compaction, follow the Beads context injected by the lifecycle hooks.
 - At session end, report issue IDs and remaining work, then commit, push, and
   deploy (see below).
