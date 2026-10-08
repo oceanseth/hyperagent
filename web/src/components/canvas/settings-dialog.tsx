@@ -36,7 +36,7 @@ function liveLabel(count: number) {
   return `${count} live`
 }
 
-export function SettingsDialog() {
+export function SettingsDialog({ dock = false, openSignal = 0 }: { dock?: boolean; openSignal?: number }) {
   const [open, setOpen] = useState(false)
   const [menu, setMenu] = useState(false)
   const [boards, setBoards] = useState<BoardRow[] | null>(null)
@@ -81,6 +81,10 @@ export function SettingsDialog() {
       document.removeEventListener('keydown', onKey)
     }
   }, [menu])
+
+  useEffect(() => {
+    if (openSignal > 0) setOpen(true)
+  }, [openSignal])
 
   useEffect(() => {
     if (!open) return
@@ -132,6 +136,7 @@ export function SettingsDialog() {
 
   return (
     <div className="phab-settings" ref={menuRef}>
+      {!dock && (
       <button
         type="button"
         className="phab-icon-button"
@@ -144,7 +149,8 @@ export function SettingsDialog() {
         <Settings size={17} strokeWidth={1.5} />
         {liveTotal > 0 && <span className="phab-settings-badge">{liveTotal > 9 ? '9+' : liveTotal}</span>}
       </button>
-      {menu && (
+      )}
+      {!dock && menu && (
         <div className="phab-settings-menu" role="menu">
           <div className="phab-settings-menu-head">
             <span>Your canvases</span>

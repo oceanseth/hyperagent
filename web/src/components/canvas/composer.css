@@ -298,6 +298,35 @@
   }
 }
 
+[data-canvas-base] .canvas-chat {
+  position: absolute;
+  z-index: 3;
+  left: 16px;
+  bottom: 12px;
+  width: 340px;
+  gap: 8px;
+}
+[data-canvas-base] .canvas-composer {
+  width: 340px;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  box-sizing: border-box;
+  padding: 2px 4px 2px 2px;
+  gap: 4px;
+  overflow: hidden;
+}
+[data-canvas-base] .canvas-composer-input {
+  min-height: 0;
+  height: 34px;
+  max-height: 34px;
+  padding: 6px 0 6px 12px;
+  line-height: 22px;
+}
+[data-canvas-base] .canvas-composer-actions { gap: 2px; padding: 0; }
+[data-canvas-base] .canvas-composer-voice,
+[data-canvas-base] .canvas-composer-send { width: 28px; height: 28px; }
+
 @media (prefers-reduced-motion: reduce) {
   .canvas-chat *,
   .canvas-chat *::before,
