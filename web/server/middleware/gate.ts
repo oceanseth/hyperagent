@@ -48,6 +48,11 @@ export default defineHandler(async (event) => {
     })
   }
 
+  // /api/mcp authenticates with per-board agent tokens (hak_…, see
+  // src/server/agent-tokens.ts), never the gate key. Exempt it before the
+  // bearer check so an agent token is not mistaken for a wrong gate key.
+  if (url.pathname === '/api/mcp' || url.pathname.startsWith('/api/mcp/')) return
+
   const bearer = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
   if (valid(cookie(request, COOKIE)) || valid(request.headers.get('x-api-key') ?? bearer)) return
 
