@@ -21,7 +21,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only --ha=false --config fly.toml
+      # --image-label latest keeps a stable registry tag that the web app's
+      # per-job machine spawner (src/server/dispatch.ts) can always reference.
+      # --update-only stops the deploy from re-creating an always-on machine
+      # once the app is scaled to zero; it still pushes the image.
+      - run: flyctl deploy --remote-only --ha=false --update-only --image-label latest --config fly.toml
         if: env.FLY_API_TOKEN != ''
         working-directory: web
       - run: echo "::warning title=Fly worker not deployed::FLY_API_TOKEN is not set in repository secrets, so the research and browser-agent worker was not deployed."
