@@ -52,17 +52,6 @@ function Boards() {
     else setLinkSent(true)
   }
 
-  const githubSignIn = async () => {
-    setMessage(null)
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: { redirectTo: `${location.origin}/boards` },
-    })
-    // On success the browser navigates away; an error usually means the
-    // provider is not enabled in the Supabase dashboard yet.
-    if (oauthError) setMessage(oauthError.message)
-  }
-
   const createBoard = async () => {
     const response = await fetch('/api/workspaces', {
       method: 'POST',
@@ -87,34 +76,32 @@ function Boards() {
     setBoards((current) => current?.map((item) => item.code === board.code ? { ...item, title: body.title! } : item) ?? current)
   }
 
+  const field = { height: 44, boxSizing: 'border-box' as const, borderRadius: 8, font: 'inherit' }
   return (
-    <main style={{ minHeight: '100dvh', background: '#1b1b1b', color: '#f2f2ed', fontFamily: "'Satoshi', sans-serif", padding: '56px 24px 80px' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
+    <main style={{ minHeight: '100dvh', background: '#1b1b1b', color: '#f2f2ed', fontFamily: "'Satoshi', sans-serif", padding: '40px 20px 64px' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto' }}>
         <a href="/" style={{ color: '#f2f2ed', textDecoration: 'none', fontSize: 22, fontWeight: 650, letterSpacing: '-1px', display: 'inline-flex', alignItems: 'center', gap: 8 }}><HTreeMark size={24} dither />hyperagent</a>
-        <h1 style={{ fontSize: 40, letterSpacing: '-1.4px', margin: '28px 0 8px' }}>Your boards</h1>
-        <p style={{ color: '#b7b7b0', marginTop: 0 }}>Each link opens that shared canvas. The title is what social apps show when the link is pasted.</p>
-        {error === 'login' && <p style={{ color: '#e7c27a' }}>Login did not finish. Try again.</p>}
-        {message && <p style={{ color: '#e7c27a' }}>{message}</p>}
-        {account === undefined && <p>Loading…</p>}
+        <h1 style={{ fontSize: 36, letterSpacing: '-1.2px', lineHeight: 1.1, margin: '28px 0 8px' }}>Your boards</h1>
+        <p style={{ color: '#b7b7b0', margin: '0 0 20px', lineHeight: 1.45 }}>Each link opens that shared canvas. The title is what social apps show when the link is pasted.</p>
+        {error === 'login' && <p style={{ color: '#e7c27a', margin: '0 0 12px' }}>Login did not finish. Try again.</p>}
+        {message && <p style={{ color: '#e7c27a', margin: '0 0 12px' }}>{message}</p>}
+        {account === undefined && <p style={{ margin: 0 }}>Loading…</p>}
         {account === null && (
           linkSent
-            ? <p>Check your email — the sign-in link lands you back here.</p>
+            ? <p style={{ margin: 0 }}>Check your email — the sign-in link lands you back here.</p>
             : (
-              <div style={{ display: 'grid', gap: 12, maxWidth: 420 }}>
-                <form onSubmit={(event) => { event.preventDefault(); void sendMagicLink() }} style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="you@example.com"
-                    aria-label="Email for sign-in link"
-                    style={{ color: '#f2f2ed', background: '#252623', border: '1px solid #444', borderRadius: 8, padding: '10px 12px', font: 'inherit', flex: '1 1 200px' }}
-                  />
-                  <button type="submit" disabled={signingIn} style={{ color: '#1b1b1b', background: '#b4c4a1', border: 0, padding: '10px 14px', borderRadius: 8, cursor: signingIn ? 'wait' : 'pointer', font: 'inherit' }}>{signingIn ? 'Sending…' : 'Email me a sign-in link'}</button>
-                </form>
-                <button type="button" onClick={() => void githubSignIn()} style={{ color: '#f2f2ed', background: 'transparent', border: '1px solid #444', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', font: 'inherit', justifySelf: 'start' }}>Sign in with GitHub</button>
-              </div>
+              <form onSubmit={(event) => { event.preventDefault(); void sendMagicLink() }} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  aria-label="Email for sign-in link"
+                  style={{ ...field, color: '#f2f2ed', background: '#252623', border: '1px solid #444', padding: '0 12px', flex: '1 1 200px', minWidth: 0 }}
+                />
+                <button type="submit" disabled={signingIn} style={{ ...field, color: '#1b1b1b', background: '#b4c4a1', border: 0, padding: '0 16px', cursor: signingIn ? 'wait' : 'pointer', flex: '0 0 auto', whiteSpace: 'nowrap' }}>{signingIn ? 'Sending…' : 'Email me a sign-in link'}</button>
+              </form>
             )
         )}
         {account && (
