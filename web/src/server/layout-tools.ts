@@ -73,7 +73,13 @@ export function layoutTools(workspaceId: string, onRefresh?: () => void, onFocus
           } else { unresolved.push(move.id); continue }
           moved.push(move.id)
         }
-        await saveLayout(workspaceId, next)
+        const removed = Object.keys(positions).filter((id) => !(id in next))
+        const patch: Record<string, Point> = {}
+        for (const [id, point] of Object.entries(next)) {
+          const previous = positions[id]
+          if (!previous || previous.x !== point.x || previous.y !== point.y) patch[id] = point
+        }
+        await saveLayout(workspaceId, patch, removed)
         onRefresh?.()
         const landed = focusId ?? moved.at(-1)
         if (landed) onFocus?.(landed)

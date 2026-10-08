@@ -106,10 +106,24 @@ export async function removeBrowser(workspaceId: string, id: string) {
   return rows[0]?.data as CanvasBrowser | undefined
 }
 
-export async function saveLayout(workspaceId: string, positions: Record<string, { x: number; y: number }>) {
+/**
+ * Merges position keys in one statement. A concurrent save of a different id
+ * cannot drop it, because this never replaces the whole map.
+ * A key in both `patch` and `remove` keeps the patched point.
+ */
+export async function saveLayout(
+  workspaceId: string,
+  patch: Record<string, { x: number; y: number }>,
+  remove: readonly string[] = [],
+) {
+  const dropped = [...remove]
+  const written = JSON.stringify(patch)
+  // COALESCE keeps an empty remove list from becoming NULL and wiping the row.
   await sql`INSERT INTO phab_canvas_layout (workspace_id, positions)
-    VALUES (${workspaceId}::uuid, ${JSON.stringify(positions)}::jsonb)
-    ON CONFLICT (workspace_id) DO UPDATE SET positions = EXCLUDED.positions, updated_at = now()`
+    VALUES (${workspaceId}::uuid, ('{}'::jsonb - COALESCE(${dropped}::text[], ARRAY[]::text[])) || ${written}::jsonb)
+    ON CONFLICT (workspace_id) DO UPDATE SET
+      positions = (phab_canvas_layout.positions - COALESCE(${dropped}::text[], ARRAY[]::text[])) || ${written}::jsonb,
+      updated_at = now()`
 }
 
 export function cleanTitle(value: unknown) {
