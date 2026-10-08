@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, KeyboardEvent, PointerEvent } from 'react'
 import { useCanvasWorkspace } from './use-canvas-workspace'
 import { browserArtifacts, canvasArtifacts, canvasWorkspace, commitNote, createNote, deleteNote, moveCanvasArtifact, moveNote, noteArtifacts, planArtifacts, saveCanvasLayout, setCanvasDragging, updateNoteText, type BrowserArtifact, type CanvasArtifact, type NoteArtifact, type PlanArtifact } from '#/lib/canvas-workspace'
@@ -38,6 +38,14 @@ export function useInfiniteCanvas() {
   const workspace = useCanvasWorkspace()
   const items: CanvasItem[] = [...workspace.noteItems, ...workspace.artifacts, ...workspace.plans, ...workspace.browserItems]
   const [panel, setPanel] = useState<'space' | 'search' | 'overview' | null>(null)
+  useEffect(() => {
+    if (!panel) return
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') setPanel(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [panel])
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)

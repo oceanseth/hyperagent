@@ -8,7 +8,7 @@ export function MonitorWidget() {
   const report = useDebugReport()
   return (
     <aside className="phab-monitor-widget" data-canvas-overlay aria-label="Research monitor">
-      <details {...monitor.widgetProps}>
+      <details onToggle={monitor.widgetProps.onToggle}>
         <summary><Activity size={14} /><strong>Activity</strong><span>{monitor.counts.active} active</span><ChevronDown size={14} /></summary>
         <div className="phab-monitor-widget-body">
           {monitor.error && <p className="phab-monitor-widget-warning">{monitor.error}</p>}

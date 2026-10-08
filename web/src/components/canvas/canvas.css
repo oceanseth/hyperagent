@@ -112,3 +112,119 @@
 .phab-canvas-object:hover .phab-card-remove, .phab-canvas-object:focus-within .phab-card-remove, .phab-card-remove:focus-visible { opacity: 1; }
 .phab-card-remove:hover { color: #f0f0ec; background: #ffffff14; }
 .phab-clear-canvas[data-busy='true'] { opacity: .5; pointer-events: none; }
+
+.phab-context-badge-float { position: absolute; z-index: 21; left: 28px; bottom: 76px; pointer-events: none; }
+
+.phab-canvas-base {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 64px;
+  box-sizing: border-box;
+  background: #2A2A2C;
+  border-top: 1px solid #3A3A3D;
+  box-shadow: 0 -22px 22px #00000059;
+}
+.phab-canvas-dock {
+  position: absolute;
+  z-index: 2;
+  right: 24px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+}
+.phab-dock-item {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 52px;
+  max-width: 92px;
+  height: 52px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #d5d5d2;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.15;
+  cursor: pointer;
+}
+.phab-dock-item:hover, .phab-dock-item[aria-expanded='true'] { background: #ffffff10; color: #f4f4f2; }
+.phab-dock-item:disabled { opacity: .35; cursor: default; }
+.phab-dock-label {
+  display: block;
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phab-canvas-dock [data-dock-item='board'] { max-width: 88px; }
+.phab-canvas-dock [data-dock-item='board'] .phab-dock-label { max-width: 72px; }
+.phab-dock-rename {
+  width: 140px;
+  height: 32px;
+  padding: 4px 8px;
+  border: 1px solid #ffffff24;
+  border-radius: 8px;
+  background: #1f1f21;
+  color: #f0f0ec;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.phab-dock-pop {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 5;
+  display: grid;
+  gap: 2px;
+  min-width: 196px;
+  padding: 8px;
+  border: 1px solid #3A3A3D;
+  border-radius: 12px;
+  background: #2A2A2C;
+  box-shadow: 0 -12px 28px #00000066;
+  color: #ecece8;
+}
+.phab-dock-pop p { margin: 0; padding: 8px 6px; color: #c8c8c4; font-size: 13px; line-height: 1.45; }
+.phab-dock-pop button, .phab-dock-pop a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.phab-dock-pop button:hover, .phab-dock-pop a:hover { background: #ffffff10; }
+.phab-dock-pop button:disabled { opacity: .35; cursor: default; }
+.phab-dock-pop .phab-mini-map { margin: 8px 4px 4px; }
+.phab-dock-share { display: grid; gap: 6px; }
+.phab-dock-share input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ffffff17;
+  border-radius: 6px;
+  background: #1b1b1b;
+  color: #f0f0ec;
+  font: inherit;
+  font-size: 11px;
+}
