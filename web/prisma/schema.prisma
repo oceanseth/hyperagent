@@ -144,6 +144,20 @@ model phab_payment_methods {
   created_at   DateTime @default(now()) @db.Timestamptz(6)
 }
 
+model phab_board_agents {
+  id           String    @id @db.Uuid
+  workspace_id String    @db.Uuid
+  name         String
+  color        String    @default("")
+  token_hash   String    @unique(map: "phab_board_agents_token_hash_key")
+  created_by   String
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  last_used_at DateTime? @db.Timestamptz(6)
+  revoked_at   DateTime? @db.Timestamptz(6)
+
+  @@index([workspace_id], map: "phab_board_agents_workspace_idx")
+}
+
 model phab_workspace_settings {
   workspace_id String   @db.Uuid
   key          String

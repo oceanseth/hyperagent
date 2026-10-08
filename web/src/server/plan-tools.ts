@@ -50,6 +50,7 @@ const SECRET_FIELD: Record<SettingKey, string> = {
   mercury: 'mercuryToken',
   northwest: 'northwestToken',
   agentmail: 'agentmailKey',
+  monid: 'monidKey',
 }
 
 export function planTools(workspaceId: string, onChange?: () => void, onFocus?: (id: string) => void, signal?: AbortSignal) {
