@@ -101,6 +101,7 @@ model phab_board_members {
   sub        String
   code       String
   role       String   @default("member")
+  color      String?
   created_at DateTime @default(now()) @db.Timestamptz(6)
 
   @@id([sub, code])
@@ -148,7 +149,7 @@ model phab_board_agents {
   id           String    @id @db.Uuid
   workspace_id String    @db.Uuid
   name         String
-  color        String    @default("")
+  color        String?   @default("")
   token_hash   String    @unique(map: "phab_board_agents_token_hash_key")
   created_by   String
   created_at   DateTime  @default(now()) @db.Timestamptz(6)

@@ -1,6 +1,8 @@
-import type { CanvasBrowser, CanvasJob, CanvasNote, CanvasStack, CanvasSnapshot, JobEvent } from '#/lib/canvas'
+import type { CanvasBrowser, CanvasJob, CanvasMember, CanvasNote, CanvasStack, CanvasSnapshot, JobEvent } from '#/lib/canvas'
+import { assignColor } from '#/lib/board-palette'
+import { memberName } from '#/lib/member-name'
 import { uniqueBoardName } from './board-names'
-import { sql, type Sql } from './db'
+import { client, sql, type Sql } from './db'
 import { listPlans } from './plans'
 const isoTimestamp = (value: unknown) => (value instanceof Date ? value : new Date(String(value))).toISOString()
 
@@ -26,7 +28,7 @@ const publicJob = (row: Record<string, unknown>): CanvasJob => ({
 })
 
 export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
-  const [stacks, jobs, plans, notes, layout, shared, browsers] = await Promise.all([
+  const [stacks, jobs, plans, notes, layout, shared, browsers, members] = await Promise.all([
     sql`SELECT data FROM (SELECT data, created_at FROM phab_canvas_stacks WHERE workspace_id = ${workspaceId}::uuid ORDER BY created_at DESC LIMIT 100) latest ORDER BY created_at ASC`,
     sql`SELECT jobs.*, history.events FROM (
       SELECT workspace_id, id, title, status, progress, stack_id, created_at, updated_at,
@@ -43,9 +45,10 @@ export async function getCanvas(workspaceId: string): Promise<CanvasSnapshot> {
     sql`SELECT positions FROM phab_canvas_layout WHERE workspace_id = ${workspaceId}::uuid`,
     sql`SELECT title FROM phab_share_codes WHERE workspace_id = ${workspaceId}::uuid LIMIT 1`,
     listBrowsers(workspaceId).catch(() => []),
+    listCanvasMembers(workspaceId),
   ])
   return {
-    stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob), plans, notes, browsers,
+    stacks: stacks.map((row) => row.data as CanvasStack), jobs: jobs.map(publicJob), plans, notes, browsers, members,
     positions: (layout[0]?.positions ?? {}) as Record<string, { x: number; y: number }>,
     shared: shared.length > 0,
     boardTitle: shared[0]?.title ? String(shared[0].title) : '',
@@ -125,6 +128,91 @@ async function saveMember(sql: Sql, sub: string, code: string, role: 'owner' | '
       WHEN EXCLUDED.role = 'owner' OR phab_board_members.role = 'owner' THEN 'owner'
       ELSE phab_board_members.role
     END`
+  const rows = await sql`SELECT workspace_id FROM phab_share_codes WHERE code = ${code} LIMIT 1`
+  if (rows[0]?.workspace_id) await ensureBoardColors(String(rows[0].workspace_id), code)
+}
+
+type ColorRow = { id: string; color: string | null; createdAt: number; kind: 'human' | 'agent' }
+
+function colorRow(row: Record<string, unknown>, kind: 'human' | 'agent'): ColorRow {
+  const created = row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at))
+  return { id: String(row.id), color: row.color == null ? null : String(row.color), createdAt: created.getTime(), kind }
+}
+
+// Humans and agents share one palette per board. Null colors are written once,
+// oldest created_at first, then id, and a later read leaves a stored color alone.
+async function ensureBoardColors(workspaceId: string, code: string) {
+  await client().$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT code FROM phab_share_codes WHERE code = ${code} FOR UPDATE`
+    const humans = await tx.$queryRaw<Record<string, unknown>[]>`
+      SELECT sub AS id, color, created_at FROM phab_board_members WHERE code = ${code}`
+    const agents = await tx.$queryRaw<Record<string, unknown>[]>`
+      SELECT id::text AS id, color, created_at FROM phab_board_agents
+      WHERE workspace_id = ${workspaceId}::uuid AND revoked_at IS NULL`
+    const rows = [...humans.map((row) => colorRow(row, 'human')), ...agents.map((row) => colorRow(row, 'agent'))]
+    const used = rows.flatMap((row) => row.color ? [row.color] : [])
+    const pending = rows.filter((row) => row.color == null).sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    for (const row of pending) {
+      const color = assignColor(used)
+      const updated = row.kind === 'human'
+        ? await tx.$queryRaw<Record<string, unknown>[]>`
+            UPDATE phab_board_members SET color = ${color}
+            WHERE sub = ${row.id} AND code = ${code} AND color IS NULL RETURNING color`
+        : await tx.$queryRaw<Record<string, unknown>[]>`
+            UPDATE phab_board_agents SET color = ${color}
+            WHERE id = ${row.id}::uuid AND color IS NULL RETURNING color`
+      const written = updated[0]?.color
+      if (written != null) {
+        used.push(String(written))
+        continue
+      }
+      const current = row.kind === 'human'
+        ? await tx.$queryRaw<Record<string, unknown>[]>`
+            SELECT color FROM phab_board_members WHERE sub = ${row.id} AND code = ${code}`
+        : await tx.$queryRaw<Record<string, unknown>[]>`
+            SELECT color FROM phab_board_agents WHERE id = ${row.id}::uuid`
+      if (current[0]?.color != null) used.push(String(current[0].color))
+    }
+  })
+}
+
+// auth.users may be missing or hidden from this role. Names still resolve.
+async function memberRows(code: string) {
+  try {
+    return await sql`SELECT m.sub, m.color, u.email AS email, u.raw_user_meta_data->>'name' AS meta_name
+      FROM phab_board_members m
+      LEFT JOIN auth.users u ON u.id::text = m.sub
+      WHERE m.code = ${code}`
+  } catch {
+    return await sql`SELECT sub, color, NULL::text AS email, NULL::text AS meta_name
+      FROM phab_board_members WHERE code = ${code}`
+  }
+}
+
+export async function listCanvasMembers(workspaceId: string): Promise<CanvasMember[]> {
+  const shares = await sql`SELECT code FROM phab_share_codes WHERE workspace_id = ${workspaceId}::uuid LIMIT 1`
+  const code = shares[0]?.code ? String(shares[0].code) : ''
+  if (!code) return []
+  await ensureBoardColors(workspaceId, code)
+  const [humans, agents] = await Promise.all([
+    memberRows(code),
+    sql`SELECT id::text AS id, name, color FROM phab_board_agents
+      WHERE workspace_id = ${workspaceId}::uuid AND revoked_at IS NULL`,
+  ])
+  return [
+    ...humans.map((row) => ({
+      id: String(row.sub),
+      name: memberName(String(row.sub), { name: row.meta_name == null ? '' : String(row.meta_name), email: row.email == null ? '' : String(row.email) }),
+      color: String(row.color ?? ''),
+      kind: 'human' as const,
+    })),
+    ...agents.map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      color: String(row.color ?? ''),
+      kind: 'agent' as const,
+    })),
+  ]
 }
 
 const untitled = 'Untitled board'
