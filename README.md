@@ -77,14 +77,14 @@ The app expects server configuration for Neon, the Executor MCP, and the researc
 
 | Branch | Deploys to | Who pushes here |
 |--------|------------|-----------------|
-| `dev` (default) | [dev.hyperagent.lol](https://dev.hyperagent.lol/) | Everyone — all day-to-day work lands here |
-| `production` | [hyperagent.lol](https://hyperagent.lol/) | **Nobody**, unless specifically told to ship production |
+| `dev` (default) | [dev.hyperagent.lol](https://dev.hyperagent.lol/) | Staging/preview when a change needs a look before release |
+| `production` | [hyperagent.lol](https://hyperagent.lol/) | Everyone — completed work ships straight here (rule change 2026-10-07) |
 
 **Rules for agents working in this repo:**
 
 1. **Test locally first** (`pnpm dev` from `web/`).
-2. **Ship to `dev`.** Merge or push your work to the `dev` branch; GitHub Actions (`deploy-dev.yml`) builds it and deploys dev.hyperagent.lol automatically.
-3. **Never touch `production` unless specifically told to.** A production release is an explicit, human-requested act: fast-forward `production` to the commit being released and push; `deploy-production.yml` deploys hyperagent.lol.
+2. **Ship to `production`.** Push completed work to the `production` branch; `deploy-production.yml` deploys hyperagent.lol (and `deploy-research.yml` the Fly worker). One deploy at a time — App Runner rejects an overlapping release with `OPERATION_IN_PROGRESS`, so wait for the previous run to finish.
+3. **Verify the deploy is live**, not just that the workflow succeeded (e.g. check the site responds with your change). Keep `dev` fast-forwardable to `production`; use it only when something needs a preview on dev.hyperagent.lol first.
 
 Both sites run as AWS App Runner services behind the same ECR repo (`hyperagent-app:dev` / `hyperagent-app:latest`). Dev currently shares the production database and research worker, so schema-destructive experiments still need care. The research worker (Fly.io) deploys with production releases only, or by manual `workflow_dispatch` of `deploy-research.yml`.
 

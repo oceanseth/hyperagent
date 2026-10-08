@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { AudioLinesIcon, HistoryIcon, LoaderCircleIcon, XIcon } from 'lucide-react'
+import { canvasWorkspace } from '#/lib/canvas-workspace'
 
 type HistoryMessage = { id: string; role: 'user' | 'assistant'; modality: 'chat' | 'voice'; text: string; at: string }
+
+const sameHistory = (a: HistoryMessage[] | null, b: HistoryMessage[]) =>
+  a !== null && a.length === b.length && a.every((message, index) => message.id === b[index].id && message.text === b[index].text)
 
 const timeLabel = (at: string) => {
   const date = new Date(at)
@@ -16,23 +20,46 @@ export function ChatHistoryPanel({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<HistoryMessage[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
+  // Follow the newest message unless the reader has scrolled up into the past.
+  const pinnedRef = useRef(true)
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/history', { signal: AbortSignal.timeout(15_000) })
-      .then(async (response) => {
+    let inFlight = false
+    const load = async (initial: boolean) => {
+      if (inFlight) return
+      inFlight = true
+      try {
+        const response = await fetch('/api/history', { signal: AbortSignal.timeout(15_000) })
         const body = await response.json() as { messages?: HistoryMessage[]; error?: string }
         if (cancelled) return
-        if (!response.ok || !body.messages) setError(body.error ?? 'Could not load your history.')
-        else setMessages(body.messages)
-      })
-      .catch(() => { if (!cancelled) setError('Could not load your history.') })
-    return () => { cancelled = true }
+        if (!response.ok || !body.messages) {
+          if (initial) setError(body.error ?? 'Could not load your history.')
+        } else {
+          const next = body.messages
+          setError(null)
+          setMessages((current) => sameHistory(current, next) ? current : next)
+        }
+      } catch {
+        if (!cancelled && initial) setError('Could not load your history.')
+      } finally { inFlight = false }
+    }
+    void load(true)
+    // Every canvas sync (realtime board-changed ping or the poll fallback)
+    // re-reads history, so other members' messages appear without a reload.
+    let lastSynced = canvasWorkspace.getState().syncedAt
+    const unsubscribe = canvasWorkspace.subscribe(() => {
+      const synced = canvasWorkspace.getState().syncedAt
+      if (synced === lastSynced) return
+      lastSynced = synced
+      void load(false)
+    })
+    return () => { cancelled = true; unsubscribe() }
   }, [])
 
   useEffect(() => {
     const viewport = viewportRef.current
-    if (viewport && messages?.length) viewport.scrollTop = viewport.scrollHeight
+    if (viewport && messages?.length && pinnedRef.current) viewport.scrollTop = viewport.scrollHeight
   }, [messages])
 
   return (
@@ -50,7 +77,14 @@ export function ChatHistoryPanel({ onClose }: { onClose: () => void }) {
           <XIcon aria-hidden="true" size={16} />
         </button>
       </div>
-      <div className="canvas-conversation-viewport" ref={viewportRef}>
+      <div
+        className="canvas-conversation-viewport"
+        ref={viewportRef}
+        onScroll={() => {
+          const viewport = viewportRef.current
+          if (viewport) pinnedRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 48
+        }}
+      >
         {!messages && !error && (
           <div className="canvas-history-note">
             <LoaderCircleIcon className="canvas-chat-spinner" aria-hidden="true" size={13} />
