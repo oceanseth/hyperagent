@@ -54,11 +54,48 @@ function postJson(url: string, body: unknown) {
 }
 
 let layoutTimer: ReturnType<typeof setTimeout> | undefined
+const pendingPatch: Record<string, Point> = {}
+const pendingRemove = new Set<string>()
+
+function rememberLayoutPoint(id: string, point: Point) {
+  pendingRemove.delete(id)
+  pendingPatch[id] = point
+}
+
+function forgetLayoutIds(ids: string[]) {
+  for (const id of ids) {
+    delete pendingPatch[id]
+    pendingRemove.add(id)
+  }
+}
+
+function discardLayoutWrites() {
+  clearTimeout(layoutTimer)
+  for (const id of Object.keys(pendingPatch)) delete pendingPatch[id]
+  pendingRemove.clear()
+}
+
 function savePreferences() {
   const { positions, excludedIds } = canvasWorkspace.getState()
   try { localStorage.setItem('phab-canvas-layout', JSON.stringify({ positions, excludedIds })) } catch { /* storage may be disabled */ }
   clearTimeout(layoutTimer)
-  layoutTimer = setTimeout(() => postJson('/api/layout', { positions: canvasWorkspace.getState().positions }), 500)
+  layoutTimer = setTimeout(() => {
+    const patch = { ...pendingPatch }
+    const remove = [...pendingRemove]
+    for (const id of Object.keys(pendingPatch)) delete pendingPatch[id]
+    pendingRemove.clear()
+    const extra = remove.splice(500)
+    for (const id of extra) pendingRemove.add(id)
+    if (Object.keys(patch).length === 0 && remove.length === 0) {
+      if (extra.length) savePreferences()
+      return
+    }
+    postJson('/api/layout', {
+      ...(Object.keys(patch).length ? { patch } : {}),
+      ...(remove.length ? { remove } : {}),
+    })
+    if (extra.length) savePreferences()
+  }, 500)
 }
 
 function publishedSlug() {
@@ -115,16 +152,16 @@ export function refreshCanvas() {
         const parsed = canvasBrowserSchema.safeParse(browser)
         return parsed.success && !buried(parsed.data.id) ? [parsed.data] : []
       })
+      const positions = { ...(snapshot.positions ?? {}), ...pendingPatch }
+      for (const id of pendingRemove) delete positions[id]
       canvasWorkspace.setState((current) => ({
         stacks, jobs, plans,
         shared: snapshot.shared ?? current.shared,
         boardTitle: snapshot.boardTitle ?? '',
         // Server layout wins so shared boards converge; local wins briefly
         // around a drag or edit so your own hand never fights the poll.
-        ...(holdLocal() ? {} : {
-          notes, browsers,
-          positions: { ...current.positions, ...(snapshot.positions ?? {}) },
-        }),
+        // Pending edits stay on top until the layout post lands.
+        ...(holdLocal() ? {} : { notes, browsers, positions }),
         error: null, loaded: true, syncedAt: Date.now(),
       }))
       const topic = (snapshot as CanvasSnapshot & { realtimeTopic?: string }).realtimeTopic
@@ -177,6 +214,7 @@ export function receiveCanvasJob(job: CanvasJob) {
 
 export function moveCanvasArtifact(id: string, point: Point) {
   markLocalChange()
+  rememberLayoutPoint(id, point)
   canvasWorkspace.setState((current) => ({ positions: { ...current.positions, [id]: point } }))
 }
 export const saveCanvasLayout = savePreferences
@@ -227,7 +265,13 @@ export function deleteNote(id: string) {
 /** Removes the card for everyone; the server ends the KERNEL session. */
 export function closeBrowser(id: string) {
   bury(id)
-  canvasWorkspace.setState((current) => ({ browsers: current.browsers.filter((browser) => browser.id !== id) }))
+  forgetLayoutIds([id])
+  canvasWorkspace.setState((current) => {
+    const positions = { ...current.positions }
+    delete positions[id]
+    return { browsers: current.browsers.filter((browser) => browser.id !== id), positions }
+  })
+  savePreferences()
   postJson('/api/browsers', { action: 'close', id })
 }
 
@@ -391,6 +435,7 @@ export async function clearCanvas(): Promise<string | undefined> {
   markLocalChange()
   for (const timer of noteTimers.values()) clearTimeout(timer)
   noteTimers.clear()
+  discardLayoutWrites()
   canvasWorkspace.setState({ stacks: [], plans: [], notes: [], browsers: [], positions: {}, excludedIds: [], openPlanIds: [], focus: null })
   try { localStorage.removeItem('phab-canvas-layout') } catch { /* storage may be disabled */ }
   try {
@@ -408,10 +453,19 @@ export async function clearCanvas(): Promise<string | undefined> {
 /** Removes a research stack and its sources for everyone; a job still writing it is cancelled. */
 export function removeStack(id: string) {
   bury(id)
-  canvasWorkspace.setState((current) => ({
-    stacks: current.stacks.filter((stack) => stack.id !== id),
-    excludedIds: current.excludedIds.filter((entry) => entry !== id),
-  }))
+  const stack = canvasWorkspace.getState().stacks.find((entry) => entry.id === id)
+  const dropped = [id, ...(stack?.sources.map((source) => source.id) ?? [])]
+  forgetLayoutIds(dropped)
+  canvasWorkspace.setState((current) => {
+    const positions = { ...current.positions }
+    for (const entry of dropped) delete positions[entry]
+    return {
+      stacks: current.stacks.filter((entry) => entry.id !== id),
+      excludedIds: current.excludedIds.filter((entry) => entry !== id),
+      positions,
+    }
+  })
+  savePreferences()
   postJson('/api/remove', { kind: 'stack', id })
 }
 
@@ -427,10 +481,22 @@ export function removePlan(id: string) {
     ids.add(next)
     for (const node of byId.get(next)?.states ?? []) if (node.childPlanId) queue.push(node.childPlanId)
   }
-  for (const entry of ids) bury(entry)
-  canvasWorkspace.setState((current) => ({
-    plans: current.plans.filter((plan) => !ids.has(plan.id)),
-    openPlanIds: current.openPlanIds.filter((entry) => !ids.has(entry)),
-  }))
+  const dropped: string[] = []
+  for (const entry of ids) {
+    bury(entry)
+    dropped.push(entry)
+    for (const node of byId.get(entry)?.states ?? []) dropped.push(node.id)
+  }
+  forgetLayoutIds(dropped)
+  canvasWorkspace.setState((current) => {
+    const positions = { ...current.positions }
+    for (const entry of dropped) delete positions[entry]
+    return {
+      plans: current.plans.filter((plan) => !ids.has(plan.id)),
+      openPlanIds: current.openPlanIds.filter((entry) => !ids.has(entry)),
+      positions,
+    }
+  })
+  savePreferences()
   postJson('/api/remove', { kind: 'plan', id })
 }
