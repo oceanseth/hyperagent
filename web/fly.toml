@@ -1,4 +1,4 @@
-app = "phab-research-oxwilde"
+app = "hyperagent-research"
 primary_region = "iad"
 kill_signal = "SIGTERM"
 kill_timeout = "300s"
