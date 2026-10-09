@@ -22,6 +22,7 @@
     "@mastra/ai-sdk": "^1.10.6",
     "@mastra/core": "^1.74.0",
     "@mastra/mcp": "^1.18.0",
+    "@modelcontextprotocol/sdk": "1.32.0",
     "@paper-design/shaders-react": "^0.0.81",
     "@prisma/client": "6.19.3",
     "@supabase/ssr": "^0.12.7",
