@@ -13,13 +13,13 @@ export function PresenceStack({ members, selfId }: { members: CanvasMember[]; se
       style={{
         position: 'absolute',
         zIndex: 2,
-        left: 368,
+        left: 'calc(24px + var(--canvas-composer-width))',
         top: 0,
         bottom: 0,
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        maxWidth: 'calc(100% - 368px - 440px)',
+        maxWidth: 'calc(100% - 24px - var(--canvas-composer-width) - 464px)',
         overflow: 'hidden',
         pointerEvents: 'none',
       }}

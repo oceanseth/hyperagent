@@ -164,10 +164,16 @@
 .phab-dock-label {
   display: block;
   max-width: 84px;
+  min-height: 1.15em; /* keep the line box while a data-driven label resolves */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Soften bar occupants that mount after their data arrives — no reflow, just entry. */
+.phab-canvas-dock, [data-presence-stack], [data-agent-activity] {
+  animation: phab-bar-in .18s ease-out;
+}
+@keyframes phab-bar-in { from { opacity: 0; transform: translateY(4px); } }
 .phab-canvas-dock [data-dock-item='board'] { max-width: 88px; }
 .phab-canvas-dock [data-dock-item='board'] .phab-dock-label { max-width: 72px; }
 .phab-dock-rename {
