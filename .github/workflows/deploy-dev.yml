@@ -33,6 +33,32 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Dev Supabase split (docs/SUPABASE_DEV_SPLIT.md, step 8): the browser
+      # bundle bakes VITE_SUPABASE_* from the committed web/.env.production,
+      # which holds the PROD values. Overwrite that file in the CI checkout
+      # only (never committed) so the dev image points at the dev project.
+      # Backward compatible: with neither repo variable set, the committed
+      # file is used unchanged (pre-split behavior). Exactly one variable set
+      # is a misconfiguration and fails loudly rather than baking an empty
+      # value into the bundle. Both values are public by design (they ship in
+      # the browser bundle) — repository variables, not secrets.
+      - name: Point client bundle at dev Supabase
+        env:
+          DEV_SUPABASE_URL: ${{ vars.DEV_SUPABASE_URL }}
+          DEV_SUPABASE_KEY: ${{ vars.DEV_SUPABASE_KEY }}
+        run: |
+          if [ -z "$DEV_SUPABASE_URL" ] && [ -z "$DEV_SUPABASE_KEY" ]; then
+            echo "DEV_SUPABASE_URL / DEV_SUPABASE_KEY repo variables unset; keeping committed web/.env.production."
+            exit 0
+          fi
+          if [ -z "$DEV_SUPABASE_URL" ] || [ -z "$DEV_SUPABASE_KEY" ]; then
+            echo "Only one of DEV_SUPABASE_URL / DEV_SUPABASE_KEY is set; refusing to bake a half-configured bundle." >&2
+            exit 1
+          fi
+          printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_KEY=%s\n' \
+            "$DEV_SUPABASE_URL" "$DEV_SUPABASE_KEY" > web/.env.production
+          echo "web/.env.production overridden with dev Supabase values."
+
       - name: Build image
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
