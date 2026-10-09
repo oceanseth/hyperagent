@@ -14,6 +14,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as MonitorRouteImport } from './routes/monitor'
 import { Route as ApiAgentmailRouteImport } from './routes/api/agentmail'
+import { Route as ApiAgentsRouteImport } from './routes/api/agents'
 import { Route as ApiBrowsersRouteImport } from './routes/api/browsers'
 import { Route as ApiCanvasRouteImport } from './routes/api/canvas'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
@@ -58,6 +59,11 @@ const MonitorRoute = MonitorRouteImport.update({
 const ApiAgentmailRoute = ApiAgentmailRouteImport.update({
   id: '/api/agentmail',
   path: '/api/agentmail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentsRoute = ApiAgentsRouteImport.update({
+  id: '/api/agents',
+  path: '/api/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBrowsersRoute = ApiBrowsersRouteImport.update({
@@ -167,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/boards': typeof BoardsRoute
   '/monitor': typeof MonitorRoute
   '/api/agentmail': typeof ApiAgentmailRoute
+  '/api/agents': typeof ApiAgentsRoute
   '/api/browsers': typeof ApiBrowsersRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
@@ -194,6 +201,7 @@ export interface FileRoutesByTo {
   '/boards': typeof BoardsRoute
   '/monitor': typeof MonitorRoute
   '/api/agentmail': typeof ApiAgentmailRoute
+  '/api/agents': typeof ApiAgentsRoute
   '/api/browsers': typeof ApiBrowsersRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/boards': typeof BoardsRoute
   '/monitor': typeof MonitorRoute
   '/api/agentmail': typeof ApiAgentmailRoute
+  '/api/agents': typeof ApiAgentsRoute
   '/api/browsers': typeof ApiBrowsersRoute
   '/api/canvas': typeof ApiCanvasRoute
   '/api/chat': typeof ApiChatRoute
@@ -251,6 +260,7 @@ export interface FileRouteTypes {
     | '/boards'
     | '/monitor'
     | '/api/agentmail'
+    | '/api/agents'
     | '/api/browsers'
     | '/api/canvas'
     | '/api/chat'
@@ -278,6 +288,7 @@ export interface FileRouteTypes {
     | '/boards'
     | '/monitor'
     | '/api/agentmail'
+    | '/api/agents'
     | '/api/browsers'
     | '/api/canvas'
     | '/api/chat'
@@ -305,6 +316,7 @@ export interface FileRouteTypes {
     | '/boards'
     | '/monitor'
     | '/api/agentmail'
+    | '/api/agents'
     | '/api/browsers'
     | '/api/canvas'
     | '/api/chat'
@@ -333,6 +345,7 @@ export interface RootRouteChildren {
   BoardsRoute: typeof BoardsRoute
   MonitorRoute: typeof MonitorRoute
   ApiAgentmailRoute: typeof ApiAgentmailRoute
+  ApiAgentsRoute: typeof ApiAgentsRoute
   ApiBrowsersRoute: typeof ApiBrowsersRoute
   ApiCanvasRoute: typeof ApiCanvasRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -390,6 +403,13 @@ declare module '@tanstack/react-router' {
       path: '/api/agentmail'
       fullPath: '/api/agentmail'
       preLoaderRoute: typeof ApiAgentmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agents': {
+      id: '/api/agents'
+      path: '/api/agents'
+      fullPath: '/api/agents'
+      preLoaderRoute: typeof ApiAgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/browsers': {
@@ -541,6 +561,7 @@ const rootRouteChildren: RootRouteChildren = {
   BoardsRoute: BoardsRoute,
   MonitorRoute: MonitorRoute,
   ApiAgentmailRoute: ApiAgentmailRoute,
+  ApiAgentsRoute: ApiAgentsRoute,
   ApiBrowsersRoute: ApiBrowsersRoute,
   ApiCanvasRoute: ApiCanvasRoute,
   ApiChatRoute: ApiChatRoute,
