@@ -15,7 +15,9 @@ import {
   XIcon,
 } from 'lucide-react'
 import { useState } from 'react'
+import { HTreeMark } from '#/components/brand/htree-mark'
 import { HTreeThinking } from '#/components/brand/htree-thinking'
+import { PHAB_COLOR } from '#/lib/board-palette'
 import { ChatHistoryPanel } from '#/components/canvas/chat-history'
 import { MarkdownText } from '#/components/assistant-ui/elements/markdown-text'
 import { ToolFallback } from '#/components/assistant-ui/elements/tool-fallback.aui'
@@ -92,6 +94,9 @@ export function CanvasComposer() {
         className="canvas-composer"
         {...composer.formProps}
       >
+        <span className="canvas-composer-mark" title="Phab">
+          <HTreeMark size={16} color={PHAB_COLOR} />
+        </span>
         <ComposerPrimitive.Input
           className="canvas-composer-input"
           rows={1}
@@ -99,6 +104,8 @@ export function CanvasComposer() {
           enterKeyHint="send"
           cancelOnEscape={false}
           {...composer.inputProps}
+          placeholder="Ask Phab, this board's agent…"
+          aria-label="Ask Phab, this board's agent"
         />
         <div className="canvas-composer-actions">
           <button
@@ -150,7 +157,7 @@ function CanvasMessage() {
   return (
     <MessagePrimitive.Root className="canvas-message" {...message.rootProps}>
       <div className="canvas-message-label">
-        {message.label}
+        {message.rootProps['data-role'] === 'user' ? 'You' : 'Phab · board agent'}
         {message.isVoice && <AudioLinesIcon aria-hidden="true" size={12} />}
       </div>
       <div className="canvas-message-content">

@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '#/components/ui/dialog'
 import { Button } from '#/components/ui/button'
+import { supabase } from '#/utils/supabase'
 
 type MaskedSetting = { key: string; set: boolean; hint: string }
 
@@ -47,6 +48,8 @@ export function SettingsDialog({ dock = false, openSignal = 0 }: { dock?: boolea
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [nameReady, setNameReady] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -88,6 +91,19 @@ export function SettingsDialog({ dock = false, openSignal = 0 }: { dock?: boolea
 
   useEffect(() => {
     if (!open) return
+    let cancelled = false
+    setNameReady(false)
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return
+      const name = typeof data.user?.user_metadata?.name === 'string' ? data.user.user_metadata.name : ''
+      setNameReady(Boolean(data.user))
+      setNameDraft(name)
+    }).catch(() => { if (!cancelled) setNameReady(false) })
+    return () => { cancelled = true }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
     setError(null)
     fetch('/api/settings')
       .then(async (response) => {
@@ -98,6 +114,21 @@ export function SettingsDialog({ dock = false, openSignal = 0 }: { dock?: boolea
       })
       .catch(() => setError('Could not load settings.'))
   }, [open])
+
+  const saveName = async () => {
+    setBusy('display-name')
+    setError(null)
+    try {
+      const name = nameDraft.trim().slice(0, 80)
+      const { error: saveError } = await supabase.auth.updateUser({ data: { name } })
+      if (saveError) setError('Could not save your display name.')
+      else setNameDraft(name)
+    } catch {
+      setError('Could not save your display name.')
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const save = async (key: string) => {
     setBusy(key)
@@ -199,6 +230,32 @@ export function SettingsDialog({ dock = false, openSignal = 0 }: { dock?: boolea
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
+          {nameReady && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium" htmlFor="setting-display-name">Display name</label>
+              <p className="text-xs text-muted-foreground">Shown on your chat lines. Saved on your account.</p>
+              <div className="flex gap-2">
+                <input
+                  id="setting-display-name"
+                  type="text"
+                  autoComplete="nickname"
+                  maxLength={80}
+                  className="h-9 flex-1 rounded-md border bg-transparent px-3 text-sm outline-none focus-visible:ring-2"
+                  placeholder="Your name"
+                  value={nameDraft}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy === 'display-name'}
+                  onClick={() => void saveName()}
+                >
+                  {busy === 'display-name' ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
+            </div>
+          )}
           {settings.map((setting) => {
             const meta = LABELS[setting.key] ?? { label: setting.key, placeholder: '' }
             return (

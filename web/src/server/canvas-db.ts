@@ -1,9 +1,11 @@
 import type { CanvasBrowser, CanvasJob, CanvasMember, CanvasNote, CanvasStack, CanvasSnapshot, JobEvent } from '#/lib/canvas'
 import { assignColor } from '#/lib/board-palette'
 import { memberName } from '#/lib/member-name'
+import { verifyAgentToken } from './agent-tokens'
 import { uniqueBoardName } from './board-names'
 import { client, sql, type Sql } from './db'
 import { listPlans } from './plans'
+import { supabaseServer } from './supabase-server'
 const isoTimestamp = (value: unknown) => (value instanceof Date ? value : new Date(String(value))).toISOString()
 
 const publicEvent = (row: Record<string, unknown>): JobEvent => ({
@@ -357,12 +359,75 @@ export async function createOwnedBoard(ownerSub: string, title: string) {
   return { workspaceId, code, title: name }
 }
 
-export type ChatHistoryMessage = { id: string; role: 'user' | 'assistant'; modality: 'chat' | 'voice'; text: string; at: string }
+export type ChatAuthorKind = 'human' | 'agent' | 'phab'
+
+export type ChatAuthor = { id: string; name: string; kind: ChatAuthorKind }
+
+export type ChatHistoryMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  modality: 'chat' | 'voice'
+  text: string
+  at: string
+  authorId: string | null
+  authorName: string | null
+  authorKind: ChatAuthorKind | null
+}
+
+const AUTHOR_KINDS = new Set<ChatAuthorKind>(['human', 'agent', 'phab'])
+
+function cleanAuthorName(name: string) {
+  return name.replace(/[\r\n\t]+/g, ' ').trim().slice(0, 80)
+}
+
+function authorColumns(author: ChatAuthor | null | undefined) {
+  const kind = author && AUTHOR_KINDS.has(author.kind) ? author.kind : null
+  const name = author ? cleanAuthorName(author.name) : ''
+  const id = author?.id.trim().slice(0, 200) ?? ''
+  if (!kind || !name || !id) return { author_id: null, author_name: null, author_kind: null }
+  return { author_id: id, author_name: name, author_kind: kind }
+}
+
+/** Who is speaking on this request. Client-supplied names are never read. */
+export async function chatSpeaker(request: Request, workspaceId: string): Promise<{ author: ChatAuthor | null; speakerName: string }> {
+  try {
+    const agent = await verifyAgentToken(request.headers.get('authorization'))
+    if (agent && agent.workspace_id === workspaceId) {
+      const name = cleanAuthorName(agent.name) || 'agent'
+      return { author: { id: agent.id, name, kind: 'agent' }, speakerName: name }
+    }
+  } catch { /* an unreadable token does not borrow a name from the body */ }
+  try {
+    const { client: supabase } = supabaseServer(request)
+    const { data, error } = await supabase.auth.getClaims()
+    const claims = data?.claims
+    if (error || !claims?.sub) return { author: null, speakerName: 'someone' }
+    const meta = (claims.user_metadata ?? {}) as { name?: unknown }
+    const metaName = typeof meta.name === 'string' ? meta.name : ''
+    const email = typeof claims.email === 'string' ? claims.email : ''
+    const name = cleanAuthorName(memberName(String(claims.sub), { name: metaName, email })) || 'someone'
+    return { author: { id: String(claims.sub).slice(0, 200), name, kind: 'human' }, speakerName: name }
+  } catch {
+    return { author: null, speakerName: 'someone' }
+  }
+}
+
+/** "You" only when this viewer wrote the line. Null authors stay "someone". */
+export function chatAuthorLabel(
+  message: { role: string; authorId: string | null; authorName: string | null; authorKind: string | null },
+  viewer: { id: string; kind: ChatAuthorKind } | null,
+) {
+  const named = message.authorName?.trim() ?? ''
+  if (!named && !message.authorKind) return 'someone'
+  if (viewer && message.role === 'user' && message.authorId === viewer.id && message.authorKind === viewer.kind) return 'You'
+  if (message.authorKind === 'phab') return named || 'Phab'
+  return named || 'someone'
+}
 
 /** Upserts conversation turns so re-sent transcripts never duplicate history. */
 export async function saveChatMessages(
   workspaceId: string,
-  messages: { id: string; role: string; modality?: string; text: string }[],
+  messages: { id: string; role: string; modality?: string; text: string; author?: ChatAuthor | null }[],
 ) {
   const rows = messages
     .filter((message) => (message.role === 'user' || message.role === 'assistant') && message.text.trim())
@@ -370,23 +435,35 @@ export async function saveChatMessages(
       id: message.id.slice(0, 120), role: message.role,
       modality: message.modality === 'voice' ? 'voice' : 'chat',
       content: message.text.slice(0, 20_000),
+      ...authorColumns(message.author),
     }))
   if (!rows.length) return
-  await sql`INSERT INTO phab_chat_messages (workspace_id, id, role, modality, content)
-    SELECT ${workspaceId}::uuid, m.id, m.role, m.modality, m.content
-    FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS m(id text, role text, modality text, content text)
-    ON CONFLICT (workspace_id, id) DO UPDATE SET content = EXCLUDED.content, updated_at = now()`
+  // The first non-null author wins. A later save that omits the author, and a
+  // client that replays someone else's id, cannot replace it.
+  await sql`INSERT INTO phab_chat_messages (workspace_id, id, role, modality, content, author_id, author_name, author_kind)
+    SELECT ${workspaceId}::uuid, m.id, m.role, m.modality, m.content, m.author_id, m.author_name, m.author_kind
+    FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
+      AS m(id text, role text, modality text, content text, author_id text, author_name text, author_kind text)
+    ON CONFLICT (workspace_id, id) DO UPDATE SET
+      content = EXCLUDED.content,
+      updated_at = now(),
+      author_id = COALESCE(phab_chat_messages.author_id, EXCLUDED.author_id),
+      author_name = COALESCE(phab_chat_messages.author_name, EXCLUDED.author_name),
+      author_kind = COALESCE(phab_chat_messages.author_kind, EXCLUDED.author_kind)`
 }
 
 export async function listChatHistory(workspaceId: string, limit = 300): Promise<ChatHistoryMessage[]> {
-  const rows = await sql`SELECT id, role, modality, content, created_at FROM (
-    SELECT id, role, modality, content, created_at FROM phab_chat_messages
+  const rows = await sql`SELECT id, role, modality, content, created_at, author_id, author_name, author_kind FROM (
+    SELECT id, role, modality, content, created_at, author_id, author_name, author_kind FROM phab_chat_messages
     WHERE workspace_id = ${workspaceId}::uuid ORDER BY created_at DESC LIMIT ${limit}
   ) latest ORDER BY created_at ASC`
   return rows.map((row) => ({
     id: String(row.id), role: row.role as ChatHistoryMessage['role'],
     modality: row.modality === 'voice' ? 'voice' : 'chat',
     text: String(row.content), at: isoTimestamp(row.created_at),
+    authorId: row.author_id == null ? null : String(row.author_id),
+    authorName: row.author_name == null ? null : String(row.author_name),
+    authorKind: AUTHOR_KINDS.has(row.author_kind as ChatAuthorKind) ? row.author_kind as ChatAuthorKind : null,
   }))
 }
 
