@@ -1,5 +1,6 @@
 import { createStore } from 'zustand/vanilla'
-import { canvasBrowserSchema, canvasNoteSchema, canvasStackSchema, type CanvasBrowser, type CanvasJob, type CanvasNote, type CanvasSnapshot, type CanvasStack } from './canvas'
+import { canvasBrowserSchema, canvasNoteSchema, canvasStackSchema, type CanvasBrowser, type CanvasJob, type CanvasMember, type CanvasNote, type CanvasSnapshot, type CanvasStack } from './canvas'
+import type { BoardCursor } from './canvas-realtime'
 import { planSchema, rootPlans, type Plan, type PlanNode } from './plan'
 
 type Point = { x: number; y: number }
@@ -15,8 +16,14 @@ export type WorkspaceState = CanvasSnapshot & {
   loaded: boolean
   syncedAt: number | null
 }
-const initial: WorkspaceState = { stacks: [], jobs: [], plans: [], notes: [], browsers: [], shared: false, boardTitle: '', positions: {}, excludedIds: [], openPlanIds: [], focus: null, error: null, loaded: false, syncedAt: null }
-export const canvasWorkspace = createStore<WorkspaceState>(() => initial)
+export type CanvasPresenceState = {
+  presence: CanvasMember[]
+  cursors: Record<string, BoardCursor>
+  selfId: string | null
+}
+type StoreState = WorkspaceState & CanvasPresenceState
+const initial: StoreState = { stacks: [], jobs: [], plans: [], notes: [], browsers: [], shared: false, boardTitle: '', positions: {}, excludedIds: [], openPlanIds: [], focus: null, error: null, loaded: false, syncedAt: null, presence: [], cursors: {}, selfId: null }
+export const canvasWorkspace = createStore<StoreState>(() => initial)
 let pending: Promise<void> | undefined
 let subscriptions = 0
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -106,24 +113,7 @@ function publishedSlug() {
 // Database triggers ping the board's private Supabase Realtime channel on every
 // change, so open boards refresh at once instead of waiting for the next poll.
 // Polling stays as the fallback; a realtime failure never breaks the canvas.
-let realtimeTopic: string | undefined
-let realtimeChannel: { unsubscribe: () => unknown } | undefined
-let realtimeTimer: ReturnType<typeof setTimeout> | undefined
-async function connectRealtime(topic: string) {
-  if (topic === realtimeTopic || typeof window === 'undefined') return
-  realtimeTopic = topic
-  try {
-    void realtimeChannel?.unsubscribe()
-    const { supabase } = await import('../utils/supabase')
-    await supabase.realtime.setAuth()
-    realtimeChannel = supabase.channel(topic, { config: { private: true } })
-      .on('broadcast', { event: 'board-changed' }, () => {
-        clearTimeout(realtimeTimer)
-        realtimeTimer = setTimeout(() => { void refreshCanvas() }, 250)
-      })
-      .subscribe()
-  } catch { realtimeTopic = undefined }
-}
+// Presence and cursors share that channel. See canvas-realtime.ts.
 
 export function refreshCanvas() {
   pending ??= (async () => {
@@ -165,7 +155,10 @@ export function refreshCanvas() {
         error: null, loaded: true, syncedAt: Date.now(),
       }))
       const topic = (snapshot as CanvasSnapshot & { realtimeTopic?: string }).realtimeTopic
-      if (topic) void connectRealtime(topic)
+      if (topic && typeof window !== 'undefined') {
+        const members = snapshot.members ?? []
+        void import('./canvas-realtime').then(({ connectBoardRealtime }) => connectBoardRealtime(topic, members))
+      }
     } catch {
       canvasWorkspace.setState({ error: 'Could not load saved context. Reconnecting…' })
     } finally { pending = undefined }
@@ -199,7 +192,13 @@ export function subscribeCanvas(listener: () => void) {
     } catch { /* default layout */ }
     void refreshCanvas().then(scheduleRefresh)
   }
-  return () => { unsubscribe(); if (--subscriptions === 0) clearTimeout(timer) }
+  return () => {
+    unsubscribe()
+    if (--subscriptions === 0) {
+      clearTimeout(timer)
+      void import('./canvas-realtime').then(({ disconnectBoardRealtime }) => disconnectBoardRealtime())
+    }
+  }
 }
 
 export function requestCanvasFocus(id: string) {

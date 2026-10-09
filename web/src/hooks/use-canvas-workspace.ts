@@ -18,6 +18,9 @@ export function useCanvasWorkspace() {
   })
   return {
     ...state, artifacts, plans, noteItems, browserItems,
+    presence: state.presence,
+    cursors: state.cursors,
+    selfId: state.selfId,
     connections: [...researchConnections, ...planConnections(plans)],
     contextCount: contextIds(state).length,
     activeJobs: state.jobs.filter((job) => job.status === 'queued' || job.status === 'running'),
