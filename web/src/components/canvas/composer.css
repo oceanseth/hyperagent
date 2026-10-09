@@ -30,6 +30,15 @@
   box-shadow: 0 6px 24px #00000026, 0 0 0 3px #ffffff04;
 }
 
+.canvas-composer-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 0 5px 6px;
+}
+
 .canvas-composer-input {
   display: block;
   flex: 1;
@@ -316,6 +325,12 @@
   gap: 4px;
   overflow: hidden;
 }
+[data-canvas-base] .canvas-composer-mark {
+  width: 22px;
+  height: 22px;
+  margin: 0 0 0 6px;
+}
+
 [data-canvas-base] .canvas-composer-input {
   min-height: 0;
   height: 34px;

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { listChatHistory } from '#/server/canvas-db'
+import { chatAuthorLabel, chatSpeaker, listChatHistory } from '#/server/canvas-db'
 import { workspaceSession } from '#/server/workspace'
 
 // Saved conversation turns (chat + voice) for this workspace cookie. Read-only.
@@ -9,7 +9,13 @@ export const Route = createFileRoute('/api/history')({
       GET: async ({ request }) => {
         const session = workspaceSession(request)
         try {
-          return Response.json({ messages: await listChatHistory(session.id) }, { headers: session.headers })
+          const speaker = await chatSpeaker(request, session.id)
+          const viewer = speaker.author ? { id: speaker.author.id, kind: speaker.author.kind } : null
+          const messages = (await listChatHistory(session.id)).map((message) => ({
+            ...message,
+            label: chatAuthorLabel(message, viewer),
+          }))
+          return Response.json({ messages }, { headers: session.headers })
         } catch {
           return Response.json({ error: 'Could not load your history. Please try again.' }, { status: 503, headers: session.headers })
         }

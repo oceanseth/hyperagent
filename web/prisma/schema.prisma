@@ -59,6 +59,9 @@ model phab_chat_messages {
   role         String
   modality     String   @default("chat")
   content      String
+  author_id    String?
+  author_name  String?
+  author_kind  String?
   created_at   DateTime @default(now()) @db.Timestamptz(6)
   updated_at   DateTime @default(now()) @db.Timestamptz(6)
 

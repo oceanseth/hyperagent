@@ -2,10 +2,23 @@ import { useEffect, useRef, useState } from 'react'
 import { AudioLinesIcon, HistoryIcon, LoaderCircleIcon, XIcon } from 'lucide-react'
 import { canvasWorkspace } from '#/lib/canvas-workspace'
 
-type HistoryMessage = { id: string; role: 'user' | 'assistant'; modality: 'chat' | 'voice'; text: string; at: string }
+type HistoryMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  modality: 'chat' | 'voice'
+  text: string
+  at: string
+  label?: string
+  authorName?: string | null
+}
 
 const sameHistory = (a: HistoryMessage[] | null, b: HistoryMessage[]) =>
-  a !== null && a.length === b.length && a.every((message, index) => message.id === b[index].id && message.text === b[index].text)
+  a !== null && a.length === b.length && a.every((message, index) => message.id === b[index].id && message.text === b[index].text && message.label === b[index].label && message.authorName === b[index].authorName)
+
+const historyLabel = (message: HistoryMessage) => {
+  if (message.label) return message.label
+  return message.role === 'user' ? 'You' : 'Phab'
+}
 
 const timeLabel = (at: string) => {
   const date = new Date(at)
@@ -93,12 +106,12 @@ export function ChatHistoryPanel({ onClose }: { onClose: () => void }) {
         )}
         {error && <div className="canvas-history-note">{error}</div>}
         {messages?.length === 0 && (
-          <div className="canvas-history-note">No saved conversations yet. Chat or call Hyperagent and every turn is kept here.</div>
+          <div className="canvas-history-note">No saved conversations yet. Chat or call Phab and every turn is kept here.</div>
         )}
         {messages?.map((message) => (
           <div key={message.id} className="canvas-message" data-role={message.role}>
             <div className="canvas-message-label">
-              {message.role === 'user' ? 'You' : 'Assistant'}
+              {historyLabel(message)}
               {message.modality === 'voice' && <AudioLinesIcon aria-hidden="true" size={12} />}
               <span className="canvas-history-time">{timeLabel(message.at)}</span>
             </div>
