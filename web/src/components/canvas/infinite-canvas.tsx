@@ -10,6 +10,8 @@ import { MonitorWidget } from './monitor-widget'
 import { WelcomeDialog } from './welcome-dialog'
 import { PlanCard, PlanInspector } from './plan-graph'
 import { CanvasDock } from './canvas-dock'
+import { CursorLayer } from './cursor-layer'
+import { PresenceStack } from './presence-stack'
 import './canvas.css'
 
 export function InfiniteCanvas({ children }: { children: ReactNode }) {
@@ -21,6 +23,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
 
       <div className="phab-canvas-world" style={canvas.worldStyle}>
         <svg className="phab-canvas-connections" aria-hidden="true">{canvas.workspace.connections.map((connection) => <path key={connection.id} d={connection.path} data-kind={connection.kind} />)}</svg>
+        <CursorLayer cursors={canvas.workspace.cursors} presence={canvas.workspace.presence} />
         {canvas.items.map((item) => (
           <div className="phab-canvas-object" key={item.id} {...canvas.getItemProps(item)}>
             {item.kind === 'note' && (
@@ -59,6 +62,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
 
       <div className="phab-canvas-base" data-canvas-base data-canvas-overlay>
         <div className="phab-canvas-base-slot">{children}</div>
+        {canvas.workspace.loaded && <PresenceStack members={canvas.workspace.presence} selfId={canvas.workspace.selfId} />}
         {canvas.workspace.loaded && <CanvasDock canvas={canvas} />}
       </div>
     </div>
