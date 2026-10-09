@@ -22,6 +22,7 @@ import { Route as ApiClearRouteImport } from './routes/api/clear'
 import { Route as ApiEmbeddableRouteImport } from './routes/api/embeddable'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiLayoutRouteImport } from './routes/api/layout'
+import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiNotesRouteImport } from './routes/api/notes'
 import { Route as ApiPlansRouteImport } from './routes/api/plans'
 import { Route as ApiRemoveRouteImport } from './routes/api/remove'
@@ -99,6 +100,11 @@ const ApiHistoryRoute = ApiHistoryRouteImport.update({
 const ApiLayoutRoute = ApiLayoutRouteImport.update({
   id: '/api/layout',
   path: '/api/layout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiNotesRoute = ApiNotesRouteImport.update({
@@ -181,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/history': typeof ApiHistoryRoute
   '/api/layout': typeof ApiLayoutRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/api/notes': typeof ApiNotesRoute
   '/api/plans': typeof ApiPlansRoute
   '/api/remove': typeof ApiRemoveRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByTo {
   '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/history': typeof ApiHistoryRoute
   '/api/layout': typeof ApiLayoutRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/api/notes': typeof ApiNotesRoute
   '/api/plans': typeof ApiPlansRoute
   '/api/remove': typeof ApiRemoveRoute
@@ -238,6 +246,7 @@ export interface FileRoutesById {
   '/api/embeddable': typeof ApiEmbeddableRoute
   '/api/history': typeof ApiHistoryRoute
   '/api/layout': typeof ApiLayoutRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/api/notes': typeof ApiNotesRoute
   '/api/plans': typeof ApiPlansRoute
   '/api/remove': typeof ApiRemoveRoute
@@ -268,6 +277,7 @@ export interface FileRouteTypes {
     | '/api/embeddable'
     | '/api/history'
     | '/api/layout'
+    | '/api/mcp'
     | '/api/notes'
     | '/api/plans'
     | '/api/remove'
@@ -296,6 +306,7 @@ export interface FileRouteTypes {
     | '/api/embeddable'
     | '/api/history'
     | '/api/layout'
+    | '/api/mcp'
     | '/api/notes'
     | '/api/plans'
     | '/api/remove'
@@ -324,6 +335,7 @@ export interface FileRouteTypes {
     | '/api/embeddable'
     | '/api/history'
     | '/api/layout'
+    | '/api/mcp'
     | '/api/notes'
     | '/api/plans'
     | '/api/remove'
@@ -353,6 +365,7 @@ export interface RootRouteChildren {
   ApiEmbeddableRoute: typeof ApiEmbeddableRoute
   ApiHistoryRoute: typeof ApiHistoryRoute
   ApiLayoutRoute: typeof ApiLayoutRoute
+  ApiMcpRoute: typeof ApiMcpRoute
   ApiNotesRoute: typeof ApiNotesRoute
   ApiPlansRoute: typeof ApiPlansRoute
   ApiRemoveRoute: typeof ApiRemoveRoute
@@ -459,6 +472,13 @@ declare module '@tanstack/react-router' {
       path: '/api/layout'
       fullPath: '/api/layout'
       preLoaderRoute: typeof ApiLayoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/notes': {
@@ -569,6 +589,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiEmbeddableRoute: ApiEmbeddableRoute,
   ApiHistoryRoute: ApiHistoryRoute,
   ApiLayoutRoute: ApiLayoutRoute,
+  ApiMcpRoute: ApiMcpRoute,
   ApiNotesRoute: ApiNotesRoute,
   ApiPlansRoute: ApiPlansRoute,
   ApiRemoveRoute: ApiRemoveRoute,

@@ -69,3 +69,8 @@ if ! command -v pnpm >/dev/null 2>&1; then
   die "pnpm is required (packageManager is pnpm@12.4.2)"
 fi
 pnpm install --frozen-lockfile --prefer-offline --dir "$root/web"
+# The MCP proof is `node --import tsx web/scripts/mcp-board-proof.mjs` from the
+# worktree root. Node resolves that loader from the root, while pnpm installs
+# tsx under web/node_modules.
+mkdir -p "$root/node_modules"
+ln -sfn ../web/node_modules/tsx "$root/node_modules/tsx"
