@@ -56,9 +56,12 @@ export function rateLimitText(detail: unknown): string {
   return ''
 }
 
-/** A channel closed because the server said "Too many messages" should be joined again. */
+/**
+ * Rejoin when a channel system event says "Too many messages".
+ * An empty phx_close payload ({}) does not match, so a normal close stays down.
+ */
 export function shouldRejoinRealtime(status: string, detail: unknown): boolean {
-  if (status !== 'CLOSED' && status !== 'CHANNEL_ERROR') return false
+  if (status !== 'system' && status !== 'CLOSED' && status !== 'CHANNEL_ERROR') return false
   return rateLimitText(detail).includes('Too many messages')
 }
 
@@ -91,6 +94,9 @@ let selfMember: CanvasMember | undefined
 let sender: Sender | undefined
 let hideBound = false
 let boardTimer: ReturnType<typeof setTimeout> | undefined
+
+/** Past the server's per-second cap before cursor traffic starts again. */
+const RATE_LIMIT_BACKOFF_MS = 1500
 
 function readCursor(message: unknown): { id: string; x: number; y: number } | null {
   const body = message && typeof message === 'object' && 'payload' in message
@@ -272,12 +278,20 @@ function rejoin(nextTopic: string) {
     ignoreClose = false
     rejoining = false
     void openChannel(nextTopic, latestMembers)
-  }, 400)
+  }, RATE_LIMIT_BACKOFF_MS)
 }
 
-function onChannelClosed(status: string, detail: unknown, nextTopic: string) {
-  if (ignoreClose) return
-  if (shouldRejoinRealtime(status, detail)) rejoin(nextTopic)
+function onChannelClosed(status: string, detail: unknown, nextTopic: string, gen: number) {
+  if (ignoreClose || gen !== generation) return
+  if (shouldRejoinRealtime(status, detail)) {
+    rejoin(nextTopic)
+    return
+  }
+  // Any other close leaves topic empty so the canvas poll can open a fresh channel.
+  if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+    if (topic === nextTopic) topic = undefined
+    disarmSender()
+  }
 }
 
 async function openChannel(nextTopic: string, members: CanvasMember[]) {
@@ -317,15 +331,19 @@ async function openChannel(nextTopic: string, members: CanvasMember[]) {
       channel.on('broadcast', { event: 'cursor-leave' }, (message) => applyLeave(message))
       bindHide()
     }
+    // The rate-limit text arrives on `system` ({ message: "Too many messages per second" }).
+    // The phx_close that follows is {}. Match the system message, and let an empty close
+    // fall through so the poll can replace the channel.
+    channel.on('system', {}, (payload) => onChannelClosed('system', payload, nextTopic, gen))
     const withClose = channel as RealtimeChannel & { _onClose?: (callback: (payload: unknown) => void) => void }
-    withClose._onClose?.((payload) => onChannelClosed('CLOSED', payload, nextTopic))
+    withClose._onClose?.((payload) => onChannelClosed('CLOSED', payload, nextTopic, gen))
     channel.subscribe((status, err) => {
       if (gen !== generation) return
       if (status === 'SUBSCRIBED' && selfMember) {
         void channel.track(presencePayload(selfMember))
         armSender(channel, selfMember)
       }
-      if (status === 'CHANNEL_ERROR') onChannelClosed(status, err, nextTopic)
+      if (status === 'CHANNEL_ERROR') onChannelClosed(status, err, nextTopic, gen)
     })
     if (gen !== generation) {
       void channel.unsubscribe()

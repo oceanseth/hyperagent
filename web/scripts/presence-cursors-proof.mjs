@@ -156,6 +156,8 @@ try {
   ]
   const stack = realtime.stackPresence(people, 'a')
   check('stack-self-first', stack.shown[0]?.id === 'a' && stack.shown.length === 5 && stack.extra === 2, JSON.stringify(stack))
+  check('rejoin-system-rate-limit', realtime.shouldRejoinRealtime('system', { message: 'Too many messages per second' }) === true)
+  check('no-rejoin-empty-close', realtime.shouldRejoinRealtime('CLOSED', {}) === false)
   check('rejoin-rate-limit', realtime.shouldRejoinRealtime('CLOSED', { reason: 'Too many messages' }) === true)
   check('no-rejoin-other-close', realtime.shouldRejoinRealtime('CLOSED', 'leave') === false)
   check('no-rejoin-socket-error', realtime.shouldRejoinRealtime('CHANNEL_ERROR', 'socket failed') === false)
