@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, Check, Crosshair, Ellipsis, Grid2X2, History, MoreHorizontal, Plus, RotateCcw, Search, Share2, UserRound } from 'lucide-react'
+import { Activity, Bot, Check, Crosshair, Ellipsis, Grid2X2, History, MoreHorizontal, Plus, RotateCcw, Search, Share2, UserRound } from 'lucide-react'
 import { clearCanvas, refreshCanvas } from '#/lib/canvas-workspace'
 import { Button } from '#/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '#/components/ui/dialog'
@@ -30,6 +30,7 @@ export function CanvasDock({ canvas }: { canvas: Canvas }) {
   const [menu, setMenu] = useState<Menu | null>(null)
   const [settingsSignal, setSettingsSignal] = useState(0)
   const [clearOpen, setClearOpen] = useState(false)
+  const [agentOpen, setAgentOpen] = useState(false)
   const title = canvas.workspace.boardTitle ?? ''
 
   const toggle = (next: Menu) => setMenu((current) => (current === next ? null : next))
@@ -112,11 +113,12 @@ export function CanvasDock({ canvas }: { canvas: Canvas }) {
             <button type="button" data-dock-menu-item="clear" disabled={canvas.items.length === 0} onClick={() => { setMenu(null); setClearOpen(true) }}>
               <RotateCcw size={14} /> Clear canvas
             </button>
-            <ShareControl shared={canvas.workspace.shared} />
+            <ShareControl shared={canvas.workspace.shared} onConnect={() => setAgentOpen(true)} />
           </div>
         )}
       </nav>
       <ClearCanvasDialog itemCount={canvas.items.length} shared={canvas.workspace.shared} open={clearOpen} onOpenChange={setClearOpen} />
+      <ConnectAgentDialog open={agentOpen} onOpenChange={setAgentOpen} />
       <SettingsDialog dock openSignal={settingsSignal} />
     </>
   )
@@ -230,7 +232,140 @@ function BoardRenameButton({ title, onStart }: { title: string; onStart: () => v
   )
 }
 
-function ShareControl({ shared }: { shared: boolean }) {
+function agentSlug(name: string) {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return slug || 'agent'
+}
+
+function connectSnippets(name: string, token: string) {
+  const slug = agentSlug(name)
+  const url = `${location.origin}/api/mcp`
+  return [
+    { id: 'claude', label: 'Claude', text: `claude mcp add --transport http ${slug} ${url} --header "Authorization: Bearer ${token}"` },
+    { id: 'codex', label: 'Codex', text: `[mcp_servers.${slug}]\nurl = "${url}"\nhttp_headers = { Authorization = "Bearer ${token}" }` },
+    { id: 'cursor', label: 'Cursor', text: JSON.stringify({ mcpServers: { [slug]: { url, headers: { Authorization: `Bearer ${token}` } } } }, null, 2) },
+  ]
+}
+
+type ListedAgent = { id: string; name: string; color: string | null; revoked_at: string | null }
+
+function ConnectAgentDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [created, setCreated] = useState<{ token: string; name: string } | null>(null)
+  const [agents, setAgents] = useState<ListedAgent[]>([])
+
+  const load = async () => {
+    const response = await fetch('/api/agents', { cache: 'no-store' })
+    const body = await response.json().catch(() => null) as { agents?: ListedAgent[]; error?: string } | null
+    if (!response.ok || !body?.agents) {
+      setAgents([])
+      if (response.status === 401 || response.status === 403) setError(body?.error || 'Log in to connect an agent.')
+      return
+    }
+    setAgents(body.agents)
+  }
+
+  useEffect(() => {
+    if (!open) {
+      setCreated(null)
+      setError(null)
+      setName('')
+      setAgents([])
+      return
+    }
+    void load()
+  }, [open])
+
+  const connect = async () => {
+    const next = name.trim()
+    if (!next || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', name: next }),
+      })
+      const body = await response.json().catch(() => null) as { token?: string; agent?: { name?: string }; error?: string } | null
+      if (!response.ok || !body?.token) throw new Error(body?.error || 'Could not connect that agent.')
+      setCreated({ token: body.token, name: body.agent?.name || next })
+      setName('')
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not connect that agent.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const revoke = async (id: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'revoke', id }),
+      })
+      const body = await response.json().catch(() => null) as { error?: string } | null
+      if (!response.ok) throw new Error(body?.error || 'Could not revoke that agent.')
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not revoke that agent.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) setError(null) }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Connect an agent</DialogTitle>
+          <DialogDescription>
+            Name the agent. Its token is shown once, for Claude, Codex, and Cursor.
+          </DialogDescription>
+        </DialogHeader>
+        {created ? (
+          <div className="grid gap-3">
+            <p className="text-xs">Copy this token now. It will not be shown again.</p>
+            <input readOnly value={created.token} aria-label="Agent token" className="w-full rounded-lg border bg-transparent px-2 py-2 font-mono text-xs" onFocus={(event) => event.currentTarget.select()} />
+            {connectSnippets(created.name, created.token).map((snippet) => (
+              <label key={snippet.id} className="grid gap-1 text-xs">
+                {snippet.label}
+                <textarea readOnly value={snippet.text} aria-label={`${snippet.label} snippet`} className="min-h-16 w-full rounded-lg border bg-transparent px-2 py-2 font-mono text-xs" onFocus={(event) => event.currentTarget.select()} />
+              </label>
+            ))}
+          </div>
+        ) : (
+          <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); void connect() }}>
+            <input aria-label="Agent name" value={name} maxLength={80} placeholder="Agent name" className="w-full rounded-lg border bg-transparent px-2 py-2" onChange={(event) => setName(event.currentTarget.value)} />
+            <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Connecting…' : 'Connect an agent'}</Button>
+          </form>
+        )}
+        {agents.length > 0 && (
+          <ul className="grid gap-1">
+            {agents.map((agent) => (
+              <li key={agent.id} className="flex items-center justify-between gap-2 text-xs">
+                <span>{agent.name}{agent.revoked_at ? ' (revoked)' : ''}</span>
+                <Button type="button" variant="ghost" disabled={busy || !!agent.revoked_at} onClick={() => void revoke(agent.id)}>Revoke</Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {error && <p className="phab-monitor-widget-warning" role="alert">{error}</p>}
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ShareControl({ shared, onConnect }: { shared: boolean; onConnect: () => void }) {
   const [status, setStatus] = useState<'idle' | 'working' | 'copied' | 'error'>('idle')
   const [toast, setToast] = useState<{ url: string; title: string; copied: boolean } | null>(null)
   const timer = useRef<number | undefined>(undefined)
@@ -266,6 +401,10 @@ function ShareControl({ shared }: { shared: boolean }) {
       <button type="button" data-dock-menu-item="share" aria-label="Share this board" onClick={() => void share()}>
         {status === 'copied' ? <Check size={14} /> : <Share2 size={14} />}
         <span>{status === 'copied' ? 'Link copied' : status === 'error' ? 'Try again' : shared ? 'Shared' : 'Share'}</span>
+      </button>
+      <button type="button" data-connect-agent aria-label="Connect an agent" onClick={onConnect}>
+        <Bot size={14} />
+        <span>Connect an agent</span>
       </button>
       {toast && <input readOnly value={toast.url} aria-label="Share link" onFocus={(event) => event.currentTarget.select()} />}
     </div>
