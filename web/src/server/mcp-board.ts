@@ -25,9 +25,24 @@ type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean
 const ok = (payload: unknown): ToolResult => ({ content: [{ type: 'text', text: JSON.stringify(payload) }] })
 const fail = (message: string): ToolResult => ({ isError: true, content: [{ type: 'text', text: message }] })
 
+// Storage errors reach the client as isError with a stable message, never as
+// raw Prisma text inside an apparently successful result.
+function guarded<A>(run: (args: A) => Promise<ToolResult>): (args: A) => Promise<ToolResult> {
+  return async (args) => {
+    try {
+      return await run(args)
+    } catch (error) {
+      console.error('[mcp-board] tool failed:', error)
+      return fail('Board storage timed out. Retry in a few seconds.')
+    }
+  }
+}
+
 // Successful tools only. A validation failure returns fail() and sends nothing.
+// The activity ping is best-effort: the write already happened, so a failed
+// ping must not turn the result into an error.
 async function worked(agent: BoardAgent, action: string, payload: unknown, point?: Point) {
-  await recordAgentActivity(agent, action, point)
+  await recordAgentActivity(agent, action, point).catch(() => undefined)
   return ok(payload)
 }
 const clip = (value: string, max: number) => (value.length > max ? value.slice(0, max) : value)
@@ -153,7 +168,7 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
 
   server.registerTool('get_board', {
     description: 'Read this board: title, notes, stacks, plans, jobs, members, and the last 20 chat lines.',
-  }, async () => worked(agent, 'reading the board', await boardView(workspaceId)))
+  }, guarded(async () => worked(agent, 'reading the board', await boardView(workspaceId))))
 
   server.registerTool('add_note', {
     description: 'Add a note. With no coordinates it sits beside the agent marker, or in free space when the agent has not pointed yet.',
@@ -162,30 +177,30 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
       x: z.number().finite().optional(),
       y: z.number().finite().optional(),
     },
-  }, async ({ text, x, y }) => {
+  }, guarded(async ({ text, x, y }) => {
     if ((x === undefined) !== (y === undefined)) return fail('Pass both x and y, or neither.')
     const snapshot = await getCanvas(workspaceId)
     const point = placeNote(agent.id, (snapshot.notes ?? []).map((note) => ({ x: note.x, y: note.y })), { x, y })
     const note = { id: crypto.randomUUID(), label: noteLabel(text), body: text, x: point.x, y: point.y }
     await upsertNote(workspaceId, note)
     return worked(agent, 'added a note', note, point)
-  })
+  }))
 
   server.registerTool('update_note', {
     description: 'Replace a note\'s text. Position stays where it is.',
     inputSchema: { id: uuidSchema, text: textSchema },
-  }, async ({ id, text }) => {
+  }, guarded(async ({ id, text }) => {
     const note = (await listNotes(workspaceId)).find((entry) => entry.id === id)
     if (!note) return fail('That note is not on this board.')
     const next = { id, label: noteLabel(text), body: text, x: note.x, y: note.y }
     await upsertNote(workspaceId, next)
     return worked(agent, 'updated a note', next)
-  })
+  }))
 
   server.registerTool('move_item', {
     description: 'Move a note or another canvas item to an absolute x/y.',
     inputSchema: { id: itemIdSchema, x: z.number().finite(), y: z.number().finite() },
-  }, async ({ id, x, y }) => {
+  }, guarded(async ({ id, x, y }) => {
     const snapshot = await getCanvas(workspaceId)
     const note = (snapshot.notes ?? []).find((entry) => entry.id === id)
     const onBoard = note || pointOf(snapshot, id) || snapshot.jobs.some((job) => job.id === id)
@@ -194,36 +209,36 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
     else await saveLayout(workspaceId, { [id]: { x, y } })
     markers.set(agent.id, { x, y })
     return worked(agent, 'moved an item', { id, x, y }, { x, y })
-  })
+  }))
 
   server.registerTool('delete_note', {
     description: 'Delete a note from this board.',
     inputSchema: { id: uuidSchema },
-  }, async ({ id }) => {
+  }, guarded(async ({ id }) => {
     const note = (await listNotes(workspaceId)).find((entry) => entry.id === id)
     if (!note) return fail('That note is not on this board.')
     await removeNote(workspaceId, id)
     await saveLayout(workspaceId, {}, [id])
     return worked(agent, 'deleted a note', { id, deleted: true })
-  })
+  }))
 
   server.registerTool('post_message', {
     description: 'Store a chat line from this agent. Does not ask Phab to reply.',
     inputSchema: { text: textSchema },
-  }, async ({ text }) => {
+  }, guarded(async ({ text }) => {
     const id = agentMessageId(agent.id)
     await saveChatMessages(workspaceId, [{ id, role: 'user', text }])
     const line = (await recentLines(workspaceId, 300)).find((entry) => entry.id === id)
     return worked(agent, 'posted a message', line ?? { id, role: 'user', modality: 'chat', text, at: new Date().toISOString(), author: { id: agent.id, name: agent.name, kind: 'agent' } })
-  })
+  }))
 
   server.registerTool('read_messages', {
     description: 'Read stored chat lines. Pass since as an ISO timestamp to skip older lines.',
     inputSchema: { since: z.string().min(1).max(40).optional() },
-  }, async ({ since }) => {
+  }, guarded(async ({ since }) => {
     if (since !== undefined && Number.isNaN(Date.parse(since))) return fail('since must be an ISO timestamp.')
     return worked(agent, 'read messages', { messages: await recentLines(workspaceId, 300, since) })
-  })
+  }))
 
   server.registerTool('point_at', {
     description: 'Move this agent\'s marker to an x/y or to a canvas item. Does not move the item.',
@@ -232,7 +247,7 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
       y: z.number().finite().optional(),
       item_id: itemIdSchema.optional(),
     },
-  }, async ({ x, y, item_id }) => {
+  }, guarded(async ({ x, y, item_id }) => {
     const hasPoint = x !== undefined || y !== undefined
     const hasItem = item_id !== undefined
     if (hasItem === hasPoint || (hasPoint && (x === undefined || y === undefined))) {
@@ -247,7 +262,7 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
     if (x === undefined || y === undefined) return fail('Pass x and y, or item_id, and not both.')
     markers.set(agent.id, { x, y })
     return worked(agent, 'pointing', { x, y }, { x, y })
-  })
+  }))
 }
 
 const unauthorized = () => Response.json({ error: 'unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } })

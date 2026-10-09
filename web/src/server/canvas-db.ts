@@ -160,6 +160,14 @@ function colorRow(row: Record<string, unknown>, kind: 'human' | 'agent'): ColorR
 // Humans and agents share one palette per board. Unassigned colors are written
 // once, oldest created_at first, then id. A stored palette color is left alone.
 async function ensureBoardColors(workspaceId: string, code: string) {
+  // Steady state is everyone colored. Check cheaply before the FOR UPDATE
+  // transaction below, which otherwise serializes every board read on one row
+  // lock and holds a dedicated pool connection per caller.
+  const unassigned = await sql`SELECT 1 FROM phab_board_members WHERE code = ${code} AND (color IS NULL OR color = '')
+    UNION ALL
+    SELECT 1 FROM phab_board_agents WHERE workspace_id = ${workspaceId}::uuid AND revoked_at IS NULL AND (color IS NULL OR color = '')
+    LIMIT 1`
+  if (!unassigned.length) return
   await client().$transaction(async (tx) => {
     await tx.$queryRaw`SELECT code FROM phab_share_codes WHERE code = ${code} FOR UPDATE`
     const humans = await tx.$queryRaw<Record<string, unknown>[]>`
