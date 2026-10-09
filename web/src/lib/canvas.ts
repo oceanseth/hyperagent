@@ -89,10 +89,18 @@ export const canvasBrowserSchema = z.object({
 })
 export type CanvasBrowser = z.infer<typeof canvasBrowserSchema>
 
+export type CanvasMember = {
+  id: string
+  name: string
+  color: string
+  kind: 'human' | 'agent'
+}
+
 export type CanvasSnapshot = {
   stacks: CanvasStack[]; jobs: CanvasJob[]; plans: Plan[]
   notes?: CanvasNote[]
   browsers?: CanvasBrowser[]
+  members?: CanvasMember[]
   positions?: Record<string, { x: number; y: number }>
   shared?: boolean
   boardTitle?: string
