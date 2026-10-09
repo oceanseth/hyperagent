@@ -10,6 +10,7 @@ import { MonitorWidget } from './monitor-widget'
 import { WelcomeDialog } from './welcome-dialog'
 import { PlanCard, PlanInspector } from './plan-graph'
 import { CanvasDock } from './canvas-dock'
+import { AgentActivity } from './agent-activity'
 import { CursorLayer } from './cursor-layer'
 import { PresenceStack } from './presence-stack'
 import './canvas.css'
@@ -63,6 +64,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
       <div className="phab-canvas-base" data-canvas-base data-canvas-overlay>
         <div className="phab-canvas-base-slot">{children}</div>
         {canvas.workspace.loaded && <PresenceStack members={canvas.workspace.presence} selfId={canvas.workspace.selfId} />}
+        {canvas.workspace.loaded && <AgentActivity />}
         {canvas.workspace.loaded && <CanvasDock canvas={canvas} />}
       </div>
     </div>

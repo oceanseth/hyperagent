@@ -3,6 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { z } from 'zod'
 import type { CanvasSnapshot } from '#/lib/canvas'
 import { browserArtifacts, canvasArtifacts, noteArtifacts, planArtifacts, type WorkspaceState } from '#/lib/canvas-workspace'
+import { recordAgentActivity } from '#/server/agent-activity'
 import { agentRateLimited, verifyAgentToken, type BoardAgent } from '#/server/agent-tokens'
 import { getCanvas, listChatHistory, listNotes, removeNote, saveChatMessages, saveLayout, upsertNote, type ChatHistoryMessage } from '#/server/canvas-db'
 import { sql } from '#/server/db'
@@ -23,6 +24,12 @@ type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean
 
 const ok = (payload: unknown): ToolResult => ({ content: [{ type: 'text', text: JSON.stringify(payload) }] })
 const fail = (message: string): ToolResult => ({ isError: true, content: [{ type: 'text', text: message }] })
+
+// Successful tools only. A validation failure returns fail() and sends nothing.
+async function worked(agent: BoardAgent, action: string, payload: unknown, point?: Point) {
+  await recordAgentActivity(agent, action, point)
+  return ok(payload)
+}
 const clip = (value: string, max: number) => (value.length > max ? value.slice(0, max) : value)
 const noteLabel = (text: string) => (text.split('\n').map((line) => line.trim()).find(Boolean) ?? 'Note').slice(0, 200)
 
@@ -146,7 +153,7 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
 
   server.registerTool('get_board', {
     description: 'Read this board: title, notes, stacks, plans, jobs, members, and the last 20 chat lines.',
-  }, async () => ok(await boardView(workspaceId)))
+  }, async () => worked(agent, 'reading the board', await boardView(workspaceId)))
 
   server.registerTool('add_note', {
     description: 'Add a note. With no coordinates it sits beside the agent marker, or in free space when the agent has not pointed yet.',
@@ -161,7 +168,7 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
     const point = placeNote(agent.id, (snapshot.notes ?? []).map((note) => ({ x: note.x, y: note.y })), { x, y })
     const note = { id: crypto.randomUUID(), label: noteLabel(text), body: text, x: point.x, y: point.y }
     await upsertNote(workspaceId, note)
-    return ok(note)
+    return worked(agent, 'added a note', note, point)
   })
 
   server.registerTool('update_note', {
@@ -172,7 +179,7 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
     if (!note) return fail('That note is not on this board.')
     const next = { id, label: noteLabel(text), body: text, x: note.x, y: note.y }
     await upsertNote(workspaceId, next)
-    return ok(next)
+    return worked(agent, 'updated a note', next)
   })
 
   server.registerTool('move_item', {
@@ -186,7 +193,7 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
     if (note) await upsertNote(workspaceId, { id, label: note.label, body: note.body, x, y })
     else await saveLayout(workspaceId, { [id]: { x, y } })
     markers.set(agent.id, { x, y })
-    return ok({ id, x, y })
+    return worked(agent, 'moved an item', { id, x, y }, { x, y })
   })
 
   server.registerTool('delete_note', {
@@ -197,7 +204,7 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
     if (!note) return fail('That note is not on this board.')
     await removeNote(workspaceId, id)
     await saveLayout(workspaceId, {}, [id])
-    return ok({ id, deleted: true })
+    return worked(agent, 'deleted a note', { id, deleted: true })
   })
 
   server.registerTool('post_message', {
@@ -207,7 +214,7 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
     const id = agentMessageId(agent.id)
     await saveChatMessages(workspaceId, [{ id, role: 'user', text }])
     const line = (await recentLines(workspaceId, 300)).find((entry) => entry.id === id)
-    return ok(line ?? { id, role: 'user', modality: 'chat', text, at: new Date().toISOString(), author: { id: agent.id, name: agent.name, kind: 'agent' } })
+    return worked(agent, 'posted a message', line ?? { id, role: 'user', modality: 'chat', text, at: new Date().toISOString(), author: { id: agent.id, name: agent.name, kind: 'agent' } })
   })
 
   server.registerTool('read_messages', {
@@ -215,7 +222,7 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
     inputSchema: { since: z.string().min(1).max(40).optional() },
   }, async ({ since }) => {
     if (since !== undefined && Number.isNaN(Date.parse(since))) return fail('since must be an ISO timestamp.')
-    return ok({ messages: await recentLines(workspaceId, 300, since) })
+    return worked(agent, 'read messages', { messages: await recentLines(workspaceId, 300, since) })
   })
 
   server.registerTool('point_at', {
@@ -235,11 +242,11 @@ function registerBoardTools(server: McpServer, agent: BoardAgent) {
       const point = pointOf(await getCanvas(workspaceId), item_id)
       if (!point) return fail('That item is not on this board.')
       markers.set(agent.id, point)
-      return ok({ item_id, x: point.x, y: point.y })
+      return worked(agent, 'pointing', { item_id, x: point.x, y: point.y }, point)
     }
     if (x === undefined || y === undefined) return fail('Pass x and y, or item_id, and not both.')
     markers.set(agent.id, { x, y })
-    return ok({ x, y })
+    return worked(agent, 'pointing', { x, y }, { x, y })
   })
 }
 
@@ -252,10 +259,6 @@ function methodNotAllowed() {
   })
 }
 
-// agent-activity is intentionally not broadcast. verifyAgentToken already
-// updates last_used_at. This branch only listens for board-changed, and the
-// presence client that would draw an agent marker is not here. No cursor or
-// avatar UI is part of this endpoint.
 export async function handleMcpRequest(request: Request): Promise<Response> {
   const agent = await verifyAgentToken(request.headers.get('authorization'))
   if (!agent) return unauthorized()
