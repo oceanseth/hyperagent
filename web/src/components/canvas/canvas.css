@@ -105,7 +105,7 @@
   .phab-canvas-hint { display: none; }
   .phab-canvas-zoom { bottom: 94px; right: 16px; }
 }
-@media (prefers-reduced-motion: reduce) { .phab-canvas *, .phab-canvas *::before, .phab-canvas *::after { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .phab-canvas *, .phab-canvas *::before, .phab-canvas *::after { animation: none !important; transition: none !important; } }
 
 /* Small remove control shared by card headers; appears on hover and focus. */
 .phab-card-remove { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: 4px; padding: 0; color: inherit; border: 0; border-radius: 6px; background: transparent; cursor: pointer; opacity: 0; transition: opacity .15s, color .15s, background .15s; }
@@ -164,10 +164,16 @@
 .phab-dock-label {
   display: block;
   max-width: 84px;
+  min-height: 1.15em; /* keep the line box while a data-driven label resolves */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Soften bar occupants that mount after their data arrives — no reflow, just entry. */
+.phab-canvas-dock, [data-presence-stack], [data-agent-activity] {
+  animation: phab-bar-in .18s ease-out;
+}
+@keyframes phab-bar-in { from { opacity: 0; transform: translateY(4px); } }
 .phab-canvas-dock [data-dock-item='board'] { max-width: 88px; }
 .phab-canvas-dock [data-dock-item='board'] .phab-dock-label { max-width: 72px; }
 .phab-dock-rename {

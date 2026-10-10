@@ -65,7 +65,7 @@ export function InfiniteCanvas({ children }: { children: ReactNode }) {
         <div className="phab-canvas-base-slot">{children}</div>
         {canvas.workspace.loaded && <PresenceStack members={canvas.workspace.presence} selfId={canvas.workspace.selfId} />}
         {canvas.workspace.loaded && <AgentActivity />}
-        {canvas.workspace.loaded && <CanvasDock canvas={canvas} />}
+        <CanvasDock canvas={canvas} />
       </div>
     </div>
   )
