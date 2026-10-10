@@ -111,7 +111,7 @@ export function AgentActivity() {
         style={{
           position: 'absolute',
           zIndex: 2,
-          left: 560,
+          left: 'calc(216px + var(--canvas-composer-width))',
           top: 0,
           bottom: 0,
           display: shown.length ? 'flex' : 'none',

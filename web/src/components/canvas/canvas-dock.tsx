@@ -10,7 +10,7 @@ type Canvas = ReturnType<typeof useInfiniteCanvas>
 type Menu = 'identity' | 'overview' | 'more' | 'history'
 
 function useCompactDock() {
-  const [compact, setCompact] = useState(false)
+  const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 900px)').matches)
   useEffect(() => {
     const read = () => setCompact(window.innerWidth <= 900)
     read()
@@ -58,7 +58,7 @@ export function CanvasDock({ canvas }: { canvas: Canvas }) {
     <>
       <nav className="phab-canvas-dock" data-canvas-dock data-canvas-overlay data-compact={compact ? 'true' : 'false'} aria-label="Canvas dock">
         <IdentityItem menu={menu} onToggle={() => toggle('identity')} onOpenSettings={() => { setMenu(null); setSettingsSignal((value) => value + 1) }} />
-        <BoardItem title={title} onRename={() => setMenu(null)} />
+        <BoardItem title={title} loaded={canvas.workspace.loaded} onRename={() => setMenu(null)} />
         {!compact && (
           <button type="button" className="phab-dock-item" data-dock-item="search" {...canvas.searchButtonProps} onClick={() => { setMenu(null); canvas.searchButtonProps.onClick() }}>
             <Search size={16} strokeWidth={1.7} />
@@ -133,11 +133,14 @@ function IdentityItem({ menu, onToggle, onOpenSettings }: { menu: Menu | null; o
       .catch(() => setName(''))
   }, [])
   const signedIn = !!name
+  // While /api/auth/me is unresolved, hold the label blank (the span keeps its
+  // line box) so the dock never flashes "Log in" before settling on "Account".
+  const label = name === null ? '' : signedIn ? 'Account' : 'Log in'
   return (
     <>
       <button type="button" className="phab-dock-item" data-dock-item="identity" aria-label={signedIn ? `Account, ${name}` : 'Log in'} aria-expanded={menu === 'identity'} onClick={onToggle}>
         <UserRound size={16} strokeWidth={1.7} />
-        <span className="phab-dock-label" data-dock-label>{signedIn ? 'Account' : 'Log in'}</span>
+        <span className="phab-dock-label" data-dock-label>{label}</span>
       </button>
       {menu === 'identity' && (
         <div className="phab-dock-pop" data-dock-menu="identity" role="menu">
@@ -150,10 +153,12 @@ function IdentityItem({ menu, onToggle, onOpenSettings }: { menu: Menu | null; o
   )
 }
 
-function BoardItem({ title, onRename }: { title: string; onRename: () => void }) {
+function BoardItem({ title, loaded, onRename }: { title: string; loaded: boolean; onRename: () => void }) {
   const [editing, setEditing] = useState(false)
   const cancelled = useRef(false)
-  const label = title || 'Board'
+  // Hold the label blank until the snapshot lands so it never flashes
+  // "Board" before the real title; min-width pins the item so nothing moves.
+  const label = loaded ? title || 'Board' : ''
 
   useEffect(() => {
     const open = () => { cancelled.current = false; setEditing(true) }
