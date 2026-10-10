@@ -1,12 +1,15 @@
 import { HTreeMark } from '#/components/brand/htree-mark'
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { magicLinkRedirect, safeShareReturn } from '#/lib/share-return'
 import { supabase } from '#/utils/supabase'
 
 type Board = { code: string; title: string; role: 'owner' | 'member' }
 
 function Boards() {
-  const { error } = Route.useSearch()
+  const { error, next } = Route.useSearch()
+  const returnTo = useRef(next)
+  const arrivedFromAuth = useRef(location.search.includes('code=') || location.hash.includes('access_token='))
   const [account, setAccount] = useState<{ name: string; email: string } | null | undefined>(undefined)
   const [email, setEmail] = useState('')
   const [linkSent, setLinkSent] = useState(false)
@@ -22,10 +25,18 @@ function Boards() {
       // A magic-link / OAuth redirect lands here with ?code=. getSession waits
       // for the PKCE exchange, which writes the sb-* cookies the server reads.
       await supabase.auth.getSession().catch(() => null)
-      if (location.search.includes('code=')) history.replaceState(null, '', location.pathname)
+      const destination = returnTo.current
+      const kept = destination ? `${location.pathname}?next=${encodeURIComponent(destination)}` : location.pathname
+      if (location.search.includes('code=') || location.hash.includes('access_token')) history.replaceState(null, '', kept)
       const response = await fetch('/api/auth/me', { cache: 'no-store' })
       const body = await response.json() as { account: { name: string; email: string } | null }
       if (cancelled) return
+      // Only the auth round-trip returns to the shared board. A signed-in
+      // visit to Account stays on the board list.
+      if (body.account && destination && arrivedFromAuth.current) {
+        location.replace(destination)
+        return
+      }
       setAccount(body.account)
       if (!body.account) { setBoards([]); return }
       const list = await fetch('/api/workspaces', { cache: 'no-store' })
@@ -45,7 +56,7 @@ function Boards() {
     setMessage(null)
     const { error: sendError } = await supabase.auth.signInWithOtp({
       email: address,
-      options: { emailRedirectTo: `${location.origin}/boards` },
+      options: { emailRedirectTo: magicLinkRedirect(location.origin, returnTo.current) },
     })
     setSigningIn(false)
     if (sendError) setMessage(sendError.message)
@@ -88,7 +99,7 @@ function Boards() {
         {account === undefined && <p style={{ margin: 0 }}>Loading…</p>}
         {account === null && (
           linkSent
-            ? <p style={{ margin: 0 }}>Check your email — the sign-in link lands you back here.</p>
+            ? <p style={{ margin: 0 }}>{returnTo.current ? 'Check your email — the sign-in link brings you back to the shared board.' : 'Check your email — the sign-in link lands you back here.'}</p>
             : (
               <form onSubmit={(event) => { event.preventDefault(); void sendMagicLink() }} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
@@ -150,6 +161,7 @@ function Boards() {
 export const Route = createFileRoute('/boards')({
   validateSearch: (search: Record<string, unknown>) => ({
     error: search.error === 'login' ? search.error : undefined,
+    next: safeShareReturn(search.next) ?? undefined,
   }),
   ssr: false,
   component: Boards,
