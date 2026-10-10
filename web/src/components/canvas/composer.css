@@ -307,8 +307,21 @@
   }
 }
 
-/* Dock variant: one 8px spacing unit throughout, width shared via custom property. */
-[data-canvas-base] { --canvas-composer-width: clamp(480px, 46vw, 720px); }
+/* Dock variant: one 8px spacing unit throughout, width shared via custom property.
+   Wide bars keep clamp(480px, 46vw, 720px). That floor is dropped when it would
+   cover the dock or leave the viewport: 16px side insets, plus an 8px gap, the
+   dock reserve, and the dock's 24px right inset. Reserves sit ~16px above the
+   measured eight-item (449px) and compact (395px) docks. */
+[data-canvas-base] {
+  --canvas-dock-reserve: 465px;
+  --canvas-composer-fit: calc(100% - 32px);
+  --canvas-composer-clear: calc(100% - 48px - var(--canvas-dock-reserve));
+  --canvas-composer-preferred: min(720px, max(46vw, min(480px, var(--canvas-composer-fit))));
+  --canvas-composer-width: max(0px, min(var(--canvas-composer-preferred), var(--canvas-composer-fit), var(--canvas-composer-clear)));
+}
+@media (max-width: 900px) {
+  [data-canvas-base] { --canvas-dock-reserve: 411px; }
+}
 [data-canvas-base] .canvas-chat {
   position: absolute;
   z-index: 3;
