@@ -70,6 +70,10 @@ on port 5432. Both values live in ignored `web/.env.local` and are never
 committed. `DATABASE_URL` may still point at Neon for older trees; this app
 does not read it.
 
+Dev (dev.hyperagent.lol) uses its own Supabase project `hyperagent-dev`; its
+connection URLs and keys live in OpenBao under `kv/shared/supabase-dev`
+(see `docs/SUPABASE_DEV_SPLIT.md` for the split runbook and env vars).
+
 Add a migration by writing SQL into a new folder under
 `web/prisma/migrations/<timestamp>_<name>/migration.sql`. Generate table SQL
 with `prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script`

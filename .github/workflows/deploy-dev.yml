@@ -7,6 +7,11 @@ on:
   push:
     branches: [dev]
   workflow_dispatch:
+    inputs:
+      skip_image:
+        description: Update the dev App Runner Supabase env and stop before the image build
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -30,10 +35,65 @@ jobs:
           aws-region: us-east-1
 
       - name: Login to Amazon ECR
+        if: ${{ !inputs.skip_image }}
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Dev Supabase split (docs/SUPABASE_DEV_SPLIT.md, step 9). The builder
+      # host has no AWS credentials; this job's OIDC role does. All three
+      # values are optional so a normal dev push does nothing. When they are
+      # set they must be the dev project (the script refuses the prod ref and
+      # the prod service). Delete the secrets after the cutover — OpenBao
+      # kv/shared/supabase-dev remains the source of truth.
+      - name: Point hyperagent-app-dev at the dev Supabase project
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.DEV_CUTOVER_DATABASE_URL }}
+          SUPABASE_DIRECT_URL: ${{ secrets.DEV_CUTOVER_DIRECT_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DEV_CUTOVER_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_DATABASE_URL" ] && [ -z "$SUPABASE_DIRECT_URL" ] && [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "DEV_CUTOVER_* secrets unset; App Runner env left unchanged."
+            exit 0
+          fi
+          if [ -z "$SUPABASE_DATABASE_URL" ] || [ -z "$SUPABASE_DIRECT_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "Only some DEV_CUTOVER_* secrets are set; refusing to update App Runner." >&2
+            exit 1
+          fi
+          bash scripts/supabase-dev-split.sh --stage apprunner
+
+      - name: Stop before image build
+        if: ${{ inputs.skip_image }}
+        run: echo "skip_image set; App Runner env step finished and no image will be built."
+
+      # Dev Supabase split (docs/SUPABASE_DEV_SPLIT.md, step 8): the browser
+      # bundle bakes VITE_SUPABASE_* from the committed web/.env.production,
+      # which holds the PROD values. Overwrite that file in the CI checkout
+      # only (never committed) so the dev image points at the dev project.
+      # Backward compatible: with neither repo variable set, the committed
+      # file is used unchanged (pre-split behavior). Exactly one variable set
+      # is a misconfiguration and fails loudly rather than baking an empty
+      # value into the bundle. Both values are public by design (they ship in
+      # the browser bundle) — repository variables, not secrets.
+      - name: Point client bundle at dev Supabase
+        if: ${{ !inputs.skip_image }}
+        env:
+          DEV_SUPABASE_URL: ${{ vars.DEV_SUPABASE_URL }}
+          DEV_SUPABASE_KEY: ${{ vars.DEV_SUPABASE_KEY }}
+        run: |
+          if [ -z "$DEV_SUPABASE_URL" ] && [ -z "$DEV_SUPABASE_KEY" ]; then
+            echo "DEV_SUPABASE_URL / DEV_SUPABASE_KEY repo variables unset; keeping committed web/.env.production."
+            exit 0
+          fi
+          if [ -z "$DEV_SUPABASE_URL" ] || [ -z "$DEV_SUPABASE_KEY" ]; then
+            echo "Only one of DEV_SUPABASE_URL / DEV_SUPABASE_KEY is set; refusing to bake a half-configured bundle." >&2
+            exit 1
+          fi
+          printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_KEY=%s\n' \
+            "$DEV_SUPABASE_URL" "$DEV_SUPABASE_KEY" > web/.env.production
+          echo "web/.env.production overridden with dev Supabase values."
+
       - name: Build image
+        if: ${{ !inputs.skip_image }}
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
@@ -43,6 +103,7 @@ jobs:
             web
 
       - name: Push image
+        if: ${{ !inputs.skip_image }}
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
@@ -53,6 +114,7 @@ jobs:
       # is belt-and-braces. It must not fail the job if the service does not
       # exist yet.
       - name: Trigger App Runner deployment
+        if: ${{ !inputs.skip_image }}
         run: |
           SERVICE_ARN=$(aws apprunner list-services --region us-east-1 \
             --query "ServiceSummaryList[?ServiceName=='hyperagent-app-dev'].ServiceArn | [0]" \

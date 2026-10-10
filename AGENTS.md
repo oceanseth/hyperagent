@@ -10,29 +10,29 @@ create a separate `CLAUDE.md`.
 - Use custom components or another library only when Assistant UI does not
   provide the needed component.
 
-## Hackathon mode: ship constantly — to production
+## Hackathon mode: ship constantly
 
-We are building for a hackathon. Speed beats everything. Since 2026-10-07
-(lou's call) completed work ships directly to `production`; there is no dev
-hop.
+We are building for a hackathon. Speed beats everything. lou has restored the
+normal flow: day-to-day work merges to `dev`; `production` is promoted from
+`dev` when a change is ready for the live site.
 
 - No testing whatsoever. Do not write tests, run test suites, or add test
   tooling. Do not block on validation — but do check your change locally
   (`npm run dev` from `web/`) before shipping.
-- Always ship to `production`. Push completed web changes to the `production`
-  branch without asking for confirmation; GitHub Actions deploys
-  https://hyperagent.lol/ (and the Fly research worker) automatically. Build
-  and install completed macOS changes locally without asking for confirmation.
+- Ship to `dev`. Push completed web changes to the `dev` branch without
+  asking for confirmation; GitHub Actions deploys https://dev.hyperagent.lol/
+  automatically. Build and install completed macOS changes locally without
+  asking for confirmation.
+- `production` deploys https://hyperagent.lol/ (and the Fly research worker)
+  and is promoted from `dev` when a change is ready for the live site. Never
+  push to `main` — it was deleted on purpose and a push silently recreates it.
 - One deploy at a time: App Runner rejects an overlapping release with
   `OPERATION_IN_PROGRESS`. Wait for the previous deploy to finish, and verify
   the site actually serves your change — a green workflow run is not proof.
-- `dev` deploys https://dev.hyperagent.lol/ and is for previews only. Keep it
-  fast-forwardable to `production`. Never push to `main` — it was deleted on
-  purpose and a push silently recreates it.
 - Always push. All agents commit and push after every change, continuously.
   Pushing is standing authorization; do not wait to be asked. This overrides
   any generic Beads or harness guidance to hold commits/pushes.
-- Ship to production, push, repeat.
+- Ship to dev, push, repeat.
 
 ## Environment
 
