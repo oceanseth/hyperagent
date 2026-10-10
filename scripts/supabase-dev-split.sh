@@ -22,6 +22,14 @@
 #   scripts/supabase-dev-split.sh --stage <name>  # run one stage
 #   Stages: gate project auth secrets migrate apprunner ci-vars verify
 #
+# stage_apprunner reads SUPABASE_DATABASE_URL, SUPABASE_DIRECT_URL, and
+# SUPABASE_PUBLISHABLE_KEY from the environment when all three are set
+# (GitHub Actions OIDC path). Otherwise it reads kv/shared/supabase-dev.
+#
+# stage_verify crawls JS chunks. VERIFY_DEV_ORIGIN and VERIFY_PROD_ORIGIN
+# override the two site origins for a local fixture; when either is set the
+# App Runner status read is skipped.
+#
 # Token: reads SUPABASE_ACCESS_TOKEN from the environment, else from OpenBao
 # kv/shared/supabase (AppRole creds from ~/.config/hyperagent/fable-bao-dolt.env).
 # If neither exists the gate stage fails fast and nothing is changed.
@@ -487,24 +495,41 @@ stage_ci_vars() {
 }
 
 stage_apprunner() {
-  ensure_ref
   require aws
   # Guards: dev ARN only, never the prod service.
   [[ "$DEV_ARN" == *":service/hyperagent-app-dev/"* ]] || fail "guard DEV_ARN is not the hyperagent-app-dev service"
   [[ "$DEV_ARN" != *":service/hyperagent-app/"* ]] || fail "guard DEV_ARN is the PROD service — aborting"
+
+  local db_url direct_url pub
+  if [[ -n "${SUPABASE_DATABASE_URL:-}" || -n "${SUPABASE_DIRECT_URL:-}" || -n "${SUPABASE_PUBLISHABLE_KEY:-}" ]]; then
+    [[ -n "${SUPABASE_DATABASE_URL:-}" && -n "${SUPABASE_DIRECT_URL:-}" && -n "${SUPABASE_PUBLISHABLE_KEY:-}" ]] \
+      || fail "apprunner partial SUPABASE_DATABASE_URL / SUPABASE_DIRECT_URL / SUPABASE_PUBLISHABLE_KEY in the environment"
+    db_url=$SUPABASE_DATABASE_URL
+    direct_url=$SUPABASE_DIRECT_URL
+    pub=$SUPABASE_PUBLISHABLE_KEY
+    REF=$(node -e '
+      const u = process.env.SUPABASE_DATABASE_URL || "";
+      const m = u.match(/postgres\.([a-z0-9]{15,})/);
+      if (!m) process.exit(3);
+      process.stdout.write(m[1]);
+    ') || fail "apprunner SUPABASE_DATABASE_URL has no postgres.<ref> user"
+    assert_dev_ref
+    note "apprunner using connection values from the environment (ref $REF)"
+  else
+    ensure_ref
+    read_dev_kv
+    db_url=$(dev_kv_value SUPABASE_DATABASE_URL) || fail "apprunner SUPABASE_DATABASE_URL missing from kv/$KV_DEV_PATH"
+    direct_url=$(dev_kv_value SUPABASE_DIRECT_URL) || fail "apprunner SUPABASE_DIRECT_URL missing from kv/$KV_DEV_PATH"
+    pub=$(dev_kv_value SUPABASE_PUBLISHABLE_KEY) || fail "apprunner SUPABASE_PUBLISHABLE_KEY missing from kv/$KV_DEV_PATH"
+  fi
+  [[ "$db_url" == *"$REF"* && "$direct_url" == *"$REF"* ]] || fail "guard apprunner URLs do not reference the dev project ref"
+  [[ "$db_url" != *"$PROD_REF"* && "$direct_url" != *"$PROD_REF"* && "$pub" != *"$PROD_REF"* ]] || fail "guard desired URLs reference the PROD project — aborting"
 
   aws apprunner describe-service --region "$AWS_REGION" --service-arn "$DEV_ARN" \
     --output json > "$workdir/svc.json"
   local name
   name=$(jget "$workdir/svc.json" 'd.Service.ServiceName') || fail "apprunner describe-service gave no ServiceName"
   [[ "$name" == hyperagent-app-dev ]] || fail "guard describe-service returned '$name', expected hyperagent-app-dev — aborting"
-
-  read_dev_kv
-  local db_url direct_url pub
-  db_url=$(dev_kv_value SUPABASE_DATABASE_URL) || fail "apprunner SUPABASE_DATABASE_URL missing from kv/$KV_DEV_PATH"
-  direct_url=$(dev_kv_value SUPABASE_DIRECT_URL) || fail "apprunner SUPABASE_DIRECT_URL missing from kv/$KV_DEV_PATH"
-  pub=$(dev_kv_value SUPABASE_PUBLISHABLE_KEY) || fail "apprunner SUPABASE_PUBLISHABLE_KEY missing from kv/$KV_DEV_PATH"
-  [[ "$db_url" != *"$PROD_REF"* && "$direct_url" != *"$PROD_REF"* ]] || fail "guard desired URLs reference the PROD project — aborting"
 
   # Compare current env to desired; write new SourceConfiguration only if drifted.
   local drift
@@ -552,26 +577,91 @@ stage_apprunner() {
   pass apprunner
 }
 
+# Print "<dev_hits> <prod_hits> <chunk_count>" for the JS bundles a page loads.
+# The HTML shell does not contain the Supabase URL. Vite names the lazy
+# assets/supabase-*.js chunk from the entry bundle, so follow those references.
+bundle_ref_report() {
+  local origin=$1 html_file=$2
+  node --input-type=module - "$origin" "$html_file" "$REF" "$PROD_REF" <<'JS'
+import fs from "fs";
+const origin = process.argv[2];
+const html = fs.readFileSync(process.argv[3], "utf8");
+const devRef = process.argv[4];
+const prodRef = process.argv[5];
+const originUrl = new URL(origin.endsWith("/") ? origin : origin + "/");
+const seen = new Set();
+const queue = [];
+function enqueue(raw, base) {
+  if (!raw) return;
+  let url;
+  try { url = new URL(raw, base); } catch { return; }
+  if (url.origin !== originUrl.origin) return;
+  if (!url.pathname.includes("/assets/") || !url.pathname.endsWith(".js")) return;
+  const href = url.origin + url.pathname;
+  if (seen.has(href)) return;
+  seen.add(href);
+  queue.push(href);
+}
+for (const m of html.matchAll(/(?:src|href)\s*=\s*["']([^"']+\.js)["']/g)) {
+  enqueue(m[1], originUrl);
+}
+const texts = [];
+const maxChunks = 80;
+while (queue.length && texts.length < maxChunks) {
+  const href = queue.shift();
+  const res = await fetch(href);
+  if (!res.ok) {
+    console.error(`verify chunk HTTP ${res.status} ${href}`);
+    process.exit(2);
+  }
+  const text = await res.text();
+  texts.push(text);
+  for (const m of text.matchAll(/(?:assets\/|\.\/)[A-Za-z0-9._-]+\.js/g)) {
+    const raw = m[0].startsWith("./") ? m[0] : "/" + m[0];
+    const before = queue.length;
+    enqueue(raw, href);
+    if (queue.length > before && queue[queue.length - 1].includes("/supabase-")) {
+      queue.unshift(queue.pop());
+    }
+  }
+}
+if (texts.length === 0) {
+  console.error("verify page has no /assets/*.js chunks");
+  process.exit(2);
+}
+const all = texts.join("\n");
+const count = (ref) => (ref ? all.split(ref).length - 1 : 0);
+process.stdout.write(`${count(devRef)} ${count(prodRef)} ${texts.length}`);
+JS
+}
+
 stage_verify() {
   ensure_ref
-  local code
-  code=$(curl -sS -o "$workdir/dev.html" -w '%{http_code}' "$SITE_URL/") || code=000
-  [[ "$code" == 200 ]] || fail "verify $SITE_URL/ returned HTTP $code"
+  local dev_origin=${VERIFY_DEV_ORIGIN:-$SITE_URL}
+  local prod_origin=${VERIFY_PROD_ORIGIN:-https://hyperagent.lol}
+  local code report dev_hits prod_hits nchunks
+  code=$(curl -sS -o "$workdir/dev.html" -w '%{http_code}' "$dev_origin/") || code=000
+  [[ "$code" == 200 ]] || fail "verify $dev_origin/ returned HTTP $code"
   pass verify-dev-up
 
-  local dev_hits prod_hits
-  dev_hits=$(grep -c "$REF" "$workdir/dev.html" || true)
-  prod_hits=$(grep -c "$PROD_REF" "$workdir/dev.html" || true)
-  note "verify dev page references dev ref ${dev_hits}x, prod ref ${prod_hits}x (bundle refs live in hashed JS; prod>0 or dev=0 means the deploy-dev rebuild with DEV_SUPABASE_* has not rolled yet)"
-  if [[ "$prod_hits" != 0 ]]; then
-    note "verify WARNING: prod project ref still appears on the dev page"
-  fi
+  report=$(bundle_ref_report "$dev_origin" "$workdir/dev.html") || fail "verify could not read dev JS chunks"
+  read -r dev_hits prod_hits nchunks <<<"$report"
+  note "verify dev bundle chunks=${nchunks} dev_ref=${dev_hits} prod_ref=${prod_hits}"
+  [[ "$prod_hits" == 0 ]] || fail "verify dev bundle still contains the prod project ref (${prod_hits})"
+  [[ "$dev_hits" != 0 ]] || fail "verify dev bundle does not contain the dev project ref"
 
-  code=$(curl -sS -o /dev/null -w '%{http_code}' "https://hyperagent.lol/") || code=000
-  [[ "$code" == 200 ]] || fail "verify https://hyperagent.lol/ returned HTTP $code — investigate before proceeding"
+  code=$(curl -sS -o "$workdir/prod.html" -w '%{http_code}' "$prod_origin/") || code=000
+  [[ "$code" == 200 ]] || fail "verify $prod_origin/ returned HTTP $code — investigate before proceeding"
   pass verify-prod-up
+  report=$(bundle_ref_report "$prod_origin" "$workdir/prod.html") || fail "verify could not read prod JS chunks"
+  read -r dev_hits prod_hits nchunks <<<"$report"
+  note "verify prod bundle chunks=${nchunks} dev_ref=${dev_hits} prod_ref=${prod_hits}"
+  [[ "$dev_hits" == 0 ]] || fail "verify prod bundle contains the dev project ref (${dev_hits})"
+  [[ "$prod_hits" != 0 ]] || fail "verify prod bundle does not contain the prod project ref"
 
-  if command -v aws >/dev/null 2>&1; then
+  if [[ -n "${VERIFY_DEV_ORIGIN:-}" || -n "${VERIFY_PROD_ORIGIN:-}" ]]; then
+    note "verify origin override set; skipped prod App Runner status read"
+  elif command -v aws >/dev/null 2>&1; then
     local prod_status
     prod_status=$(aws apprunner list-services --region "$AWS_REGION" \
       --query "ServiceSummaryList[?ServiceName=='hyperagent-app'].Status | [0]" --output text)

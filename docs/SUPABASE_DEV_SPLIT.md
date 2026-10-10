@@ -297,7 +297,7 @@ empty or logins will bounce — harmless on a preview env, but verify after both
   5. `migrate` — `prisma migrate deploy` with dev URLs (step 7); `migrate deploy` itself is idempotent.
   6. `apprunner` — read-modify-write only if drifted (step 9), then wait `RUNNING`. This runs before `ci-vars` so a failed server cutover does not publish the client-bundle variables.
   7. `ci-vars` — ensure GitHub repo variables `DEV_SUPABASE_URL`/`DEV_SUPABASE_KEY` (step 8) via `gh variable set` (idempotent by nature).
-  8. `verify` — automatable parts of step 10 (bundle grep via `curl -s https://dev.hyperagent.lol/ | grep -c <ref>`, prod health curl, prod-service status).
+  8. `verify` — automatable parts of step 10. Fetch the HTML, then the `/assets/*.js` chunks it references (including the lazy `assets/supabase-*.js` chunk named by the entry bundle). Fail if the dev origin's chunks contain the prod ref or lack the dev ref, and if the prod origin's chunks contain the dev ref or lack the prod ref. The HTML shell itself does not contain either ref. Also curl prod health and, when the AWS CLI is present, the prod App Runner status.
   - A `--stage <name>` flag to run one stage, default all in order.
 - **Hard rules in the script:** every mutating call carries an assert that the target is dev (`hyperagent-app-dev` ARN check, `<ref> != srtrucncutffceakivux`); temp files with secrets go to `mktemp -d` outside the repo and are removed on EXIT trap; nothing is committed by the script.
 
