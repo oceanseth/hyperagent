@@ -708,8 +708,16 @@ run_stage() {
 }
 
 if [[ -n "$stage_arg" ]]; then
-  # Every stage needs the token; gate implicitly for single-stage runs.
-  [[ "$stage_arg" == gate ]] || ensure_token
+  # Every stage needs the management token except an App Runner update whose
+  # connection values are already in the environment (GitHub Actions has the
+  # AWS role and no OpenBao login).
+  if [[ "$stage_arg" == gate ]]; then
+    :
+  elif [[ "$stage_arg" == apprunner && -n "${SUPABASE_DATABASE_URL:-}" && -n "${SUPABASE_DIRECT_URL:-}" && -n "${SUPABASE_PUBLISHABLE_KEY:-}" ]]; then
+    note "apprunner environment path does not read OpenBao"
+  else
+    ensure_token
+  fi
   run_stage "$stage_arg"
 else
   for s in "${ALL_STAGES[@]}"; do
