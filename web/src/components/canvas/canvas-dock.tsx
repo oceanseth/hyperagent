@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Activity, Bot, Check, Crosshair, Ellipsis, Grid2X2, History, MoreHorizontal, Plus, RotateCcw, Search, Share2, UserRound } from 'lucide-react'
 import { clearCanvas, refreshCanvas } from '#/lib/canvas-workspace'
+import { boardsHref, safeShareReturn } from '#/lib/share-return'
 import { Button } from '#/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { SettingsDialog } from './settings-dialog'
@@ -133,6 +134,7 @@ function IdentityItem({ menu, onToggle, onOpenSettings }: { menu: Menu | null; o
       .catch(() => setName(''))
   }, [])
   const signedIn = !!name
+  const loginHref = boardsHref(typeof window === 'undefined' ? null : safeShareReturn(window.location.pathname))
   return (
     <>
       <button type="button" className="phab-dock-item" data-dock-item="identity" aria-label={signedIn ? `Account, ${name}` : 'Log in'} aria-expanded={menu === 'identity'} onClick={onToggle}>
@@ -141,7 +143,7 @@ function IdentityItem({ menu, onToggle, onOpenSettings }: { menu: Menu | null; o
       </button>
       {menu === 'identity' && (
         <div className="phab-dock-pop" data-dock-menu="identity" role="menu">
-          <a data-dock-menu-item="account" href="/boards">Account</a>
+          <a data-dock-menu-item="account" href={signedIn ? '/boards' : loginHref}>{signedIn ? 'Account' : 'Log in'}</a>
           <button type="button" data-dock-menu-item="settings" onClick={onOpenSettings}>Settings</button>
           <a data-dock-menu-item="about" href="/about">About</a>
         </div>

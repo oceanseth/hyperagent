@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '#/components/ui/dialog'
 import { Button } from '#/components/ui/button'
+import { boardsHref, safeShareReturn } from '#/lib/share-return'
 import { supabase } from '#/utils/supabase'
 
 type MaskedSetting = { key: string; set: boolean; hint: string }
@@ -213,7 +214,7 @@ export function SettingsDialog({ dock = false, openSignal = 0 }: { dock?: boolea
             </button>
           )}
           {signedIn === false && (
-            <a className="phab-settings-row" role="menuitem" href="/boards">Log in</a>
+            <a className="phab-settings-row" role="menuitem" href={boardsHref(safeShareReturn(window.location.pathname))}>Log in</a>
           )}
           <div className="phab-settings-rule" />
           <button type="button" className="phab-settings-row" role="menuitem" onClick={() => { setMenu(false); setOpen(true) }}>
